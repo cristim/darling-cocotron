@@ -2564,9 +2564,12 @@ NSString *const NSAllRomanInputSourcesLocaleIdentifier =
     NSAttributedString *contents =
             [NSRichTextReader attributedStringWithContentsOfFile: path];
 
-    [_textStorage setAttributedString: contents];
+    // Missing or unreadable file: report failure and keep the current text.
+    if (contents == nil)
+        return NO;
 
-    return contents != nil;
+    [_textStorage setAttributedString: contents];
+    return YES;
 }
 
 - (void) replaceCharactersInRange: (NSRange) range withRTF: (NSData *) rtf {
