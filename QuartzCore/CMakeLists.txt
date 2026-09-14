@@ -100,6 +100,7 @@ add_framework(QuartzCore
 		Onyx2D
 		OpenGL
 		CoreGraphics
+		CoreText
 		Metal_private
 		${QUARTZCORE_LINK_INDIUM_PRIVATE}
 		cxx
