@@ -3459,7 +3459,7 @@ static BOOL _allowsAutomaticWindowTabbing;
 }
 
 - (CGSubWindow *) _createSubWindowWithFrame: (CGRect) frame {
-    return [_platformWindow createSubWindowWithFrame: frame];
+    return [[self platformWindow] createSubWindowWithFrame: frame];
 }
 
 + (BOOL) allowsAutomaticWindowTabbing {
