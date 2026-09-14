@@ -177,4 +177,10 @@ typedef NSUInteger NSWorkspaceIconCreationOptions;
                             options: (NSUInteger) options
                       configuration: (NSDictionary *) configuration
                               error: (NSError **) error;
+// Launches the application with -launchApplication: (options and configuration
+// are ignored). Returns nil with an error if it couldn't be launched.
+- (NSRunningApplication *) launchApplicationAtURL: (NSURL *) url
+                                          options: (NSUInteger) options
+                                    configuration: (NSDictionary *) configuration
+                                            error: (NSError **) error;
 @end

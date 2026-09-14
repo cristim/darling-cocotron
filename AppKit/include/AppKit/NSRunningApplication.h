@@ -18,6 +18,7 @@
 */
 
 #import <Foundation/NSObject.h>
+#include <sys/types.h>
 
 typedef enum {
     NSApplicationActivationPolicyRegular,
@@ -25,8 +26,19 @@ typedef enum {
     NSApplicationActivationPolicyProhibited
 } NSApplicationActivationPolicy;
 
-@interface NSRunningApplication : NSObject
+@interface NSRunningApplication : NSObject {
+    pid_t _processIdentifier;
+}
 
 + (NSArray<NSRunningApplication *> *) runningApplicationsWithBundleIdentifier: (NSString *) bundleIdentifier;
+
+// Only the current process is known: there is no registry of other
+// applications, so any other identifier gives nil.
++ (instancetype) currentApplication;
++ (instancetype) runningApplicationWithProcessIdentifier: (pid_t) pid;
+
+@property(readonly) pid_t processIdentifier;
+@property(readonly, copy) NSString *bundleIdentifier;
+@property(readonly, copy) NSString *localizedName;
 
 @end

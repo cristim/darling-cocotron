@@ -366,4 +366,36 @@ static NSWorkspaceOpenConfiguration* _singletonNsWorkspaceOpenConfig;
     return [[[NSRunningApplication alloc] init] autorelease];
 }
 
+- (NSRunningApplication *) launchApplicationAtURL: (NSURL *) url
+                                          options: (NSUInteger) options
+                                    configuration: (NSDictionary *) configuration
+                                            error: (NSError **) error
+{
+    BOOL ok = NO;
+    NSString *reason = nil;
+    if (![url isFileURL]) {
+        reason = [NSString stringWithFormat: @"%@ is not a file URL", url];
+    } else {
+        @try {
+            ok = [self launchApplication: [url path]];
+        } @catch (NSException *exception) {
+            reason = [exception reason];
+        }
+    }
+    if (!ok) {
+        if (error) {
+            NSDictionary *userInfo = reason
+                    ? [NSDictionary dictionaryWithObject: reason forKey: NSLocalizedDescriptionKey]
+                    : nil;
+            *error = [NSError errorWithDomain: NSCocoaErrorDomain
+                                         code: NSFileReadUnknownError
+                                     userInfo: userInfo];
+        }
+        return nil;
+    }
+    if (error)
+        *error = nil;
+    return [[[NSRunningApplication alloc] init] autorelease];
+}
+
 @end
