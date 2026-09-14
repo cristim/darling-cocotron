@@ -562,6 +562,12 @@ add_framework(AppKit
 reexport(AppKit Foundation ${CMAKE_BINARY_DIR}/src/external/foundation/Foundation)
 reexport(AppKit ApplicationServices ${CMAKE_BINARY_DIR}/src/frameworks/ApplicationServices/ApplicationServices)
 
+# Since macOS 14 the AppKit Swift overlay is part of AppKit.framework, so apps bind symbols such as
+# $sSo6CGRectV6AppKitE4fill5usingySo22NSCompositingOperationV_tF to AppKit. Re-export the overlay from
+# src/external/swift (installed as /usr/lib/swift/libswiftAppKit.dylib) so those binds resolve.
+set_property(TARGET AppKit APPEND_STRING PROPERTY
+	LINK_FLAGS " -Wl,-reexport_library,${CMAKE_SOURCE_DIR}/src/external/swift/libswiftAppKit.dylib ")
+
 target_include_directories(AppKit PRIVATE
 	private-include
 )
