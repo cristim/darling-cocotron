@@ -3023,4 +3023,25 @@ static id anchorForView(NSView *view, NSString *className,
     return anchorForView(self, @"NSLayoutYAxisAnchor", NSLayoutAttributeCenterY);
 }
 
+- (void) addConstraints: (NSArray *) constraints {
+    [NSLayoutConstraint activateConstraints: constraints];
+}
+
+- (void) layoutSubtreeIfNeeded {
+    _needsLayout = NO;
+    [_subviews makeObjectsPerformSelector: _cmd];
+}
+
+@end
+
+@implementation NSView (NSViewEffectiveAppearance)
+
+- (NSAppearance *) effectiveAppearance {
+    if (_appearance != nil)
+        return _appearance;
+    if (_superview != nil)
+        return [_superview effectiveAppearance];
+    return [NSAppearance currentAppearance];
+}
+
 @end

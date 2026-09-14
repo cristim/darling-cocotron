@@ -23,6 +23,8 @@
 #import <Foundation/NSArray.h>
 #import <Foundation/NSLayoutConstraint.h>
 
+@class NSDictionary;
+
 typedef float NSLayoutPriority;
 
 static const NSLayoutPriority NSLayoutPriorityRequired = 1000;
@@ -53,6 +55,25 @@ typedef NS_ENUM(NSInteger, NSLayoutAttribute) {
 	NSLayoutAttributeFirstBaseline,
 };
 
+typedef NS_OPTIONS(NSUInteger, NSLayoutFormatOptions) {
+	NSLayoutFormatAlignAllLeft = (1 << NSLayoutAttributeLeft),
+	NSLayoutFormatAlignAllRight = (1 << NSLayoutAttributeRight),
+	NSLayoutFormatAlignAllTop = (1 << NSLayoutAttributeTop),
+	NSLayoutFormatAlignAllBottom = (1 << NSLayoutAttributeBottom),
+	NSLayoutFormatAlignAllLeading = (1 << NSLayoutAttributeLeading),
+	NSLayoutFormatAlignAllTrailing = (1 << NSLayoutAttributeTrailing),
+	NSLayoutFormatAlignAllCenterX = (1 << NSLayoutAttributeCenterX),
+	NSLayoutFormatAlignAllCenterY = (1 << NSLayoutAttributeCenterY),
+	NSLayoutFormatAlignAllLastBaseline = (1 << NSLayoutAttributeLastBaseline),
+	NSLayoutFormatAlignAllFirstBaseline = (1 << NSLayoutAttributeFirstBaseline),
+	NSLayoutFormatAlignAllBaseline = NSLayoutFormatAlignAllLastBaseline,
+	NSLayoutFormatAlignmentMask = 0xFFFF,
+	NSLayoutFormatDirectionLeadingToTrailing = 0 << 16,
+	NSLayoutFormatDirectionLeftToRight = 1 << 16,
+	NSLayoutFormatDirectionRightToLeft = 2 << 16,
+	NSLayoutFormatDirectionMask = 0x3 << 16,
+};
+
 // Darling stores and archives constraints but does not solve them.
 @interface NSLayoutConstraint (NSLayoutConstraintAPI)
 + (instancetype) constraintWithItem: (id) view1
@@ -75,6 +96,15 @@ typedef NS_ENUM(NSInteger, NSLayoutAttribute) {
 @property(copy) NSString *identifier;
 @property(getter=isActive) BOOL active;
 @property BOOL shouldBeArchived;
+@end
+
+@interface NSLayoutConstraint (NSVisualFormat)
+// Parses the visual format language; raises NSInvalidArgumentException on a
+// malformed format or an unknown view or metric name.
++ (NSArray *) constraintsWithVisualFormat: (NSString *) format
+                                  options: (NSLayoutFormatOptions) options
+                                  metrics: (NSDictionary *) metrics
+                                    views: (NSDictionary *) views;
 @end
 
 typedef NS_ENUM(NSInteger, NSLayoutConstraintOrientation) {
