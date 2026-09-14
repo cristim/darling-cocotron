@@ -1081,23 +1081,43 @@ static int ignoreBadWindowWhileOrdering(Display *display, XErrorEvent *errorEven
 
         NSEventModifierFlags modifierFlags = [self modifierFlagsForState: ev->xkey.state];
         char buf[20] = {0};
-        KeySym keySym;
+        char *text = buf;
+        KeySym keySym = NoSymbol;
         int strLen;
 
         if (XFilterEvent(ev, None)) // XIM processing
             break;
 
-        if (ev->type == KeyPress) {
-            strLen = Xutf8LookupString(window->_xic, (XKeyPressedEvent *) ev, buf, sizeof(buf) - 1, &keySym, NULL);
-            buf[strLen] = 0;
+        // A window has no input context when the display couldn't open an input method or
+        // XCreateIC() failed, and Xutf8LookupString() dereferences its XIC unconditionally.
+        if (ev->type == KeyPress && window != nil && window->_xic != NULL) {
+            Status status;
+            strLen = Xutf8LookupString(window->_xic, (XKeyPressedEvent *) ev, buf, sizeof(buf) - 1, &keySym, &status);
+            if (status == XBufferOverflow) {
+                // Composed and input method text can be longer than buf. Nothing was copied and
+                // strLen is the size needed; Xlib says to repeat the lookup with a large enough buffer.
+                char *larger = malloc(strLen + 1);
+                if (larger != NULL) {
+                    text = larger;
+                    strLen = Xutf8LookupString(window->_xic, (XKeyPressedEvent *) ev, text, strLen, &keySym, &status);
+                }
+            }
+            // The text and keySym are only valid for the statuses that report them.
+            if (status != XLookupChars && status != XLookupBoth)
+                strLen = 0;
+            if (status != XLookupKeySym && status != XLookupBoth)
+                keySym = NoSymbol;
+            text[strLen] = 0;
         } else {
             // Xutf8LookupString() may not be used with KeyRelease
             strLen = XLookupString((XKeyEvent*) ev, buf, sizeof(buf) - 1, &keySym, NULL);
             buf[strLen] = 0;
         }
 
-        id str = [[NSString alloc] initWithCString: buf
+        id str = [[NSString alloc] initWithCString: text
                                           encoding: NSUTF8StringEncoding];
+        if (text != buf)
+            free(text);
         NSPoint pos =
                 [window transformPoint: NSMakePoint(ev->xkey.x, ev->xkey.y)];
 
@@ -1318,7 +1338,8 @@ static int ignoreBadWindowWhileOrdering(Display *display, XErrorEvent *errorEven
         lastFocusedWindow = nil;
         if (_cursorGrabbed)
             [self grabMouse: NO];
-        if (window != nil)
+        // Unlike XSetICFocus(), XUnsetICFocus() doesn't accept a NULL XIC.
+        if (window != nil && window->_xic != NULL)
             XUnsetICFocus(window->_xic);
         break;
 
