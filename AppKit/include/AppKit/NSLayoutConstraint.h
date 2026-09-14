@@ -20,8 +20,62 @@
 #import <AppKit/AppKitExport.h>
 #import <CoreGraphics/CoreGraphics.h>
 #import <Foundation/NSString.h>
+#import <Foundation/NSArray.h>
+#import <Foundation/NSLayoutConstraint.h>
 
 typedef float NSLayoutPriority;
+
+static const NSLayoutPriority NSLayoutPriorityRequired = 1000;
+static const NSLayoutPriority NSLayoutPriorityDefaultHigh = 750;
+static const NSLayoutPriority NSLayoutPriorityDefaultLow = 250;
+static const NSLayoutPriority NSLayoutPriorityFittingSizeCompression = 50;
+
+typedef NS_ENUM(NSInteger, NSLayoutRelation) {
+	NSLayoutRelationLessThanOrEqual = -1,
+	NSLayoutRelationEqual = 0,
+	NSLayoutRelationGreaterThanOrEqual = 1,
+};
+
+typedef NS_ENUM(NSInteger, NSLayoutAttribute) {
+	NSLayoutAttributeNotAnAttribute = 0,
+	NSLayoutAttributeLeft = 1,
+	NSLayoutAttributeRight,
+	NSLayoutAttributeTop,
+	NSLayoutAttributeBottom,
+	NSLayoutAttributeLeading,
+	NSLayoutAttributeTrailing,
+	NSLayoutAttributeWidth,
+	NSLayoutAttributeHeight,
+	NSLayoutAttributeCenterX,
+	NSLayoutAttributeCenterY,
+	NSLayoutAttributeLastBaseline,
+	NSLayoutAttributeBaseline = NSLayoutAttributeLastBaseline,
+	NSLayoutAttributeFirstBaseline,
+};
+
+// Darling stores and archives constraints but does not solve them.
+@interface NSLayoutConstraint (NSLayoutConstraintAPI)
++ (instancetype) constraintWithItem: (id) view1
+                          attribute: (NSLayoutAttribute) attr1
+                          relatedBy: (NSLayoutRelation) relation
+                             toItem: (id) view2
+                          attribute: (NSLayoutAttribute) attr2
+                         multiplier: (CGFloat) multiplier
+                           constant: (CGFloat) c;
++ (void) activateConstraints: (NSArray *) constraints;
++ (void) deactivateConstraints: (NSArray *) constraints;
+@property(readonly, assign) id firstItem;
+@property(readonly, assign) id secondItem;
+@property(readonly) NSLayoutAttribute firstAttribute;
+@property(readonly) NSLayoutAttribute secondAttribute;
+@property(readonly) NSLayoutRelation relation;
+@property(readonly) CGFloat multiplier;
+@property CGFloat constant;
+@property NSLayoutPriority priority;
+@property(copy) NSString *identifier;
+@property(getter=isActive) BOOL active;
+@property BOOL shouldBeArchived;
+@end
 
 typedef NS_ENUM(NSInteger, NSLayoutConstraintOrientation) {
 	NSLayoutConstraintOrientationHorizontal = 0,
