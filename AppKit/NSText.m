@@ -22,6 +22,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSAttributedString.h>
 #import <AppKit/NSTextStorage.h>
 #import <AppKit/NSTextView.h>
+#import <Foundation/NSFileManager.h>
 
 NSString *const NSTextDidBeginEditingNotification =
         @"NSTextDidBeginEditingNotification";
@@ -332,6 +333,7 @@ NSString *const NSTextDidChangeNotification = @"NSTextDidChangeNotification";
 
 @implementation NSText (NSRTFDWriting)
 
+// An RTFD document is a directory holding the rich text as TXT.rtf (the layout the RTF reader expects).
 - (BOOL) writeRTFDToFile: (NSString *) path atomically: (BOOL) atomically {
     NSData *data = nil;
     if ([self respondsToSelector: @selector(textStorage)]) {
@@ -341,7 +343,17 @@ NSString *const NSTextDidChangeNotification = @"NSTextDidChangeNotification";
     } else {
         data = [self RTFDFromRange: NSMakeRange(0, [[self string] length])];
     }
-    return data != nil && [data writeToFile: path atomically: atomically];
+    if (data == nil)
+        return NO;
+
+    NSFileManager *fileManager = [NSFileManager defaultManager];
+    BOOL isDirectory = NO;
+    if ([fileManager fileExistsAtPath: path isDirectory: &isDirectory] && !isDirectory &&
+        ![fileManager removeItemAtPath: path error: NULL])
+        return NO;
+    if (![fileManager createDirectoryAtPath: path withIntermediateDirectories: YES attributes: nil error: NULL])
+        return NO;
+    return [data writeToFile: [path stringByAppendingPathComponent: @"TXT.rtf"] atomically: atomically];
 }
 
 @end
