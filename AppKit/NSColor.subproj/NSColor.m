@@ -37,6 +37,11 @@ static int NSColor_ignoresAlpha = -1;
 
 NSNotificationName const NSSystemColorsDidChangeNotification = @"NSSystemColorsDidChangeNotification";
 
+// NSColor_assetCatalog.m
+@interface NSColor (NSAssetCatalog)
++ (NSColor *) _colorNamedInAssetCatalog: (NSString *) name bundle: (NSBundle *) bundle;
+@end
+
 @interface NSColor (private)
 - (NSColorListName) catalogName;
 - (NSColorName) colorName;
@@ -695,12 +700,16 @@ NSNotificationName const NSSystemColorsDidChangeNotification = @"NSSystemColorsD
     return [self colorNamed: name bundle: nil];
 }
 
-// Looks a color up by name. Asset catalogs (Assets.car) aren't supported, so only NSColor's own
-// colors resolve: names of an argument-less NSColor class method such as +textColor, +labelColor or
-// +redColor. The method is called rather than looking the name up in the display's color table,
-// which only knows system colors and logs "missing color" and returns red for anything else (for
+// Looks a color up by name: first in the bundle's asset catalog (the main bundle if nil), then among
+// NSColor's own colors, i.e. names of an argument-less NSColor class method such as +textColor,
+// +labelColor or +redColor. The method is called rather than looking the name up in the display's color
+// table, which only knows system colors and logs "missing color" and returns red for anything else (for
 // example redColor or clearColor). Like macOS, an unknown name returns nil.
 + (NSColor *) colorNamed: (NSColorName) name bundle: (NSBundle *) bundle {
+    NSColor *catalogColor = [self _colorNamedInAssetCatalog: name bundle: bundle];
+    if (catalogColor != nil)
+        return catalogColor;
+
     if (name == nil || ![name hasSuffix: @"Color"] || [name hasPrefix: @"_"] ||
         [name rangeOfString: @":"].location != NSNotFound)
         return nil;
@@ -933,8 +942,7 @@ static void releasePatternInfo(void *info) {
 }
 
 - (NSColor *) colorUsingColorSpaceName: (NSColorSpaceName) colorSpace {
-    NSInvalidAbstractInvocation();
-    return nil;
+    return [self colorUsingColorSpaceName: colorSpace device: nil];
 }
 
 - (NSColor *) colorUsingColorSpaceName: (NSColorSpaceName) colorSpace
