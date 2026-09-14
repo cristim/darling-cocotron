@@ -1723,3 +1723,16 @@ BOOL NSPerformService(NSString *itemName, NSPasteboard *pasteboard) {
 }
 
 @end
+
+@implementation NSApplication (NSApplicationPerformanceTesting)
+
+- (void) startedTest: (NSString *) name {
+}
+
+- (void) finishedTest: (NSString *) name {
+}
+
+- (void) failedTest: (NSString *) name withFailure: (NSString *) failureReason {
+}
+
+@end

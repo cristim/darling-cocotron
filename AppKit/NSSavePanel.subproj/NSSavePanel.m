@@ -24,6 +24,11 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSSavePanel.h>
 #import <AppKit/NSView.h>
 
+// UTType; Darling's UTType may not implement it.
+@interface NSObject (NSSavePanelContentTypes)
+- (NSString *) preferredFilenameExtension;
+@end
+
 @implementation NSSavePanel
 
 @synthesize showsHiddenFiles=_showsHiddenFiles;
@@ -71,6 +76,8 @@ static NSSavePanel *_newPanel = nil;
     [_filename release];
     [_directory release];
     [_requiredFileType release];
+    [_allowedFileTypes release];
+    [_allowedContentTypes release];
     [_accessoryView release];
     [super dealloc];
 }
@@ -254,6 +261,28 @@ static NSSavePanel *_newPanel = nil;
 
 - (NSArray *) allowedFileTypes {
     return [[_allowedFileTypes copy] autorelease];
+}
+
+- (NSArray *) allowedContentTypes {
+    return _allowedContentTypes ? [[_allowedContentTypes copy] autorelease]
+                                : [NSArray array];
+}
+
+- (void) setAllowedContentTypes: (NSArray *) types {
+    NSArray *copy = [types copy];
+    [_allowedContentTypes release];
+    _allowedContentTypes = copy;
+
+    NSMutableArray *extensions = [NSMutableArray array];
+    for (id type in types) {
+        if (![type respondsToSelector: @selector(preferredFilenameExtension)])
+            continue;
+        NSString *extension = [type preferredFilenameExtension];
+        if ([extension isKindOfClass: [NSString class]] &&
+            [extension length] > 0 && ![extensions containsObject: extension])
+            [extensions addObject: extension];
+    }
+    [self setAllowedFileTypes: [extensions count] > 0 ? extensions : nil];
 }
 
 - (void) setAllowsOtherFileTypes: (BOOL) value {
