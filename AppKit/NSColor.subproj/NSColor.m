@@ -466,6 +466,43 @@ NSNotificationName const NSSystemColorsDidChangeNotification = @"NSSystemColorsD
     return [NSColor colorWithCatalogName: @"System" colorName: @"labelColor"];
 }
 
+// NSDisplay.m
+NSColor *NSColorGetCatalogColor(NSColorListName catalogName,
+                                NSColorName colorName);
+
+// A System catalog color that display backends may not know: the value a
+// backend registered in the catalog, else the given default.
+static NSColor *systemCatalogColor(NSColorName name, NSColor *fallback) {
+    NSColor *color = NSColorGetCatalogColor(@"System", name);
+    return [NSColor_catalog colorWithCatalogName: @"System"
+                                       colorName: name
+                                           color: color ? color : fallback];
+}
+
+// Label text at decreasing emphasis: black with less alpha than labelColor.
++ (NSColor *) secondaryLabelColor {
+    return systemCatalogColor(@"secondaryLabelColor",
+                              [NSColor colorWithCalibratedWhite: 0.0 alpha: 0.5]);
+}
+
++ (NSColor *) tertiaryLabelColor {
+    return systemCatalogColor(@"tertiaryLabelColor",
+                              [NSColor colorWithCalibratedWhite: 0.0 alpha: 0.26]);
+}
+
++ (NSColor *) quaternaryLabelColor {
+    return systemCatalogColor(@"quaternaryLabelColor",
+                              [NSColor colorWithCalibratedWhite: 0.0 alpha: 0.1]);
+}
+
++ (NSColor *) systemRedColor {
+    return systemCatalogColor(@"systemRedColor",
+                              [NSColor colorWithCalibratedRed: 1.0
+                                                        green: 0.23
+                                                         blue: 0.19
+                                                        alpha: 1.0]);
+}
+
 + (NSColor *) unemphasizedSelectedTextColor {
     return [NSColor colorWithCatalogName: @"System"
                                colorName: @"unemphasizedSelectedTextColor"];

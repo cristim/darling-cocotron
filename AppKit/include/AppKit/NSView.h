@@ -32,7 +32,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 @class NSWindow, NSMenu, NSMenuItem, NSCursor, NSClipView, NSPasteboard,
         NSTextInputContext, NSImage, NSBitmapImageRep, NSScrollView,
-        NSTrackingArea, NSShadow, NSScreen, CALayer, CIFilter, CALayerContext;
+        NSTrackingArea, NSShadow, NSScreen, CALayer, CIFilter, CALayerContext,
+        NSLayoutDimension, NSLayoutXAxisAnchor, NSLayoutYAxisAnchor;
 
 // See Cocoa Event Handling Guide : Using Tracking-Area Objects : Compatibility
 // Issues
@@ -140,6 +141,12 @@ APPKIT_EXPORT const NSViewFullScreenModeOptionKey NSFullScreenModeApplicationPre
 
     NSAppearance *_appearance;
     BOOL _canDrawConcurrently;
+
+    BOOL _needsLayout;
+    BOOL _needsUpdateConstraints;
+    BOOL _clipsToBounds;
+    BOOL _hasPreparedContentRect;
+    NSRect _preparedContentRect;
 }
 
 @property(class, readonly) BOOL requiresConstraintBasedLayout;
@@ -460,6 +467,31 @@ APPKIT_EXPORT const NSViewFullScreenModeOptionKey NSFullScreenModeApplicationPre
 - (NSArray *) _draggedTypes;
 - (void) _setWindow: (NSWindow *) window;
 - (void) _collectTrackingAreasForWindowInto: (NSMutableArray *) collector;
+
+@end
+
+@interface NSView (NSViewLayoutState)
+
+// Stored only: Cocotron has no constraint solver or deferred layout pass.
+@property BOOL needsLayout;
+@property BOOL needsUpdateConstraints;
+// Stored only; drawing isn't clipped differently.
+@property BOOL clipsToBounds;
+// The visible rect until set.
+@property NSRect preparedContentRect;
+
+// Anchors for this view's layout attributes (Foundation NSLayoutAnchor
+// subclasses); nil when Foundation has no anchor implementation.
+@property(readonly, retain) NSLayoutDimension *widthAnchor;
+@property(readonly, retain) NSLayoutDimension *heightAnchor;
+@property(readonly, retain) NSLayoutXAxisAnchor *leadingAnchor;
+@property(readonly, retain) NSLayoutXAxisAnchor *trailingAnchor;
+@property(readonly, retain) NSLayoutXAxisAnchor *leftAnchor;
+@property(readonly, retain) NSLayoutXAxisAnchor *rightAnchor;
+@property(readonly, retain) NSLayoutXAxisAnchor *centerXAnchor;
+@property(readonly, retain) NSLayoutYAxisAnchor *topAnchor;
+@property(readonly, retain) NSLayoutYAxisAnchor *bottomAnchor;
+@property(readonly, retain) NSLayoutYAxisAnchor *centerYAnchor;
 
 @end
 

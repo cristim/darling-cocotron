@@ -208,6 +208,7 @@ NSInteger NSBitsPerPixelFromDepth(NSWindowDepth depth) {
 
 @synthesize identifier = _identifier;
 @synthesize accessibilityElement = _isAccessible;
+@synthesize restorationClass = _restorationClass;
 
 static BOOL _allowsAutomaticWindowTabbing;
 

@@ -39,6 +39,10 @@ typedef NSString *NSColorSpaceName;
 }
 
 @property(class, strong, readonly) NSColor *labelColor;
+@property(class, strong, readonly) NSColor *secondaryLabelColor;
+@property(class, strong, readonly) NSColor *tertiaryLabelColor;
+@property(class, strong, readonly) NSColor *quaternaryLabelColor;
+@property(class, strong, readonly) NSColor *systemRedColor;
 
 @property(class, strong, readonly) NSColor *textColor;
 @property(class, strong, readonly) NSColor *selectedTextColor;
