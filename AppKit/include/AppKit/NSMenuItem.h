@@ -109,6 +109,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 - (void) setSubmenu: (NSMenu *) submenu;
 - (void) setEnabled: (BOOL) flag;
 - (void) setHidden: (BOOL) flag;
+// YES also disables the item, as sectionHeaderWithTitle: does.
+- (void) setSectionHeader: (BOOL) flag;
 
 - (NSString *) _keyEquivalentDescription;
 

@@ -147,6 +147,7 @@ APPKIT_EXPORT NSString *const NSAllRomanInputSourcesLocaleIdentifier;
     BOOL _automaticTextReplacementEnabled;
 
     BOOL _usesInspectorBar;
+    BOOL _usesAdaptiveColorMappingForDarkAppearance;
 }
 
 - initWithFrame: (NSRect) frame textContainer: (NSTextContainer *) container;
@@ -340,4 +341,13 @@ NS_ASSUME_NONNULL_END
 - (void) showFindIndicatorForRange: (NSRange) range;
 - (void) orderFrontLinkPanel: (id) sender;
 - (BOOL) readSelectionFromPasteboard: (NSPasteboard *) pasteboard type: (NSString *) type;
+@end
+
+@interface NSTextView (NSTextViewLayoutOrientationAndHighlights)
+// Private AppKit: the Highlight menu items AppKit adds to text menus. None here.
++ (NSArray *) _textHighlightMenuItems;
+// Stored only: there's no dark appearance.
+@property BOOL usesAdaptiveColorMappingForDarkAppearance;
+// Switches between horizontal and vertical layout.
+- (void) changeLayoutOrientation: (id) sender;
 @end

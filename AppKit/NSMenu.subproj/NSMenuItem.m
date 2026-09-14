@@ -263,6 +263,12 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
     return _isSectionHeader;
 }
 
+- (void) setSectionHeader: (BOOL) flag {
+    _isSectionHeader = flag;
+    if (flag)
+        [self setEnabled: NO];
+}
+
 - (BOOL) isSeparatorItem {
     return _title == nil;
 }
