@@ -139,6 +139,7 @@ APPKIT_EXPORT const NSViewFullScreenModeOptionKey NSFullScreenModeApplicationPre
     NSLayoutPriority _verticalContentCompressionResistancePriority;
 
     NSAppearance *_appearance;
+    BOOL _canDrawConcurrently;
 }
 
 @property(class, readonly) BOOL requiresConstraintBasedLayout;
