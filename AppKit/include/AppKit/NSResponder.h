@@ -76,6 +76,14 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 // Does nothing: Cocotron doesn't save or restore window state.
 - (void) invalidateRestorableState;
 
+// State restoration hooks. Cocotron never saves state, so these do nothing and no key paths are restorable.
+@property(class, readonly, copy) NSArray *restorableStateKeyPaths;
+- (void) encodeRestorableStateWithCoder: (NSCoder *) coder;
+- (void) encodeRestorableStateWithCoder: (NSCoder *) coder backgroundQueue: (NSOperationQueue *) queue;
+- (void) restoreStateWithCoder: (NSCoder *) coder;
+- (void) updateUserActivityState: (NSUserActivity *) userActivity;
+- (void) restoreUserActivityState: (NSUserActivity *) userActivity;
+
 @end
 
 @interface NSResponder (NSResponder_keyBindings)
