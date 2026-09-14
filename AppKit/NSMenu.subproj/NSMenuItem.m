@@ -158,6 +158,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
     [_representedObject release];
     [_identifier release];
     [_actionImage release];
+    [_toolTip release];
     [super dealloc];
 }
 
@@ -175,7 +176,20 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
     copy->_offStateImage = [_offStateImage retain];
     copy->_representedObject = [_representedObject retain];
     copy->_actionImage = [_actionImage retain];
+    copy->_toolTip = [_toolTip copyWithZone: zone];
     return copy;
+}
+
+// Stored only: Darling's menus don't show tooltips.
+- (NSString *) toolTip {
+    return _toolTip;
+}
+
+- (void) setToolTip: (NSString *) toolTip {
+    if (toolTip != _toolTip) {
+        [_toolTip release];
+        _toolTip = [toolTip copy];
+    }
 }
 
 - (NSMenu *) menu {

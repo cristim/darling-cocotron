@@ -50,7 +50,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
     NSUserInterfaceItemIdentifier _identifier;
     NSImage *_actionImage;
     BOOL _isSectionHeader;
+    NSString *_toolTip;
 }
+
+@property(copy) NSString *toolTip;
 
 @property(getter=isAlternate) BOOL alternate;
 @property BOOL allowsKeyEquivalentWhenHidden;
