@@ -1392,7 +1392,12 @@ NSImageName const NSImageNameTouchBarVolumeUpTemplate =
 - (NSImageSymbolConfiguration *) configurationByApplyingConfiguration:
         (NSImageSymbolConfiguration *) configuration
 {
-    NSImageSymbolConfiguration *result = [[self copy] autorelease];
+    // -copy returns self (configurations are immutable), so build a new object
+    // instead of changing the receiver, which other images may share.
+    NSImageSymbolConfiguration *result =
+            [[self class] configurationWithPointSize: _pointSize
+                                              weight: _weight
+                                               scale: _scale];
     if (configuration != nil) {
         if (configuration->_pointSize > 0) {
             result->_pointSize = configuration->_pointSize;
