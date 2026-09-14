@@ -19,6 +19,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 #import <AppKit/NSRaise.h>
 #import <AppKit/NSText.h>
+#import <AppKit/NSAttributedString.h>
+#import <AppKit/NSTextStorage.h>
 #import <AppKit/NSTextView.h>
 
 NSString *const NSTextDidBeginEditingNotification =
@@ -318,6 +320,22 @@ NSString *const NSTextDidChangeNotification = @"NSTextDidChangeNotification";
 
 - (void) checkSpelling: sender {
     NSInvalidAbstractInvocation();
+}
+
+@end
+
+@implementation NSText (NSRTFDWriting)
+
+- (BOOL) writeRTFDToFile: (NSString *) path atomically: (BOOL) atomically {
+    NSData *data = nil;
+    if ([self respondsToSelector: @selector(textStorage)]) {
+        NSTextStorage *storage = [(id) self textStorage];
+        data = [storage RTFDFromRange: NSMakeRange(0, [storage length])
+                   documentAttributes: @{}];
+    } else {
+        data = [self RTFDFromRange: NSMakeRange(0, [[self string] length])];
+    }
+    return data != nil && [data writeToFile: path atomically: atomically];
 }
 
 @end

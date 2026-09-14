@@ -333,3 +333,11 @@ APPKIT_EXPORT NSString *const NSAllRomanInputSourcesLocaleIdentifier;
 @end
 
 NS_ASSUME_NONNULL_END
+
+@class NSPasteboard;
+
+@interface NSTextView (NSFindIndicatorAndPasteboard)
+- (void) showFindIndicatorForRange: (NSRange) range;
+- (void) orderFrontLinkPanel: (id) sender;
+- (BOOL) readSelectionFromPasteboard: (NSPasteboard *) pasteboard type: (NSString *) type;
+@end

@@ -39,6 +39,15 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
                           keyEquivalent: nil] autorelease];
 }
 
++ (NSMenuItem *) sectionHeaderWithTitle: (NSString *) title {
+    NSMenuItem *item = [[[self alloc] initWithTitle: title ?: @""
+                                             action: NULL
+                                      keyEquivalent: @""] autorelease];
+    item->_isSectionHeader = YES;
+    [item setEnabled: NO];
+    return item;
+}
+
 - (void) encodeWithCoder: (NSCoder *) coder {
     [coder encodeObject: _title forKey: @"NSTitle"];
     [coder encodeObject: _keyEquivalent forKey: @"NSKeyEquiv"];
@@ -248,6 +257,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 - (NSMenu *) submenu {
     return _submenu;
+}
+
+- (BOOL) isSectionHeader {
+    return _isSectionHeader;
 }
 
 - (BOOL) isSeparatorItem {

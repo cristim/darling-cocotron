@@ -173,3 +173,7 @@ APPKIT_EXPORT NSString *const NSTextDidChangeNotification;
 - (void) textDidChange: (NSNotification *) notification;
 
 @end
+
+@interface NSText (NSRTFDWriting)
+- (BOOL) writeRTFDToFile: (NSString *) path atomically: (BOOL) atomically;
+@end

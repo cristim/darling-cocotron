@@ -30,6 +30,8 @@ typedef NSString *NSColorSpaceName;
 @class NSImage;
 @class NSPasteboard;
 
+@class NSColorSpace;
+
 @interface NSColor : NSObject <NSCopying, NSCoding> {
     NSColorListName _catalogName;
     NSColorName _colorName;
@@ -286,4 +288,8 @@ typedef NSString *NSColorSpaceName;
 
 - (void) writeToPasteboard: (NSPasteboard *) pasteboard;
 
+@end
+
+@interface NSColor (NSColorSpaceConversion)
+- (NSColor *) colorUsingColorSpace: (NSColorSpace *) space;
 @end

@@ -49,12 +49,15 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
     BOOL _allowsKeyEquivalentWhenHidden;
     NSUserInterfaceItemIdentifier _identifier;
     NSImage *_actionImage;
+    BOOL _isSectionHeader;
 }
 
 @property(getter=isAlternate) BOOL alternate;
 @property BOOL allowsKeyEquivalentWhenHidden;
 
 + (NSMenuItem *) separatorItem;
+// macOS 14: a non-selectable item that titles the items after it.
++ (NSMenuItem *) sectionHeaderWithTitle: (NSString *) title;
 
 - (instancetype) initWithTitle: (NSString *) title
                         action: (SEL) action
@@ -83,6 +86,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 - (NSMenu *) submenu;
 
 - (BOOL) isSeparatorItem;
+- (BOOL) isSectionHeader;
 - (BOOL) isEnabled;
 - (BOOL) isHidden;
 

@@ -294,3 +294,15 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 }
 
 @end
+
+@implementation NSButton (NSDestructiveAction)
+
+- (BOOL) hasDestructiveAction {
+    return _hasDestructiveAction;
+}
+
+- (void) setHasDestructiveAction: (BOOL) value {
+    _hasDestructiveAction = value;
+}
+
+@end
