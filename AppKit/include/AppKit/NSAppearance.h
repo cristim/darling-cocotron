@@ -25,11 +25,14 @@ typedef NSString* NSAppearanceName;
 
 APPKIT_EXPORT NSString *const NSAppearanceNameAqua;
 APPKIT_EXPORT NSString *const NSAppearanceNameDarkAqua;
+APPKIT_EXPORT NSString *const NSAppearanceNameSystem;
+APPKIT_EXPORT NSString *const NSAppearanceNameTouchBar;
 APPKIT_EXPORT NSString *const NSAppearanceNameLightContent;
 APPKIT_EXPORT NSString *const NSAppearanceNameVibrantDark;
 APPKIT_EXPORT NSString *const NSAppearanceNameVibrantLight;
 APPKIT_EXPORT NSString *const NSAppearanceNameAccessibilityHighContrastAqua;
 APPKIT_EXPORT NSString *const NSAppearanceNameAccessibilityHighContrastDarkAqua;
+APPKIT_EXPORT NSString *const NSAppearanceNameAccessibilityHighContrastSystem;
 APPKIT_EXPORT NSString
         *const NSAppearanceNameAccessibilityHighContrastVibrantLight;
 APPKIT_EXPORT NSString
@@ -37,9 +40,15 @@ APPKIT_EXPORT NSString
 
 APPKIT_EXPORT NSString *const NSAppearanceNameControlStrip; // Undocumented
 
-@interface NSAppearance : NSObject <NSSecureCoding>
+@interface NSAppearance : NSObject <NSSecureCoding> {
+    NSAppearanceName _name;
+}
 
 + (NSAppearance *) appearanceNamed: (NSAppearanceName) name;
++ (NSAppearance *) currentAppearance;
++ (void) setCurrentAppearance: (NSAppearance *) appearance;
+@property (readonly, copy) NSAppearanceName name;
+- (NSAppearanceName) bestMatchFromAppearancesWithNames: (NSArray *) appearances;
 
 @end
 

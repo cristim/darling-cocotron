@@ -164,8 +164,17 @@ static void sTIFFUnmapFileProc(thandle_t userData, tdata_t data, toff_t size) {
     uint32 width = 0;
     uint32 height = 0;
     TIFFSetDirectory(tif, directory);
-    if (TIFFGetField(tif, TIFFTAG_IMAGEWIDTH, &width) != 0 &&
-        TIFFGetField(tif, TIFFTAG_IMAGELENGTH, &height) != 0) {
+#if defined(DARLING) && defined(__arm64__)
+    // TIFFGetField() is variadic and lives in the native (Linux) libtiff. Darwin arm64 passes
+    // variadic arguments on the stack, Linux arm64 in registers, so call it through a
+    // non-variadic prototype: the pointer then goes in x2, where libtiff's va_arg reads it.
+    int (*getUInt32Field)(TIFF *, uint32, uint32 *) =
+            (int (*)(TIFF *, uint32, uint32 *)) TIFFGetField;
+#else
+#define getUInt32Field TIFFGetField
+#endif
+    if (getUInt32Field(tif, TIFFTAG_IMAGEWIDTH, &width) != 0 &&
+        getUInt32Field(tif, TIFFTAG_IMAGELENGTH, &height) != 0) {
         // We want top-left orientation - libtiff default is bottom-left, which
         // is giving flipped bitmaps libtiff is giving us pixels in the same
         // order we need - so we can just fill the pixels using libtiff and no

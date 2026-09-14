@@ -435,6 +435,11 @@ CFStringRef O2FontCopyFullName(O2FontRef self) {
     return (CFStringRef)[self->_name copy];
 }
 
+CFStringRef O2FontCopyPostScriptName(O2FontRef self) {
+    if (self == nil) return NULL;
+    return (CFStringRef)[self->_name copy];
+}
+
 int O2FontGetUnitsPerEm(O2FontRef self) {
     return self->_unitsPerEm;
 }

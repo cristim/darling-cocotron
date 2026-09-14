@@ -28,6 +28,11 @@ bool CGAffineTransformIsIdentity(CGAffineTransform xform) {
            xform.tx == 0 && xform.ty == 0;
 }
 
+bool CGAffineTransformEqualToTransform(CGAffineTransform t1, CGAffineTransform t2) {
+    return (t1.a == t2.a && t1.b == t2.b && t1.c == t2.c && t1.d == t2.d &&
+            t1.tx == t2.tx && t1.ty == t2.ty);
+}
+
 CGAffineTransform CGAffineTransformMakeRotation(CGFloat radians) {
     CGAffineTransform xform = {
             cos(radians), sin(radians), -sin(radians), cos(radians), 0, 0};
@@ -100,6 +105,18 @@ CGAffineTransform CGAffineTransformTranslate(CGAffineTransform xform,
 }
 
 CGRect CGRectApplyAffineTransform(CGRect rect, CGAffineTransform t) {
-    printf("CGRectApplyAffineTransform STUB\n");
-    return rect;
+    if (CGRectIsNull(rect))
+        return CGRectNull;
+
+    CGPoint p1 = CGPointApplyAffineTransform(CGPointMake(CGRectGetMinX(rect), CGRectGetMinY(rect)), t);
+    CGPoint p2 = CGPointApplyAffineTransform(CGPointMake(CGRectGetMaxX(rect), CGRectGetMinY(rect)), t);
+    CGPoint p3 = CGPointApplyAffineTransform(CGPointMake(CGRectGetMinX(rect), CGRectGetMaxY(rect)), t);
+    CGPoint p4 = CGPointApplyAffineTransform(CGPointMake(CGRectGetMaxX(rect), CGRectGetMaxY(rect)), t);
+
+    CGFloat minX = fmin(fmin(p1.x, p2.x), fmin(p3.x, p4.x));
+    CGFloat maxX = fmax(fmax(p1.x, p2.x), fmax(p3.x, p4.x));
+    CGFloat minY = fmin(fmin(p1.y, p2.y), fmin(p3.y, p4.y));
+    CGFloat maxY = fmax(fmax(p1.y, p2.y), fmax(p3.y, p4.y));
+
+    return CGRectMake(minX, minY, maxX - minX, maxY - minY);
 }

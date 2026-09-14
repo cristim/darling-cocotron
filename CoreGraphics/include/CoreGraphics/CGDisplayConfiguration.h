@@ -20,3 +20,26 @@ typedef void (*CGDisplayReconfigurationCallBack)(CGDirectDisplayID display, CGDi
 
 extern CGError CGDisplayRegisterReconfigurationCallback(CGDisplayReconfigurationCallBack callback, void *userInfo);
 extern CGError CGDisplayRemoveReconfigurationCallback(CGDisplayReconfigurationCallBack callback, void *userInfo);
+
+typedef struct _CGDisplayConfigRef *CGDisplayConfigRef;
+
+typedef uint32_t CGConfigureOption;
+enum {
+	kCGConfigureForAppOnly = 0,
+	kCGConfigureForSession = 1,
+	kCGConfigurePermanently = 2
+};
+
+COREGRAPHICS_EXPORT CGError CGBeginDisplayConfiguration(CGDisplayConfigRef *config);
+COREGRAPHICS_EXPORT CGError CGCancelDisplayConfiguration(CGDisplayConfigRef config);
+COREGRAPHICS_EXPORT CGError CGCompleteDisplayConfiguration(CGDisplayConfigRef config, CGConfigureOption option);
+COREGRAPHICS_EXPORT CGError CGConfigureDisplayOrigin(CGDisplayConfigRef config, CGDirectDisplayID display, int32_t x, int32_t y);
+COREGRAPHICS_EXPORT CGError CGConfigureDisplayMirrorOfDisplay(CGDisplayConfigRef config, CGDirectDisplayID display, CGDirectDisplayID master);
+
+// CGS private APIs
+COREGRAPHICS_EXPORT void CGSGetCurrentDisplayMode(CGDirectDisplayID display, int *modeNum);
+COREGRAPHICS_EXPORT void CGSGetNumberOfDisplayModes(CGDirectDisplayID display, int *nModes);
+COREGRAPHICS_EXPORT void CGSGetDisplayModeDescriptionOfLength(CGDirectDisplayID display, int idx, void *mode, int length);
+COREGRAPHICS_EXPORT void CGSConfigureDisplayMode(CGDisplayConfigRef config, CGDirectDisplayID display, int modeNum);
+COREGRAPHICS_EXPORT CGError CGSConfigureDisplayEnabled(CGDisplayConfigRef config, CGDirectDisplayID display, bool enabled);
+

@@ -20,10 +20,13 @@
 #import <AppKit/NSDisplay.h>
 #import <AppKit/NSScreen.h>
 #import <CoreGraphics/CGDirectDisplay.h>
+#import <CoreGraphics/CGColorSpace.h>
 #import <CoreGraphics/CGError.h>
 #import <IOKit/graphics/IOGraphicsLib.h>
 #import <IOKit/graphics/IOGraphicsTypes.h>
 #include <dlfcn.h>
+#import <CoreFoundation/CFUUID.h>
+
 
 // not sure what type or value this has
 unsigned int kCGDisplayPixelHeight = kCGDisplayHeight;
@@ -41,24 +44,31 @@ CGError CGReleaseAllDisplays(void) {
 
 // Our platform abstraction is in AppKit
 static NSDisplay *currentDisplay(void) {
+    Class appCls = NSClassFromString(@"NSApplication");
+    if (!appCls)
+        return nil;
+
     Class cls = NSClassFromString(@"NSDisplay");
+    if (!cls)
+        return nil;
 
-    if (!cls) {
-        if (dlopen("/System/Library/Frameworks/AppKit.framework/Versions/C/"
-                   "AppKit",
-                   RTLD_LAZY | RTLD_GLOBAL) != NULL)
-            cls = NSClassFromString(@"NSDisplay");
+    @try {
+        return [cls currentDisplay];
     }
-
-    return [cls currentDisplay];
+    @catch (id exception) {
+        return nil;
+    }
 }
+
 
 CGDirectDisplayID CGMainDisplayID(void) {
     NSDisplay *display = currentDisplay();
     if (!display)
-        return kCGErrorInvalidConnection;
+        return 1;
 
     NSArray<NSScreen *> *screens = [display screens];
+    if ([screens count] == 0)
+        return 1;
 
     for (int i = 0; i < [screens count]; i++) {
         if (!NSIsEmptyRect([[screens objectAtIndex: i] frame])) {
@@ -66,7 +76,7 @@ CGDirectDisplayID CGMainDisplayID(void) {
         }
     }
 
-    return kCGNullDirectDisplay;
+    return 1;
 }
 
 CGError CGGetOnlineDisplayList(uint32_t maxDisplays,
@@ -74,8 +84,12 @@ CGError CGGetOnlineDisplayList(uint32_t maxDisplays,
                                uint32_t *displayCount)
 {
     NSDisplay *display = currentDisplay();
-    if (!display)
-        return kCGErrorInvalidConnection;
+    if (!display || [[display screens] count] == 0) {
+        *displayCount = 1;
+        if (maxDisplays > 0 && onlineDisplays)
+            onlineDisplays[0] = 1;
+        return kCGErrorSuccess;
+    }
 
     NSArray<NSScreen *> *screens = [display screens];
     const CGDirectDisplayID mainDisplay = CGMainDisplayID();
@@ -85,13 +99,13 @@ CGError CGGetOnlineDisplayList(uint32_t maxDisplays,
     // Main display should be the first returned
     if (mainDisplay != kCGNullDirectDisplay) {
         (*displayCount)++;
-        if (maxDisplays > 0)
+        if (maxDisplays > 0 && onlineDisplays)
             onlineDisplays[0] = mainDisplay;
     }
 
     for (int i = 0; i < [screens count]; i++) {
         if ((i + 1) != mainDisplay) {
-            if (*displayCount < maxDisplays)
+            if (*displayCount < maxDisplays && onlineDisplays)
                 onlineDisplays[*displayCount] = i + 1;
             (*displayCount)++;
         }
@@ -102,8 +116,8 @@ CGError CGGetOnlineDisplayList(uint32_t maxDisplays,
 
 size_t CGDisplayPixelsHigh(CGDirectDisplayID displayIndex) {
     NSDisplay *display = currentDisplay();
-    if (!display)
-        return kCGErrorInvalidConnection;
+    if (!display || [[display screens] count] == 0)
+        return (displayIndex == 1) ? 1080 : 0;
 
     NSArray<NSScreen *> *screens = [display screens];
     if (displayIndex > [screens count] || displayIndex <= 0)
@@ -114,8 +128,8 @@ size_t CGDisplayPixelsHigh(CGDirectDisplayID displayIndex) {
 
 size_t CGDisplayPixelsWide(CGDirectDisplayID displayIndex) {
     NSDisplay *display = currentDisplay();
-    if (!display)
-        return kCGErrorInvalidConnection;
+    if (!display || [[display screens] count] == 0)
+        return (displayIndex == 1) ? 1920 : 0;
 
     NSArray<NSScreen *> *screens = [display screens];
     if (displayIndex > [screens count] || displayIndex <= 0)
@@ -129,15 +143,19 @@ CGError CGGetActiveDisplayList(uint32_t maxDisplays,
                                uint32_t *displayCount)
 {
     NSDisplay *display = currentDisplay();
-    if (!display)
-        return kCGErrorInvalidConnection;
+    if (!display || [[display screens] count] == 0) {
+        *displayCount = 1;
+        if (maxDisplays > 0 && activeDisplays)
+            activeDisplays[0] = 1;
+        return kCGErrorSuccess;
+    }
 
     NSArray<NSScreen *> *screens = [display screens];
 
     *displayCount = 0;
     for (int i = 0; i < [screens count]; i++) {
         if (!NSIsEmptyRect([[screens objectAtIndex: i] frame])) {
-            if (*displayCount < maxDisplays)
+            if (*displayCount < maxDisplays && activeDisplays)
                 activeDisplays[*displayCount] = i + 1;
             (*displayCount)++;
         }
@@ -214,12 +232,15 @@ CGError CGDisplayRelease(CGDirectDisplayID display) {
 
 CGRect CGDisplayBounds(CGDirectDisplayID displayIndex) {
     NSDisplay *display = currentDisplay();
-    if (!display)
-        return NSZeroRect;
+    if (!display || [[display screens] count] == 0) {
+        if (displayIndex == 1)
+            return CGRectMake(0, 0, 1920, 1080);
+        return CGRectZero;
+    }
 
     NSArray<NSScreen *> *screens = [display screens];
     if (displayIndex > [screens count] || displayIndex <= 0)
-        return NSZeroRect;
+        return CGRectZero;
 
     return [[screens objectAtIndex: displayIndex - 1] frame];
 }
@@ -500,3 +521,59 @@ CFDictionaryRef CGDisplayCurrentMode(CGDirectDisplayID display) {
 size_t CGDisplayModeGetPixelWidth(CGDisplayModeRef mode) {
     return 0;
 }
+
+boolean_t CGDisplayIsActive(CGDirectDisplayID display) {
+    uint32_t count = 0;
+    if (CGGetActiveDisplayList(0, NULL, &count) == kCGErrorSuccess && count > 0) {
+        CGDirectDisplayID *displays = malloc(count * sizeof(CGDirectDisplayID));
+        if (displays) {
+            CGGetActiveDisplayList(count, displays, &count);
+            for (uint32_t i = 0; i < count; i++) {
+                if (displays[i] == display) {
+                    free(displays);
+                    return 1;
+                }
+            }
+            free(displays);
+        }
+    }
+    return (display == CGMainDisplayID());
+}
+
+boolean_t CGDisplayIsBuiltin(CGDirectDisplayID display) {
+    return (display == CGMainDisplayID());
+}
+
+CGColorSpaceRef CGDisplayCopyColorSpace(CGDirectDisplayID display) {
+    return CGColorSpaceCreateDeviceRGB();
+}
+
+int32_t CGDisplayRotation(CGDirectDisplayID display) {
+    return 0;
+}
+
+CFUUIDRef CGDisplayCreateUUIDFromDisplayID(CGDirectDisplayID display) {
+    UInt8 b0 = (display >> 24) & 0xff;
+    UInt8 b1 = (display >> 16) & 0xff;
+    UInt8 b2 = (display >> 8) & 0xff;
+    UInt8 b3 = display & 0xff;
+    return CFUUIDCreateWithBytes(kCFAllocatorDefault,
+        b0, b1, b2, b3,
+        0x11, 0x22, 0x33, 0x44,
+        0x55, 0x66, 0x77, 0x88,
+        0x99, 0xaa, 0xbb, 0xcc);
+}
+
+CGDirectDisplayID CGDisplayGetDisplayIDFromUUID(CFUUIDRef uuid) {
+    if (!uuid) return CGMainDisplayID();
+    CFUUIDBytes b = CFUUIDGetUUIDBytes(uuid);
+    CGDirectDisplayID id = ((uint32_t)b.byte0 << 24) |
+                           ((uint32_t)b.byte1 << 16) |
+                           ((uint32_t)b.byte2 << 8) |
+                           (uint32_t)b.byte3;
+    if (id == 0) return CGMainDisplayID();
+    return id;
+}
+
+
+

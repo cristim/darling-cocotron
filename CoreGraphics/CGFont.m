@@ -36,6 +36,10 @@ CFStringRef CGFontCopyFullName(CGFontRef self) {
     return (CFStringRef) O2FontCopyFullName((O2FontRef)self);
 }
 
+CFStringRef CGFontCopyPostScriptName(CGFontRef self) {
+    return (CFStringRef) O2FontCopyPostScriptName((O2FontRef)self);
+}
+
 int CGFontGetUnitsPerEm(CGFontRef self) {
     return O2FontGetUnitsPerEm((O2FontRef)self);
 }
@@ -96,8 +100,9 @@ CFDataRef CGFontCopyTableForTag(CGFontRef self, uint32_t tag) {
 
 CGFontRef _Nullable CGFontCreateWithDataProvider(CGDataProviderRef _Nullable provider)
 {
-    printf("STUB %s\n", __PRETTY_FUNCTION__);
-    return nil;
+    if (provider == NULL)
+        return NULL;
+    return (CGFontRef)O2FontCreateWithDataProvider((O2DataProviderRef)provider);
 }
 
 CFStringRef const kCGFontVariationAxisName = CFSTR("kCGFontVariationAxisName");
