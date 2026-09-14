@@ -22,6 +22,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 @interface NSButton : NSControl {
     BOOL _hasDestructiveAction;
+    NSColor *_contentTintColor;
 }
 
 - (BOOL) isTransparent;
@@ -74,4 +75,9 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 // macOS 11: marks a button whose action is destructive (stored; not drawn differently).
 - (BOOL) hasDestructiveAction;
 - (void) setHasDestructiveAction: (BOOL) value;
+@end
+
+@interface NSButton (NSButtonContentTint)
+// Stored only: the image and title aren't tinted.
+@property(copy) NSColor *contentTintColor;
 @end
