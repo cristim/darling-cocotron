@@ -225,6 +225,9 @@ typedef NSString *NSColorSpaceName;
 + (NSColor *) colorWithCatalogName: (NSString *) catalogName
                          colorName: (NSString *) colorName;
 
++ (NSColor *) colorNamed: (NSColorName) name;
++ (NSColor *) colorNamed: (NSColorName) name bundle: (NSBundle *) bundle;
+
 + (NSColor *) colorFromPasteboard: (NSPasteboard *) pasteboard;
 
 + (NSColor *) colorWithPatternImage: (NSImage *) image;
