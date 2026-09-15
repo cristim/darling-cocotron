@@ -144,11 +144,12 @@ NSString *const NSAllRomanInputSourcesLocaleIdentifier =
 }
 
 - (void) _setTextStorage: (NSTextStorage *) storage {
-    if (_ownsTextStorage)
+    // A view that owns its text network keeps owning it when the storage changes.
+    if (_ownsTextStorage) {
+        [storage retain];
         [_textStorage release];
-
+    }
     _textStorage = storage;
-    _ownsTextStorage = NO;
 
     NSMutableDictionary *typingAttributes =
             [[_textStorage attributesAtIndex: 0
@@ -172,6 +173,14 @@ NSString *const NSAllRomanInputSourcesLocaleIdentifier =
         _defaultParagraphStyle =
                 [[NSParagraphStyle defaultParagraphStyle] copy];
     }
+}
+
+- (void) replaceTextStorage: (NSTextStorage *) textStorage {
+    NSLayoutManager *layoutManager = [self layoutManager];
+    if (layoutManager)
+        [layoutManager replaceTextStorage: textStorage];
+    else
+        [self _setTextStorage: textStorage];
 }
 
 - initWithCoder: (NSCoder *) coder {
