@@ -212,6 +212,9 @@ typedef enum {
 - (void) selectColumn: (NSInteger) column byExtendingSelection: (BOOL) extend;
 - (void) deselectRow: (NSInteger) row;
 - (void) deselectColumn: (NSInteger) column;
+- (void) selectColumnIndexes: (NSIndexSet *) indexes
+        byExtendingSelection: (BOOL) extend;
+- (NSIndexSet *) columnIndexesInRect: (NSRect) rect;
 
 - (void) selectAll: sender;
 - (void) deselectAll: sender;

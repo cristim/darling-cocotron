@@ -22,6 +22,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSResponder.h>
 #import <AppKit/NSRunningApplication.h>
 #import <AppKit/NSAlert.h>
+#import <AppKit/NSAppearance.h>
 #import <Foundation/NSNotification.h>
 #import <Foundation/NSRunLoop.h>
 
@@ -123,6 +124,7 @@ typedef NS_OPTIONS(NSInteger, NSWindowListOptions) {
 
 @interface NSApplication : NSResponder {
     NSDisplay *_display;
+    NSAppearance *_appearance;
     id _delegate;
     NSMutableArray *_windows;
     NSWindow *_keyWindow;
@@ -151,6 +153,8 @@ typedef NS_OPTIONS(NSInteger, NSWindowListOptions) {
 @property(strong) NSMenu *helpMenu;
 @property(readonly) NSApplicationPresentationOptions currentSystemPresentationOptions;
 @property NSApplicationPresentationOptions presentationOptions;
+@property(strong) NSAppearance *appearance;
+@property(readonly, strong) NSAppearance *effectiveAppearance;
 
 + (NSApplication *) sharedApplication;
 

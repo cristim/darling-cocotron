@@ -46,6 +46,7 @@ typedef NSString *NSDeviceDescriptionKey;
 - (NSRect) visibleFrame;
 
 - (CGFloat) userSpaceScaleFactor;
+- (CGFloat) backingScaleFactor;
 
 @end
 

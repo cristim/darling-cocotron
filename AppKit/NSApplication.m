@@ -107,6 +107,18 @@ NSApplication *NSApp = nil;
 
 @implementation NSApplication
 
+@synthesize appearance = _appearance;
+
+- (NSAppearance *) effectiveAppearance {
+    static NSAppearance *aqua = nil;
+
+    if (_appearance != nil)
+        return _appearance;
+    if (aqua == nil)
+        aqua = [[NSAppearance appearanceNamed: NSAppearanceNameAqua] retain];
+    return aqua;
+}
+
 + (NSApplication *) sharedApplication {
     if (NSApp == nil) {
         [[self alloc] init]; // NSApp must be nil inside init
@@ -1160,7 +1172,7 @@ NSApplication *NSApp = nil;
         }
         [sheet _setSheetContext: nil];
     } else {
-        NSUInteger count = [_windows count];
+        NSInteger count = [_windows count];
 
         while (--count >= 0) {
             NSWindow *check = _windows[count];
@@ -1185,7 +1197,7 @@ NSApplication *NSApp = nil;
 }
 
 - (void) endSheet: (NSWindow *) sheet {
-    [self endSheet: sheet returnCode: 0];
+    [self endSheet: sheet returnCode: NSRunStoppedResponse];
 }
 
 - (void) reportException: (NSException *) exception {
