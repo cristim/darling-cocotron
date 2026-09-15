@@ -25,6 +25,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
     NSColor *_contentTintColor;
 }
 
++ (instancetype) buttonWithImage: (NSImage *) image target: (id) target action: (SEL) action;
+
 - (BOOL) isTransparent;
 - (NSString *) keyEquivalent;
 - (NSEventModifierFlags) keyEquivalentModifierMask;
