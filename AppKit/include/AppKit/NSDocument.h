@@ -56,6 +56,7 @@ typedef enum {
     NSUndoManager *_undoManager;
     BOOL _hasUndoManager;
     NSMutableArray *_activeEditors; // registered via NSEditorRegistration
+    BOOL _autosaveScheduled;
 }
 
 + (NSArray *) readableTypes;

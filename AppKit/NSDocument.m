@@ -440,6 +440,17 @@ static int untitled_document_number = 0;
     BOOL edited = [self isDocumentEdited];
     while (--count >= 0)
         [[_windowControllers objectAtIndex: count] setDocumentEdited: edited];
+
+    NSTimeInterval delay = [[NSDocumentController sharedDocumentController] autosavingDelay];
+    if (delay > 0 && !_autosaveScheduled && [self hasUnautosavedChanges]) {
+        _autosaveScheduled = YES;
+        [self performSelector: @selector(_autosaveAfterDelay) withObject: nil afterDelay: delay];
+    }
+}
+
+- (void) _autosaveAfterDelay {
+    _autosaveScheduled = NO;
+    [self autosaveWithImplicitCancellability: YES completionHandler: nil];
 }
 
 - (BOOL) readFromData: (NSData *) data
@@ -964,6 +975,10 @@ static int untitled_document_number = 0;
 }
 
 - (void) close {
+    if (_autosaveScheduled) {
+        _autosaveScheduled = NO;
+        [NSObject cancelPreviousPerformRequestsWithTarget: self selector: @selector(_autosaveAfterDelay) object: nil];
+    }
 
     // Make sure the controllers don't call -close on self again.
 
