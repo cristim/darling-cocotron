@@ -28,6 +28,24 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSWindow.h>
 #import <Foundation/NSKeyedArchiver.h>
 
+// Private: coordinates a scroll view's two scrollers. Apps create one, set its
+// delegate and ask for the scroller layout direction.
+@interface NSScrollerImpPair : NSObject {
+    id _delegate;
+}
+@property (assign) id delegate;
+@end
+
+@implementation NSScrollerImpPair
+
+@synthesize delegate = _delegate;
+
++ (NSUserInterfaceLayoutDirection) scrollerLayoutDirection {
+    return NSUserInterfaceLayoutDirectionLeftToRight;
+}
+
+@end
+
 @implementation NSScroller
 
 + (CGFloat) scrollerWidth {

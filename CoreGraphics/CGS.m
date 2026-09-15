@@ -25,6 +25,7 @@
 #import <CoreGraphics/CGWindow.h>
 #import <CoreGraphics/CGSSurface.h>
 #include <pthread.h>
+#include <unistd.h>
 
 static NSMutableDictionary<NSNumber*, CGSConnection*>* g_connections = nil;
 static Boolean g_denyConnections = FALSE;
@@ -473,4 +474,37 @@ CGError CGSRemoveNotifyProc(CGSNotifyProcPtr proc, CGSNotificationType notificat
 	pthread_mutex_unlock(&g_cgsNotifyProcMutex);
 
 	return kCGSErrorSuccess;
+}
+
+// Neither a background blur nor secure event input exists without a window
+// server, so these succeed without an effect.
+CGError CGSSetWindowBackgroundBlurRadiusWithOpacityHint(CGSConnectionID cid, CGSWindowID wid, int radius, float opacityHint)
+{
+	return kCGSErrorSuccess;
+}
+
+CGError CGSSetSecureEventInput(CGSConnectionID cid, bool enable)
+{
+	return kCGSErrorSuccess;
+}
+
+// Same PSN as HIServices' GetCurrentProcess().
+OSErr CPSGetCurrentProcess(CPSProcessSerNum *psn)
+{
+	if (!psn)
+		return paramErr;
+	psn->highLongOfPSN = 0;
+	psn->lowLongOfPSN = getpid();
+	return noErr;
+}
+
+// No-ops: key focus is handled by AppKit's X11 windows.
+OSErr CPSStealKeyFocus(CPSProcessSerNum *psn, uint32_t options)
+{
+	return noErr;
+}
+
+OSErr CPSReleaseKeyFocus(CPSProcessSerNum *psn)
+{
+	return noErr;
 }

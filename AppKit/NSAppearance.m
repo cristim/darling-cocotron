@@ -43,6 +43,10 @@ NSString *const NSAppearanceNameControlStrip =
 
 static NSAppearance *sCurrentAppearance = nil;
 
+BOOL NSSolariumEnabled(void) {
+    return NO;
+}
+
 @implementation NSAppearance
 
 + (NSAppearance *) appearanceNamed: (NSAppearanceName) name {
