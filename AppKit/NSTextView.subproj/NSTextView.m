@@ -3642,7 +3642,6 @@ NSString *const NSAllRomanInputSourcesLocaleIdentifier =
 
 - (void) setEnabledTextCheckingTypes: (NSTextCheckingTypes) checkingTypes {
     _enabledTextCheckingTypes = checkingTypes;
-    NSUnimplementedMethod();
 }
 
 - (BOOL) smartInsertDeleteEnabled {
