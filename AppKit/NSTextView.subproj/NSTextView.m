@@ -4068,9 +4068,13 @@ NSString *const NSAllRomanInputSourcesLocaleIdentifier =
     _automaticTextReplacementEnabled = value;
 }
 
-// Is defined in NSText but throws an NSInvalidAbstractInvocation Exception
+// Stored only: dropped or pasted graphics aren't handled differently.
+- (BOOL) importsGraphics {
+    return _importsGraphics;
+}
+
 - (void) setImportsGraphics: (BOOL) value {
-    NSUnimplementedMethod();
+    _importsGraphics = value;
 }
 
 @end
