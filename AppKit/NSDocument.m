@@ -442,7 +442,8 @@ static int untitled_document_number = 0;
         [[_windowControllers objectAtIndex: count] setDocumentEdited: edited];
 
     NSTimeInterval delay = [[NSDocumentController sharedDocumentController] autosavingDelay];
-    if (delay > 0 && !_autosaveScheduled && [self hasUnautosavedChanges]) {
+    // _changeCount, not -hasUnautosavedChanges: an active editor would reschedule after every save.
+    if (delay > 0 && !_autosaveScheduled && _changeCount != 0) {
         _autosaveScheduled = YES;
         [self performSelector: @selector(_autosaveAfterDelay) withObject: nil afterDelay: delay];
     }
@@ -450,7 +451,11 @@ static int untitled_document_number = 0;
 
 - (void) _autosaveAfterDelay {
     _autosaveScheduled = NO;
-    [self autosaveWithImplicitCancellability: YES completionHandler: nil];
+    [self autosaveWithImplicitCancellability: YES
+                           completionHandler: ^(NSError *error) {
+                               if (error)
+                                   NSLog(@"Autosaving %@ failed: %@", [self displayName], error);
+                           }];
 }
 
 - (BOOL) readFromData: (NSData *) data
