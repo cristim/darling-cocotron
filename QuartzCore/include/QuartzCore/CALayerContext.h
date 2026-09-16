@@ -17,6 +17,7 @@
     NSTimer *_timer;
     CGSubWindow* _subwindow;
     void* _cglWindow;
+    BOOL _rendered;
 }
 
 @property(readonly) CGLContextObj glContext;

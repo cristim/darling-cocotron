@@ -78,6 +78,14 @@ CA_EXPORT NSString *const kCAContentsFormatGray8Uint;
     BOOL _needsDisplay;
     NSMutableDictionary *_animations;
     NSNumber *_textureId;
+    CGColorRef _backgroundColor;
+    CGColorRef _borderColor;
+    CGFloat _borderWidth;
+    CGFloat _cornerRadius;
+    BOOL _masksToBounds;
+    BOOL _hidden;
+    id _textureContents;
+    BOOL _needsDisplayOnBoundsChange;
 }
 
 + layer;
@@ -97,6 +105,19 @@ CA_EXPORT NSString *const kCAContentsFormatGray8Uint;
 
 @property(copy) NSString *minificationFilter;
 @property(copy) NSString *magnificationFilter;
+
+// Appearance. CARenderer draws the background and the border as rounded rects
+// with cornerRadius, and the contents between them (not clipped to the corners).
+// masksToBounds is stored but sublayers aren't clipped yet.
+@property CGColorRef backgroundColor;
+@property CGColorRef borderColor;
+@property CGFloat borderWidth;
+@property CGFloat cornerRadius;
+@property BOOL masksToBounds;
+@property(getter=isHidden) BOOL hidden;
+
+// When YES, a change of the bounds size marks the layer as needing display.
+@property BOOL needsDisplayOnBoundsChange;
 
 - init;
 

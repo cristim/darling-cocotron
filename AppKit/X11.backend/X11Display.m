@@ -148,14 +148,17 @@ static void socketCallback(CFSocketRef s, CFSocketCallBackType type,
     [_blankCursor release];
     [_defaultCursor release];
 
-    XCloseIM(_xim);
+    // -init releases self when it cannot connect to the X server, so none of these may exist yet.
+    if (_xim)
+        XCloseIM(_xim);
 
     if (_display)
         XCloseDisplay(_display);
 #ifdef DARLING
-    CFRunLoopRemoveSource(CFRunLoopGetMain(), _source, kCFRunLoopCommonModes);
-    if (_source != NULL)
+    if (_source != NULL) {
+        CFRunLoopRemoveSource(CFRunLoopGetMain(), _source, kCFRunLoopCommonModes);
         CFRelease(_source);
+    }
     if (_cfSocket != NULL)
         CFRelease(_cfSocket);
 #endif
@@ -762,7 +765,10 @@ static NSDictionary *modeInfoToDictionary(const XRRModeInfo *mi, int depth) {
 
 - (NSSet *) allFontFamilyNames {
     FcPattern *pat = FcPatternCreate();
-    FcObjectSet *props = FcObjectSetBuild(FC_FAMILY, NULL);
+    // Avoid the variadic FcObjectSetBuild(): fontconfig is a native (Linux) library, and on
+    // arm64 Darwin and Linux pass variadic arguments differently (stack vs. registers).
+    FcObjectSet *props = FcObjectSetCreate();
+    FcObjectSetAdd(props, FC_FAMILY);
 
     FcFontSet *set = FcFontList(O2FontSharedFontConfig(), pat, props);
     NSMutableSet *ret = [NSMutableSet set];
@@ -807,6 +813,47 @@ static NSDictionary *modeInfoToDictionary(const XRRModeInfo *mi, int depth) {
     return res;
 }
 
+// NSUnboldFontMask and NSUnitalicFontMask are conversion requests, not face
+// traits.
+static NSFontTraitMask fontTraitsOfPattern(FcPattern *p) {
+    int slant = FC_SLANT_ROMAN, width = FC_WIDTH_NORMAL,
+        weight = FC_WEIGHT_REGULAR;
+    FcPatternGetInteger(p, FC_SLANT, 0, &slant);
+    FcPatternGetInteger(p, FC_WIDTH, 0, &width);
+    FcPatternGetInteger(p, FC_WEIGHT, 0, &weight);
+
+    NSFontTraitMask traits = 0;
+    if (slant == FC_SLANT_OBLIQUE || slant == FC_SLANT_ITALIC)
+        traits |= NSItalicFontMask;
+    if (weight >= FC_WEIGHT_SEMIBOLD)
+        traits |= NSBoldFontMask;
+    if (width <= FC_WIDTH_SEMICONDENSED)
+        traits |= NSNarrowFontMask;
+    else if (width >= FC_WIDTH_SEMIEXPANDED)
+        traits |= NSExpandedFontMask;
+    return traits;
+}
+
+// -[NSFontFamily typefaceWithTraits:] takes the first face with a trait mask,
+// so list the faces nearest to regular (or bold) weight and normal width first,
+// then regular, italic, bold, bold italic.
+static int fontPatternDistance(FcPattern *p) {
+    int slant = FC_SLANT_ROMAN, width = FC_WIDTH_NORMAL,
+        weight = FC_WEIGHT_REGULAR;
+    FcPatternGetInteger(p, FC_SLANT, 0, &slant);
+    FcPatternGetInteger(p, FC_WIDTH, 0, &width);
+    FcPatternGetInteger(p, FC_WEIGHT, 0, &weight);
+    BOOL bold = weight >= FC_WEIGHT_SEMIBOLD;
+    int target = bold ? FC_WEIGHT_BOLD : FC_WEIGHT_REGULAR;
+    return (abs(weight - target) * 1000 + abs(width - FC_WIDTH_NORMAL)) * 4 +
+           bold * 2 + (slant != FC_SLANT_ROMAN);
+}
+
+static int compareFontPatterns(const void *a, const void *b) {
+    return fontPatternDistance(*(FcPattern *const *) a) -
+           fontPatternDistance(*(FcPattern *const *) b);
+}
+
 - (NSArray<NSFontTypeface *> *) fontTypefacesForFamilyName:
         (NSString *) familyName
 {
@@ -817,11 +864,17 @@ static NSDictionary *modeInfoToDictionary(const XRRModeInfo *mi, int depth) {
     FcPattern *pat = FcPatternCreate();
     FcPatternAddString(pat, FC_FAMILY,
                        (unsigned char *) [familyName UTF8String]);
-    FcObjectSet *props = FcObjectSetBuild(FC_FAMILY, FC_STYLE, FC_SLANT,
-                                          FC_WIDTH, FC_WEIGHT, NULL);
+    // Not FcObjectSetBuild(): see -allFontFamilyNames.
+    FcObjectSet *props = FcObjectSetCreate();
+    FcObjectSetAdd(props, FC_FAMILY);
+    FcObjectSetAdd(props, FC_STYLE);
+    FcObjectSetAdd(props, FC_SLANT);
+    FcObjectSetAdd(props, FC_WIDTH);
+    FcObjectSetAdd(props, FC_WEIGHT);
 
     FcFontSet *set = FcFontList(O2FontSharedFontConfig(), pat, props);
     NSMutableArray *ret = [NSMutableArray array];
+    qsort(set->fonts, set->nfont, sizeof(FcPattern *), compareFontPatterns);
 
     for (int i = 0; i < set->nfont; i++) {
         FcChar8 *typeface;
@@ -834,36 +887,10 @@ static NSDictionary *modeInfoToDictionary(const XRRModeInfo *mi, int depth) {
                     [NSString stringWithUTF8String: (const char *) pattern];
             FcStrFree(pattern);
 
-            NSFontTraitMask traits = 0;
-            int slant, width, weight;
-            FcPatternGetInteger(p, FC_SLANT, FC_SLANT_ROMAN, &slant);
-            FcPatternGetInteger(p, FC_WIDTH, FC_WIDTH_NORMAL, &width);
-            FcPatternGetInteger(p, FC_WEIGHT, FC_WEIGHT_REGULAR, &weight);
-
-            switch (slant) {
-            case FC_SLANT_OBLIQUE:
-            case FC_SLANT_ITALIC:
-                traits |= NSItalicFontMask;
-                break;
-            default:
-                traits |= NSUnitalicFontMask;
-                break;
-            }
-
-            if (weight <= FC_WEIGHT_LIGHT)
-                traits |= NSUnboldFontMask;
-            else if (weight >= FC_WEIGHT_SEMIBOLD)
-                traits |= NSBoldFontMask;
-
-            if (width <= FC_WIDTH_SEMICONDENSED)
-                traits |= NSNarrowFontMask;
-            else if (width >= FC_WIDTH_SEMIEXPANDED)
-                traits |= NSExpandedFontMask;
-
-            NSFontTypeface *face =
-                    [[NSFontTypeface alloc] initWithName: name
-                                               traitName: traitName
-                                                  traits: traits];
+            NSFontTypeface *face = [[NSFontTypeface alloc]
+                    initWithName: name
+                       traitName: traitName
+                          traits: fontTraitsOfPattern(p)];
             [ret addObject: face];
             [face release];
         }
@@ -998,14 +1025,64 @@ static NSDictionary *modeInfoToDictionary(const XRRModeInfo *mi, int depth) {
     return ret;
 }
 
+// Returns the window numbers of this app's windows, frontmost first, using the X server's stacking
+// order: XQueryTree lists the root's children bottom to top. Under a reparenting window manager our
+// top-level windows are children of frame windows, so each root child is matched against our windows
+// and their ancestors.
+static XErrorHandler previousOrderingErrorHandler;
+
+// Windows (for example a window manager's frame, when a window closes) can be destroyed while
+// -orderedWindowNumbers walks the tree. XQueryTree then fails with BadWindow, which isn't an error
+// there; any other error goes to the handler that was installed before.
+static int ignoreBadWindowWhileOrdering(Display *display, XErrorEvent *errorEvent) {
+    if (errorEvent->error_code == BadWindow)
+        return 0;
+    return previousOrderingErrorHandler ? previousOrderingErrorHandler(display, errorEvent) : 0;
+}
+
 - (NSArray *) orderedWindowNumbers {
     NSMutableArray *result = [NSMutableArray array];
+    NSMutableDictionary *byTopLevel = [NSMutableDictionary dictionary];
+    Window root = DefaultRootWindow(_display);
 
-    for (NSWindow *win in [NSApp windows]) {
-        [result addObject: @([win windowNumber])];
+    XErrorHandler previousHandler = XSetErrorHandler(ignoreBadWindowWhileOrdering);
+    previousOrderingErrorHandler = previousHandler;
+    @try {
+        for (NSNumber *xid in _windowsByID) {
+            // X11Pasteboard registers its helper X window in the same map; it has no window number.
+            if (![_windowsByID[xid] isKindOfClass: [X11Window class]])
+                continue;
+            Window w = (Window) [xid unsignedLongValue];
+            Window rootRet, parent, *children = NULL;
+            unsigned int count;
+
+            // Walk up to the root's direct child that contains this window.
+            while (XQueryTree(_display, w, &rootRet, &parent, &children, &count)) {
+                if (children)
+                    XFree(children);
+                children = NULL;
+                if (parent == root || parent == None)
+                    break;
+                w = parent;
+            }
+            byTopLevel[@((unsigned long) w)] = _windowsByID[xid];
+        }
+
+        Window rootRet, parent, *children = NULL;
+        unsigned int count = 0;
+        if (XQueryTree(_display, root, &rootRet, &parent, &children, &count)) {
+            for (unsigned int i = count; i > 0; i--) {
+                id window = byTopLevel[@((unsigned long) children[i - 1])];
+                if (window != nil)
+                    [result addObject: @([window windowNumber])];
+            }
+            if (children)
+                XFree(children);
+        }
+    } @finally {
+        XSetErrorHandler(previousHandler);
+        previousOrderingErrorHandler = NULL;
     }
-
-    NSUnimplementedFunction(); // (Window numbers not even remotely ordered)
 
     return result;
 }
@@ -1023,23 +1100,43 @@ static NSDictionary *modeInfoToDictionary(const XRRModeInfo *mi, int depth) {
 
         NSEventModifierFlags modifierFlags = [self modifierFlagsForState: ev->xkey.state];
         char buf[20] = {0};
-        KeySym keySym;
+        char *text = buf;
+        KeySym keySym = NoSymbol;
         int strLen;
 
         if (XFilterEvent(ev, None)) // XIM processing
             break;
 
-        if (ev->type == KeyPress) {
-            strLen = Xutf8LookupString(window->_xic, (XKeyPressedEvent *) ev, buf, sizeof(buf) - 1, &keySym, NULL);
-            buf[strLen] = 0;
+        // A window has no input context when the display couldn't open an input method or
+        // XCreateIC() failed, and Xutf8LookupString() dereferences its XIC unconditionally.
+        if (ev->type == KeyPress && window != nil && window->_xic != NULL) {
+            Status status;
+            strLen = Xutf8LookupString(window->_xic, (XKeyPressedEvent *) ev, buf, sizeof(buf) - 1, &keySym, &status);
+            if (status == XBufferOverflow) {
+                // Composed and input method text can be longer than buf. Nothing was copied and
+                // strLen is the size needed; Xlib says to repeat the lookup with a large enough buffer.
+                char *larger = malloc(strLen + 1);
+                if (larger != NULL) {
+                    text = larger;
+                    strLen = Xutf8LookupString(window->_xic, (XKeyPressedEvent *) ev, text, strLen, &keySym, &status);
+                }
+            }
+            // The text and keySym are only valid for the statuses that report them.
+            if (status != XLookupChars && status != XLookupBoth)
+                strLen = 0;
+            if (status != XLookupKeySym && status != XLookupBoth)
+                keySym = NoSymbol;
+            text[strLen] = 0;
         } else {
             // Xutf8LookupString() may not be used with KeyRelease
             strLen = XLookupString((XKeyEvent*) ev, buf, sizeof(buf) - 1, &keySym, NULL);
             buf[strLen] = 0;
         }
 
-        id str = [[NSString alloc] initWithCString: buf
+        id str = [[NSString alloc] initWithCString: text
                                           encoding: NSUTF8StringEncoding];
+        if (text != buf)
+            free(text);
         NSPoint pos =
                 [window transformPoint: NSMakePoint(ev->xkey.x, ev->xkey.y)];
 
@@ -1243,7 +1340,11 @@ static NSDictionary *modeInfoToDictionary(const XRRModeInfo *mi, int depth) {
                                  checkForAppDeactivation: NO];
             lastFocusedWindow = nil;
         }
+        if (window != nil)
+            window->_receivingFocus = YES;
         [delegate platformWindowActivated: window displayIfNeeded: YES];
+        if (window != nil)
+            window->_receivingFocus = NO;
         lastFocusedWindow = delegate;
         if (window != nil)
             XSetICFocus(window->_xic);
@@ -1256,7 +1357,8 @@ static NSDictionary *modeInfoToDictionary(const XRRModeInfo *mi, int depth) {
         lastFocusedWindow = nil;
         if (_cursorGrabbed)
             [self grabMouse: NO];
-        if (window != nil)
+        // Unlike XSetICFocus(), XUnsetICFocus() doesn't accept a NULL XIC.
+        if (window != nil && window->_xic != NULL)
             XUnsetICFocus(window->_xic);
         break;
 
@@ -1306,6 +1408,7 @@ static NSDictionary *modeInfoToDictionary(const XRRModeInfo *mi, int depth) {
 
     case MapNotify:
         NSLog(@"MapNotify");
+        [window mapNotified];
         break;
 
     case MapRequest:

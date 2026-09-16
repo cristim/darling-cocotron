@@ -63,6 +63,15 @@ extern CGError CGSSetWindowOpacity(CGSConnectionID cid, CGSWindowID wid, bool is
 extern CGError CGSSetWindowAlpha(CGSConnectionID cid, CGSWindowID wid, float alpha);
 extern CGError CGSSetWindowLevel(CGSConnectionID cid, CGSWindowID wid, CGWindowLevel level);
 
+// Window transforms. Argument layout as applications call these functions:
+// two 32-bit values (a placement selector and a reserved value; both 0 in
+// practice) come before the transform, which is passed by value.
+extern CGError CGSSetWindowTransformAtPlacement(CGSConnectionID cid, CGSWindowID wid, int32_t placement, int32_t reserved, CGAffineTransform transform);
+extern CGError CGSGetWindowTransformAtPlacement(CGSConnectionID cid, CGSWindowID wid, int32_t placement, void *reserved, CGAffineTransform *outTransform);
+
+// Queried window server state; 0 means the server is running normally.
+extern int CGSServerOperationState(int state);
+
 // Subwindows (for CGL)
 extern CGError CGSAddSurface(CGSConnectionID cid, CGSWindowID wid, CGSSurfaceID *sid);
 extern CGError CGSRemoveSurface(CGSConnectionID cid, CGSWindowID wid, CGSSurfaceID sid);
@@ -120,6 +129,26 @@ typedef void(*CGSNotifyProcPtr)(CGSNotificationType type, void* data, unsigned l
 #define kCGSNotificationAllEvents 0
 extern CGError CGSRegisterNotifyProc(CGSNotifyProcPtr proc, CGSNotificationType notificationType, void* client);
 extern CGError CGSRemoveNotifyProc(CGSNotifyProcPtr proc, CGSNotificationType notificationType);
+
+extern CGError CGSSetWindowBackgroundBlurRadiusWithOpacityHint(CGSConnectionID cid, CGSWindowID wid, int radius, float opacityHint);
+extern CGError CGSSetSecureEventInput(CGSConnectionID cid, bool enable);
+
+// Process key focus. The layout matches ProcessSerialNumber.
+typedef struct CPSProcessSerNum
+{
+	uint32_t highLongOfPSN;
+	uint32_t lowLongOfPSN;
+} CPSProcessSerNum;
+extern OSErr CPSGetCurrentProcess(CPSProcessSerNum *psn);
+extern OSErr CPSStealKeyFocus(CPSProcessSerNum *psn, uint32_t options);
+extern OSErr CPSReleaseKeyFocus(CPSProcessSerNum *psn);
+
+// Context state getters and font smoothing style (a gstate value)
+extern bool CGContextGetAllowsAntialiasing(CGContextRef context);
+extern bool CGContextGetAllowsFontSmoothing(CGContextRef context);
+extern bool CGContextGetShouldSmoothFonts(CGContextRef context);
+extern uint32_t CGContextGetFontSmoothingStyle(CGContextRef context);
+extern void CGContextSetFontSmoothingStyle(CGContextRef context, uint32_t style);
 
 // Darling extras, e.g. for CGL
 void* _CGSNativeDisplay(CGSConnectionID connId);

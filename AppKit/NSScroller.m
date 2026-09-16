@@ -28,14 +28,40 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSWindow.h>
 #import <Foundation/NSKeyedArchiver.h>
 
+// Private: coordinates a scroll view's two scrollers. Apps create one, set its
+// delegate and ask for the scroller layout direction.
+@interface NSScrollerImpPair : NSObject {
+    id _delegate;
+}
+@property (assign) id delegate;
+@end
+
+@implementation NSScrollerImpPair
+
+@synthesize delegate = _delegate;
+
++ (NSUserInterfaceLayoutDirection) scrollerLayoutDirection {
+    return NSUserInterfaceLayoutDirectionLeftToRight;
+}
+
+@end
+
 @implementation NSScroller
 
 + (CGFloat) scrollerWidth {
     return [[NSDisplay currentDisplay] scrollerWidth];
 }
 
+// Cocotron draws legacy scrollers, which take up space next to the content.
 + (NSScrollerStyle) preferredScrollerStyle {
-    NSUnimplementedMethod();
+    return NSScrollerStyleLegacy;
+}
+
+// Cocotron draws one scroller size for every control size and style.
++ (CGFloat) scrollerWidthForControlSize: (NSControlSize) controlSize
+                          scrollerStyle: (NSScrollerStyle) scrollerStyle
+{
+    return [self scrollerWidth];
 }
 /* OS X has a global default "AppleScrollBarVariant" with the values: Single,
  DoubleMin, DoubleMax, and DoubleBoth This controls the default position of the

@@ -120,6 +120,7 @@ static inline NSGlyphFragment *fragmentAtGlyphIndex(NSLayoutManager *self,
         _glyphFragments = NSCreateRangeToOwnedPointerEntries(2);
         _invalidFragments = NSCreateRangeToOwnedPointerEntries(2);
         _layoutInvalid = YES;
+        _defaultAttachmentScaling = NSImageScaleNone;
         _rectCacheCapacity = 16;
         _rectCacheCount = 0;
         _rectCache = NSZoneMalloc(NULL, sizeof(NSRect) * _rectCacheCapacity);
@@ -132,6 +133,7 @@ static inline NSGlyphFragment *fragmentAtGlyphIndex(NSLayoutManager *self,
 }
 
 - init {
+    _defaultAttachmentScaling = NSImageScaleNone;
     _typesetter = [NSTypesetter new];
     _glyphGenerator = [[NSGlyphGenerator sharedGlyphGenerator] retain];
     _textContainers = [NSMutableArray new];
@@ -174,6 +176,22 @@ static inline NSGlyphFragment *fragmentAtGlyphIndex(NSLayoutManager *self,
 
 - (NSArray *) textContainers {
     return [[_textContainers retain] autorelease];
+}
+
+- (NSImageScaling) defaultAttachmentScaling {
+    return _defaultAttachmentScaling;
+}
+
+- (void) setDefaultAttachmentScaling: (NSImageScaling) scaling {
+    _defaultAttachmentScaling = scaling;
+}
+
+- (BOOL) usesDefaultHyphenation {
+    return _usesDefaultHyphenation;
+}
+
+- (void) setUsesDefaultHyphenation: (BOOL) flag {
+    _usesDefaultHyphenation = flag;
 }
 
 - (NSTextView *) firstTextView {
@@ -220,8 +238,38 @@ static inline NSGlyphFragment *fragmentAtGlyphIndex(NSLayoutManager *self,
     _layoutInvalid = YES;
 }
 
+// Moves every layout manager of the current text storage, and their text views, to textStorage.
 - (void) replaceTextStorage: (NSTextStorage *) textStorage {
-    [self setTextStorage: textStorage];
+    if (textStorage == nil)
+        [NSException raise: NSInvalidArgumentException
+                    format: @"-[NSLayoutManager replaceTextStorage:] nil text storage"];
+    if (textStorage == _textStorage)
+        return;
+
+    NSTextStorage *oldStorage = [_textStorage retain];
+    // Nib-loaded text views add their shared layout manager once each, so the old list can repeat it.
+    NSMutableArray *layoutManagers = [NSMutableArray array];
+    for (NSLayoutManager *layoutManager in [oldStorage layoutManagers]) {
+        if ([layoutManagers indexOfObjectIdenticalTo: layoutManager] == NSNotFound)
+            [layoutManagers addObject: layoutManager];
+    }
+    if ([layoutManagers indexOfObjectIdenticalTo: self] == NSNotFound)
+        [layoutManagers addObject: self];
+
+    NSUInteger length = [textStorage length];
+    for (NSLayoutManager *layoutManager in layoutManagers) {
+        [textStorage addLayoutManager: layoutManager];
+        [oldStorage removeLayoutManager: layoutManager];
+        for (NSTextContainer *container in [layoutManager textContainers]) {
+            NSTextView *textView = [container textView];
+            [textView _setTextStorage: textStorage];
+            NSRange selection = [textView selectedRange];
+            if (textView && NSMaxRange(selection) > length)
+                [textView setSelectedRange: NSMakeRange(MIN(selection.location, length), 0)];
+        }
+        [layoutManager invalidateDisplayForCharacterRange: NSMakeRange(0, length)];
+    }
+    [oldStorage release];
 }
 
 - (void) setGlyphGenerator: (NSGlyphGenerator *) generator {
@@ -567,6 +615,44 @@ static inline NSGlyphFragment *fragmentAtGlyphIndex(NSLayoutManager *self,
 #endif
 
     return fragment->usedRect;
+}
+
+- (void) enumerateLineFragmentsForGlyphRange: (NSRange) glyphRange
+                                  usingBlock: (void (^)(NSRect lineRect, NSRect usedRect,
+                                                        NSTextContainer *textContainer,
+                                                        NSRange lineGlyphRange,
+                                                        BOOL *stop)) block
+{
+    [self validateGlyphsAndLayoutForGlyphRange: glyphRange];
+
+    // Glyph fragments are runs sorted by glyph index; consecutive runs sharing a
+    // line fragment rect form one line.
+    NSRangeEnumerator state = NSRangeEntryEnumerator(_glyphFragments);
+    NSRange range, lineRange = NSMakeRange(0, 0);
+    NSGlyphFragment *fragment, *line = NULL;
+    NSRect usedRect = NSZeroRect;
+    BOOL more, stop = NO;
+
+    do {
+        more = NSNextRangeEnumeratorEntry(&state, &range, (void **) &fragment);
+        if (line != NULL && (!more || !NSEqualRects(fragment->rect, line->rect) ||
+                             fragment->container != line->container))
+        {
+            if (NSIntersectionRange(lineRange, glyphRange).length > 0)
+                block(line->rect, usedRect, line->container, lineRange, &stop);
+            if (NSMaxRange(lineRange) >= NSMaxRange(glyphRange))
+                break;
+            line = NULL;
+        }
+        if (more && line == NULL) {
+            line = fragment;
+            lineRange = range;
+            usedRect = fragment->usedRect;
+        } else if (more) {
+            lineRange = NSUnionRange(lineRange, range);
+            usedRect = NSUnionRect(usedRect, fragment->usedRect);
+        }
+    } while (more && !stop);
 }
 
 - (NSRange) validateGlyphsAndLayoutForGlyphRange: (NSRange) glyphRange {
@@ -1044,6 +1130,11 @@ static inline NSGlyphFragment *fragmentAtGlyphIndex(NSLayoutManager *self,
     NSRange range;
     NSGlyphFragment *fragment;
     NSRangeEnumerator state;
+    // Fragments are in glyph order, but bidi lines are reordered visually:
+    // the point is left of its line only if it is left of every fragment.
+    BOOL leftOfLine = YES;
+    CGFloat lineMinX = CGFLOAT_MAX;
+    NSUInteger lineStart = NSNotFound;
 
     [self validateGlyphsAndLayoutForContainer: container];
 
@@ -1053,6 +1144,11 @@ static inline NSGlyphFragment *fragmentAtGlyphIndex(NSLayoutManager *self,
 
     while (NSNextRangeEnumeratorEntry(&state, &range, (void **) &fragment)) {
         if (point.y < NSMinY(fragment->rect)) {
+            // Otherwise a click in the line's left padding would return
+            // the end of the line.
+            if (leftOfLine && lineStart != NSNotFound) {
+                return lineStart;
+            }
             if (endOfFragment > 0) {
                 // if we're at the end of a line we want to back up before the
                 // newline This is a very ugly way to do it
@@ -1131,11 +1227,18 @@ static inline NSGlyphFragment *fragmentAtGlyphIndex(NSLayoutManager *self,
                 } else {
                     result = NSMaxRange(range);
                 }
-            } else if (point.x > NSMaxX(fragment->rect)) {
-                if (fragment->leftToRight) {
-                    result = NSMaxRange(range);
-                } else {
-                    result = range.location;
+                if (NSMinX(fragment->rect) < lineMinX) {
+                    lineMinX = NSMinX(fragment->rect);
+                    lineStart = result;
+                }
+            } else {
+                leftOfLine = NO;
+                if (point.x > NSMaxX(fragment->rect)) {
+                    if (fragment->leftToRight) {
+                        result = NSMaxRange(range);
+                    } else {
+                        result = range.location;
+                    }
                 }
             }
             endOfFragment = NSMaxRange(range);
@@ -1146,6 +1249,9 @@ static inline NSGlyphFragment *fragmentAtGlyphIndex(NSLayoutManager *self,
     NSLog(@"returning: %u", result);
 #endif
 
+    if (leftOfLine && lineStart != NSNotFound) {
+        return lineStart;
+    }
     return result;
 }
 
@@ -1352,6 +1458,8 @@ static inline void _appendRectToCache(NSLayoutManager *self, NSRect rect) {
 #define DEBUG_rectArrayForGlyphRange_withinSelectedGlyphRange_inTextContainer_rectCount \
     0
 #endif
+
+    [self validateGlyphsAndLayoutForContainer: container];
 
     NSRange remainder =
             (selGlyphRange.location == NSNotFound) ? glyphRange : selGlyphRange;
@@ -2921,8 +3029,8 @@ static inline void _appendRectToCache(NSLayoutManager *self, NSRect rect) {
     return nil;
 }
 
+// Stored only: layout is always contiguous.
 - (void) setAllowsNonContiguousLayout: (BOOL) value {
     _allowsNonContiguousLayout = value;
-    NSUnimplementedMethod();
 }
 @end

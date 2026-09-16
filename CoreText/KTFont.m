@@ -46,6 +46,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
     return CGFontCopyFullName(_font);
 }
 
+- (CGFontRef) cgFont {
+    return _font;
+}
+
 - (CGFloat) pointSize {
     return _size;
 }

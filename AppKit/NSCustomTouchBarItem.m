@@ -20,6 +20,8 @@
 #import <AppKit/NSCustomTouchBarItem.h>
 
 @implementation NSCustomTouchBarItem
+@synthesize view = _view;
+@synthesize customizationLabel = _customizationLabel;
 
 - (NSMethodSignature *)methodSignatureForSelector:(SEL)aSelector
 {
@@ -29,6 +31,12 @@
 - (void)forwardInvocation:(NSInvocation *)anInvocation
 {
     NSLog(@"Stub called: %@ in %@", NSStringFromSelector([anInvocation selector]), [self class]);
+}
+
+- (void) dealloc {
+    [_view release];
+    [_customizationLabel release];
+    [super dealloc];
 }
 
 @end

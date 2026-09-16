@@ -66,6 +66,10 @@ NSString *const NSAllRomanInputSourcesLocaleIdentifier =
 - (NSRange) _softLineRangeForCharacterAtIndex: (NSUInteger) location;
 @end
 
+@interface NSTextContainer (NSTextContainer_textViewTracking)
+- (void) _resizeToTextView;
+@end
+
 @interface NSTextView (NSTextView_textCompletion)
 - (void) endUserCompletion;
 @end
@@ -144,11 +148,12 @@ NSString *const NSAllRomanInputSourcesLocaleIdentifier =
 }
 
 - (void) _setTextStorage: (NSTextStorage *) storage {
-    if (_ownsTextStorage)
+    // A view that owns its text network keeps owning it when the storage changes.
+    if (_ownsTextStorage) {
+        [storage retain];
         [_textStorage release];
-
+    }
     _textStorage = storage;
-    _ownsTextStorage = NO;
 
     NSMutableDictionary *typingAttributes =
             [[_textStorage attributesAtIndex: 0
@@ -172,6 +177,14 @@ NSString *const NSAllRomanInputSourcesLocaleIdentifier =
         _defaultParagraphStyle =
                 [[NSParagraphStyle defaultParagraphStyle] copy];
     }
+}
+
+- (void) replaceTextStorage: (NSTextStorage *) textStorage {
+    NSLayoutManager *layoutManager = [self layoutManager];
+    if (layoutManager)
+        [layoutManager replaceTextStorage: textStorage];
+    else
+        [self _setTextStorage: textStorage];
 }
 
 - initWithCoder: (NSCoder *) coder {
@@ -458,6 +471,9 @@ NSString *const NSAllRomanInputSourcesLocaleIdentifier =
 
 - (void) setTextContainerInset: (NSSize) size {
     _textContainerInset = size;
+    [_textContainer _resizeToTextView];
+    [self sizeToFit];
+    [self setNeedsDisplay: YES];
 }
 
 - (void) setUsesRuler: (BOOL) flag {
@@ -544,6 +560,11 @@ NSString *const NSAllRomanInputSourcesLocaleIdentifier =
                   affinity: (NSSelectionAffinity) affinity
             stillSelecting: (BOOL) stillSelecting
 {
+    // A nil array leaves the selection alone: TextEdit copies the selection of
+    // a text view that doesn't exist yet into its first one. Only a non-nil
+    // empty array raises.
+    if (ranges == nil)
+        return;
     if ([ranges count] == 0)
         [NSException raise: NSInvalidArgumentException
                     format: @"-[%@ %s] ranges should not be empty",
@@ -827,7 +848,8 @@ NSString *const NSAllRomanInputSourcesLocaleIdentifier =
 
     if (range.length == 0) {
         if (range.location >= [_textStorage length]) {
-            result = [[self layoutManager] extraLineFragmentRect];
+            [[self layoutManager] ensureLayoutForTextContainer: _textContainer];
+            result = [[self layoutManager] extraLineFragmentUsedRect];
             if (NSIsEmptyRect(result) && [_textStorage length]) {
                 NSUInteger rectCount = 0;
                 // Get the last used fragment rect
@@ -2564,9 +2586,12 @@ NSString *const NSAllRomanInputSourcesLocaleIdentifier =
     NSAttributedString *contents =
             [NSRichTextReader attributedStringWithContentsOfFile: path];
 
-    [_textStorage setAttributedString: contents];
+    // Missing or unreadable file: report failure and keep the current text.
+    if (contents == nil)
+        return NO;
 
-    return contents != nil;
+    [_textStorage setAttributedString: contents];
+    return YES;
 }
 
 - (void) replaceCharactersInRange: (NSRange) range withRTF: (NSData *) rtf {
@@ -2731,17 +2756,21 @@ NSString *const NSAllRomanInputSourcesLocaleIdentifier =
             stillSelecting: NO];
 }
 
+- (NSSize) _textContainerSizeForViewSize: (NSSize) size {
+    return NSMakeSize(size.width - _textContainerInset.width * 2,
+                      size.height - _textContainerInset.height * 2);
+}
+
 // This should be done in NSTextContainer with notifications
 - (void) _configureTextContainerSize {
     NSSize containerSize = [[self textContainer] containerSize];
+    NSSize insetSize = [self _textContainerSizeForViewSize: [self bounds].size];
 
     if ([self isHorizontallyResizable] == NO)
-        containerSize.width =
-                [self bounds].size.width - _textContainerInset.width * 2;
+        containerSize.width = insetSize.width;
 
     if ([self isVerticallyResizable] == NO)
-        containerSize.height =
-                [self bounds].size.height - _textContainerInset.height * 2;
+        containerSize.height = insetSize.height;
 
     [[self textContainer] setContainerSize: containerSize];
 }
@@ -2759,9 +2788,10 @@ NSString *const NSAllRomanInputSourcesLocaleIdentifier =
         extraRect.size.width = NSMaxX(usedRect) - NSMinX(extraRect);
         usedRect = NSUnionRect(usedRect, extraRect);
     }
-    size = usedRect.size;
-    size.width += _textContainerInset.width * 2;
-    size.height += _textContainerInset.height * 2;
+    // Used rects start after the left padding; add the right one too.
+    size.width = NSMaxX(usedRect) + [[self textContainer] lineFragmentPadding] +
+                 _textContainerInset.width * 2;
+    size.height = usedRect.size.height + _textContainerInset.height * 2;
 
     if (![self isHorizontallyResizable])
         size.width = [self frame].size.width;
@@ -3620,7 +3650,6 @@ NSString *const NSAllRomanInputSourcesLocaleIdentifier =
 
 - (void) setAutomaticSpellingCorrectionEnabled: (BOOL) value {
     _isAutomaticSpellingCorrectionEnabled = value;
-    NSUnimplementedMethod();
 }
 
 - (void) toggleAutomaticSpellingCorrection: sender {
@@ -3635,7 +3664,6 @@ NSString *const NSAllRomanInputSourcesLocaleIdentifier =
 
 - (void) setEnabledTextCheckingTypes: (NSTextCheckingTypes) checkingTypes {
     _enabledTextCheckingTypes = checkingTypes;
-    NSUnimplementedMethod();
 }
 
 - (BOOL) smartInsertDeleteEnabled {
@@ -3982,108 +4010,208 @@ NSString *const NSAllRomanInputSourcesLocaleIdentifier =
     return self;
 }
 - (NSTextLayoutOrientation) layoutOrientation {
-    NSUnimplementedMethod();
     return _layoutOrientation;
 }
 
 - (void) setLayoutOrientation: (NSTextLayoutOrientation) orientation {
     _layoutOrientation = orientation;
-    NSUnimplementedMethod();
 }
 
 - (BOOL) isIncrementalSearchingEnabled {
-    NSUnimplementedMethod();
     return _incrementalSearchingEnabled;
 }
 
 - (BOOL) usesFindBar {
-    NSUnimplementedMethod();
     return _usesFindBar;
 }
 
 - (BOOL) usesInspectorBar {
-    NSUnimplementedMethod();
     return _usesInspectorBar;
 }
 
 - (void) setIncrementalSearchingEnabled: (BOOL) value {
-    NSUnimplementedMethod();
     _incrementalSearchingEnabled = value;
 }
 
 - (void) setUsesFindBar: (BOOL) value {
-    NSUnimplementedMethod();
     _usesFindBar = value;
 }
 
 - (void) setUsesInspectorBar: (BOOL) value {
-    NSUnimplementedMethod();
     _usesInspectorBar = value;
 }
 
 - (BOOL) isGrammarCheckingEnabled {
-    NSUnimplementedMethod();
     return _grammarCheckingEnabled;
 }
 
 - (BOOL) isAutomaticQuoteSubstitutionEnabled {
-    NSUnimplementedMethod();
     return _automaticQuoteSubstitutionEnabled;
 }
 
 - (BOOL) isAutomaticDashSubstitutionEnabled {
-    NSUnimplementedMethod();
     return _automaticDashSubstitutionEnabled;
 }
 
 - (BOOL) isAutomaticLinkDetectionEnabled {
-    NSUnimplementedMethod();
     return _automaticLinkDetectionEnabled;
 }
 
 - (BOOL) isAutomaticDataDetectionEnabled {
-    NSUnimplementedMethod();
     return _automaticDataDetectionEnabled;
 }
 
 - (BOOL) isAutomaticTextReplacementEnabled {
-    NSUnimplementedMethod();
     return _automaticTextReplacementEnabled;
 }
 
 - (void) setGrammarCheckingEnabled: (BOOL) value {
-    NSUnimplementedMethod();
     _grammarCheckingEnabled = value;
 }
 
 - (void) setAutomaticQuoteSubstitutionEnabled: (BOOL) value {
-    NSUnimplementedMethod();
     _automaticQuoteSubstitutionEnabled = value;
 }
 
 - (void) setAutomaticDashSubstitutionEnabled: (BOOL) value {
-    NSUnimplementedMethod();
     _automaticDashSubstitutionEnabled = value;
 }
 
 - (void) setAutomaticLinkDetectionEnabled: (BOOL) value {
-    NSUnimplementedMethod();
     _automaticLinkDetectionEnabled = value;
 }
 
 - (void) setAutomaticDataDetectionEnabled: (BOOL) value {
-    NSUnimplementedMethod();
     _automaticDataDetectionEnabled = value;
 }
 
 - (void) setAutomaticTextReplacementEnabled: (BOOL) value {
-    NSUnimplementedMethod();
     _automaticTextReplacementEnabled = value;
 }
 
-// Is defined in NSText but throws an NSInvalidAbstractInvocation Exception
+// Stored only: dropped or pasted graphics aren't handled differently.
+- (BOOL) importsGraphics {
+    return _importsGraphics;
+}
+
 - (void) setImportsGraphics: (BOOL) value {
-    NSUnimplementedMethod();
+    _importsGraphics = value;
+}
+
+@end
+
+@implementation NSTextView (NSFindIndicatorAndPasteboard)
+
+// There's no find indicator animation; make the range visible instead.
+- (void) showFindIndicatorForRange: (NSRange) range {
+    [self scrollRangeToVisible: range];
+}
+
+// No link panel in Cocotron.
+- (void) orderFrontLinkPanel: (id) sender {
+}
+
+// Replaces the selection with the pasteboard's contents of the given type:
+// RTF/RTFD as attributed text, anything string-like as plain text.
+- (BOOL) readSelectionFromPasteboard: (NSPasteboard *) pasteboard
+                                type: (NSString *) type
+{
+    NSData *data = nil;
+    NSAttributedString *attributed = nil;
+
+    if ([type isEqualToString: NSPasteboardTypeRTFD] || [type isEqualToString: NSRTFDPboardType]) {
+        data = [pasteboard dataForType: type];
+        if (data != nil)
+            attributed = [[[NSAttributedString alloc] initWithRTFD: data documentAttributes: NULL] autorelease];
+    } else if ([type isEqualToString: NSPasteboardTypeRTF] || [type isEqualToString: NSRTFPboardType]) {
+        data = [pasteboard dataForType: type];
+        if (data != nil)
+            attributed = [[[NSAttributedString alloc] initWithRTF: data documentAttributes: NULL] autorelease];
+    }
+
+    if (attributed != nil) {
+        NSRange selection = [self selectedRange];
+        if (![self shouldChangeTextInRange: selection replacementString: [attributed string]])
+            return NO;
+        [[self textStorage] replaceCharactersInRange: selection withAttributedString: attributed];
+        [self setSelectedRange: NSMakeRange(selection.location + [attributed length], 0)];
+        [self didChangeText];
+        return YES;
+    }
+
+    NSString *string = [pasteboard stringForType: type];
+    if (string == nil)
+        return NO;
+    [self insertText: string];
+    return YES;
+}
+
+@end
+
+@implementation NSTextView (NSTextViewLayoutOrientationAndHighlights)
+
++ (NSArray *) _textHighlightMenuItems {
+    return [NSArray array];
+}
+
+- (BOOL) usesAdaptiveColorMappingForDarkAppearance {
+    return _usesAdaptiveColorMappingForDarkAppearance;
+}
+
+- (void) setUsesAdaptiveColorMappingForDarkAppearance: (BOOL) flag {
+    _usesAdaptiveColorMappingForDarkAppearance = flag;
+}
+
+- (void) changeLayoutOrientation: (id) sender {
+    [self setLayoutOrientation: [self layoutOrientation] ==
+                                                NSTextLayoutOrientationVertical
+                                        ? NSTextLayoutOrientationHorizontal
+                                        : NSTextLayoutOrientationVertical];
+}
+
+// Sets the paragraph styles' writing direction over the range, with undo, and
+// in the typing attributes when the insertion point is in the range.
+- (void) setBaseWritingDirection: (NSWritingDirection) direction
+                           range: (NSRange) range
+{
+    NSTextStorage *storage = [self textStorage];
+    if (NSMaxRange(range) > [storage length])
+        [NSException raise: NSRangeException
+                    format: @"%@: range %@ beyond length %lu",
+                            NSStringFromSelector(_cmd),
+                            NSStringFromRange(range),
+                            (unsigned long) [storage length]];
+
+    if (range.length > 0) {
+        if (![self shouldChangeTextInRange: range replacementString: nil])
+            return;
+        if (_allowsUndo && self.undoManager) {
+            [self breakUndoCoalescing];
+            NSUndoSetAttributes *undoSetAttributes = [[[NSUndoSetAttributes alloc]
+                    initWithAffectedRange: range
+                            layoutManager: self.layoutManager
+                              undoManager: self.undoManager] autorelease];
+            [[self.undoManager prepareWithInvocationTarget: undoSetAttributes]
+                    undoRedo: storage];
+        }
+        [storage setBaseWritingDirection: direction range: range];
+        [self didChangeText];
+    }
+
+    NSRange selection = [self selectedRange];
+    if (selection.location >= range.location &&
+        selection.location <= NSMaxRange(range)) {
+        NSMutableDictionary *attributes =
+                [[[self typingAttributes] mutableCopy] autorelease];
+        NSParagraphStyle *style =
+                [attributes objectForKey: NSParagraphStyleAttributeName];
+        NSMutableParagraphStyle *changed =
+                [[(style ? style : [NSParagraphStyle defaultParagraphStyle])
+                        mutableCopy] autorelease];
+        [changed setBaseWritingDirection: direction];
+        [attributes setObject: changed forKey: NSParagraphStyleAttributeName];
+        [self setTypingAttributes: attributes];
+    }
 }
 
 @end

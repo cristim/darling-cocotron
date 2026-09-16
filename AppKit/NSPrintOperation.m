@@ -26,6 +26,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSView.h>
 
 #import "NSPrintProgressPanelController.h"
+#import <objc/message.h>
 
 enum {
     NSPrintOperationPDFInRect,
@@ -79,8 +80,10 @@ static NSPrintOperation *_currentOperation = nil;
     [_view release];
     [_printInfo release];
     [_printPanel release];
+    [_path release];
     [_context release];
     [_mutableData release];
+    [_jobTitle release];
     [super dealloc];
 }
 
@@ -116,6 +119,20 @@ static NSPrintOperation *_currentOperation = nil;
                             insideRect: rect
                                 toData: data
                                   type: NSPrintOperationPDFInRect] autorelease];
+}
+
+// The PDF goes into data as for toData:, and -runOperation writes it to path.
++ (NSPrintOperation *) PDFOperationWithView: (NSView *) view
+                                 insideRect: (NSRect) rect
+                                     toPath: (NSString *) path
+                                  printInfo: (NSPrintInfo *) printInfo
+{
+    NSPrintOperation *operation = [self PDFOperationWithView: view
+                                                  insideRect: rect
+                                                      toData: [NSMutableData data]
+                                                   printInfo: printInfo];
+    operation->_path = [path copy];
+    return operation;
 }
 
 + (NSPrintOperation *) EPSOperationWithView: (NSView *) view
@@ -437,7 +454,47 @@ static NSPrintOperation *_currentOperation = nil;
 
     _currentOperation = nil;
 
+    if (_path != nil)
+        return [_mutableData writeToFile: _path atomically: YES];
     return YES;
+}
+
+@end
+
+@implementation NSPrintOperation (NSJobTitle)
+
+- (NSString *) jobTitle {
+    return _jobTitle;
+}
+
+- (void) setJobTitle: (NSString *) title {
+    title = [title copy];
+    [_jobTitle release];
+    _jobTitle = title;
+}
+
+@end
+
+@implementation NSPrintOperation (NSPrintOperationModal)
+
+- (void) setShowPanels: (BOOL) flag {
+    [self setShowsPrintPanel: flag];
+    [self setShowsProgressPanel: flag];
+}
+
+- (BOOL) showPanels {
+    return [self showsPrintPanel];
+}
+
+- (void) runOperationModalForWindow: (NSWindow *) docWindow
+                           delegate: (id) delegate
+                     didRunSelector: (SEL) didRunSelector
+                        contextInfo: (void *) contextInfo
+{
+    BOOL success = [self runOperation];
+    if (delegate != nil && didRunSelector != NULL)
+        ((void (*)(id, SEL, NSPrintOperation *, BOOL, void *)) objc_msgSend)(
+                delegate, didRunSelector, self, success, contextInfo);
 }
 
 @end

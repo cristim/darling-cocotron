@@ -115,6 +115,8 @@ typedef enum {
     NSArray *_sortDescriptors;
 
     NSInteger _draggingRow;
+    NSDragOperation _draggingSourceMaskLocal;
+    NSDragOperation _draggingSourceMaskNonLocal;
 }
 
 - (SEL) doubleAction;
@@ -179,6 +181,9 @@ typedef enum {
 - (void) setAllowsMultipleSelection: (BOOL) flag;
 - (void) setAllowsEmptySelection: (BOOL) flag;
 - (void) setAllowsColumnSelection: (BOOL) flag;
+- (void) setDraggingSourceOperationMask: (NSDragOperation) mask
+                               forLocal: (BOOL) isLocal;
+- (NSDragOperation) draggingSourceOperationMaskForLocal: (BOOL) isLocal;
 - (void) setAutosaveTableColumns: (BOOL) flag;
 
 - (void) setUsesAlternatingRowBackgroundColors: (BOOL) flag;
@@ -212,6 +217,9 @@ typedef enum {
 - (void) selectColumn: (NSInteger) column byExtendingSelection: (BOOL) extend;
 - (void) deselectRow: (NSInteger) row;
 - (void) deselectColumn: (NSInteger) column;
+- (void) selectColumnIndexes: (NSIndexSet *) indexes
+        byExtendingSelection: (BOOL) extend;
+- (NSIndexSet *) columnIndexesInRect: (NSRect) rect;
 
 - (void) selectAll: sender;
 - (void) deselectAll: sender;

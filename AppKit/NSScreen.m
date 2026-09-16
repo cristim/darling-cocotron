@@ -68,6 +68,11 @@ NSNotificationName const NSScreenColorSpaceDidChangeNotification = @"NSScreenCol
     return 1.0;
 }
 
+// The X11 backend has no high-resolution displays.
+- (CGFloat) backingScaleFactor {
+    return 1.0;
+}
+
 - (id) description {
     return [NSString stringWithFormat: @"< %@ - frame %@, visible %@ >",
                                        [super description],

@@ -20,13 +20,17 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSEvent.h>
 #import <Foundation/Foundation.h>
 
-@class NSMenu, NSUndoManager;
+@class NSMenu, NSUndoManager, NSTouchBar;
 
 @interface NSResponder : NSObject <NSCoding> {
     id _nextResponder;
+    NSTouchBar *_touchBar;
 }
 
 - (NSResponder *) nextResponder;
+
+@property(retain) NSTouchBar *touchBar;
+- (NSTouchBar *) makeTouchBar;
 
 - (NSMenu *) menu;
 - (NSUndoManager *) undoManager;
@@ -72,6 +76,17 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 - (void) rightMouseUp: (NSEvent *) event;
 - (void) rightMouseDown: (NSEvent *) event;
 - (void) rightMouseDragged: (NSEvent *) event;
+
+// Does nothing: Cocotron doesn't save or restore window state.
+- (void) invalidateRestorableState;
+
+// State restoration hooks. Cocotron never saves state, so these do nothing and no key paths are restorable.
+@property(class, readonly, copy) NSArray *restorableStateKeyPaths;
+- (void) encodeRestorableStateWithCoder: (NSCoder *) coder;
+- (void) encodeRestorableStateWithCoder: (NSCoder *) coder backgroundQueue: (NSOperationQueue *) queue;
+- (void) restoreStateWithCoder: (NSCoder *) coder;
+- (void) updateUserActivityState: (NSUserActivity *) userActivity;
+- (void) restoreUserActivityState: (NSUserActivity *) userActivity;
 
 @end
 

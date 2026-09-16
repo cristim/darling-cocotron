@@ -7,15 +7,22 @@
 APPKIT_EXPORT void NSAccessibilityPostNotification(id element,
                                                    NSString *notification);
 
-APPKIT_EXPORT NSString *const NSAccessibilityRoleDescription(NSString *role,
-                                                             NSString *subrole);
+APPKIT_EXPORT NSString *NSAccessibilityRoleDescription(NSString *role,
+                                                       NSString *subrole);
+APPKIT_EXPORT NSString *NSAccessibilityRoleDescriptionForUIElement(id element);
+APPKIT_EXPORT void NSAccessibilityRaiseBadArgumentException(id element,
+                                                            NSString *attribute,
+                                                            id value);
 
 APPKIT_EXPORT id NSAccessibilityUnignoredAncestor(id element);
 APPKIT_EXPORT id NSAccessibilityUnignoredDescendant(id element);
 APPKIT_EXPORT NSArray *NSAccessibilityUnignoredChildren(NSArray *originalChildren);
 APPKIT_EXPORT NSArray *NSAccessibilityUnignoredChildrenForOnlyChild(id originalChild);
 
+// There is no accessibility server: objects have no attributes and overrides
+// aren't kept.
 @interface NSObject (NSAccessibility)
 - (NSArray *) accessibilityAttributeNames;
 - accessibilityAttributeValue: (NSString *) attribute;
+- (BOOL) accessibilitySetOverrideValue: (id) value forAttribute: (NSString *) attribute;
 @end

@@ -17,6 +17,7 @@ COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
+#import <AppKit/NSBezierPath.h>
 #import <AppKit/NSBitmapImageRep.h>
 #import <AppKit/NSCachedImageRep.h>
 #import <AppKit/NSColor.h>
@@ -29,6 +30,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSPasteboard.h>
 #import <AppKit/NSRaise.h>
 #import <Foundation/NSKeyedArchiver.h>
+
+@interface NSImageSymbolConfiguration (Private)
+- (CGFloat) _placeholderSide;
+@end
 
 NSImageName const NSImageNameActionTemplate = @"NSActionTemplate";
 NSImageName const NSImageNameAddTemplate = @"NSAddTemplate";
@@ -74,6 +79,8 @@ NSImageName const NSImageNameMobileMe = @"NSMobileMe";
 NSImageName const NSImageNameMultipleDocuments = @"NSMultipleDocuments";
 NSImageName const NSImageNameNetwork = @"NSNetwork";
 NSImageName const NSImageNamePathTemplate = @"NSPathTemplate";
+NSImageName const NSImageNamePauseTemplate = @"NSPauseTemplate";
+NSImageName const NSImageNamePlayTemplate = @"NSPlayTemplate";
 NSImageName const NSImageNamePreferencesGeneral = @"NSPreferencesGeneral";
 NSImageName const NSImageNameQuickLookTemplate = @"NSQuickLookTemplate";
 NSImageName const NSImageNameRefreshFreestandingTemplate =
@@ -117,6 +124,8 @@ NSImageName const NSImageNameTouchBarAddDetailTemplate =
         @"NSImageNameTouchBarAddDetailTemplate";
 NSImageName const NSImageNameTouchBarAddTemplate =
         @"NSImageNameTouchBarAddTemplate";
+NSImageName const NSImageNameTouchBarAddTabTemplate =
+        @"NSImageNameTouchBarAddTabTemplate";
 NSImageName const NSImageNameTouchBarAlarmTemplate =
         @"NSImageNameTouchBarAlarmTemplate";
 NSImageName const NSImageNameTouchBarAudioInputMuteTemplate =
@@ -286,6 +295,14 @@ NSImageName const NSImageNameTouchBarVolumeUpTemplate =
     return [self imageUnfilteredFileTypes];
 }
 
++ (NSArray *) imageTypes {
+    return [NSImageRep imageTypes];
+}
+
++ (NSArray *) imageUnfilteredTypes {
+    return [self imageTypes];
+}
+
 + (NSArray *) imageUnfilteredFileTypes {
     NSMutableArray *result = [NSMutableArray array];
     NSArray *allClasses = [NSImageRep registeredImageRepClasses];
@@ -452,6 +469,17 @@ NSImageName const NSImageNameTouchBarVolumeUpTemplate =
     return [self initWithSize: NSMakeSize(0, 0)];
 }
 
+// Not in the public headers; Grapher sends it to a new NSImage.
+- initWithImageRep: (NSImageRep *) rep {
+    if (rep == nil) {
+        [self release];
+        return nil;
+    }
+    self = [self initWithSize: [rep size]];
+    [self addRepresentation: rep];
+    return self;
+}
+
 - initWithData: (NSData *) data {
     Class repClass = [NSImageRep imageRepClassForData: data];
     NSArray *reps = nil;
@@ -519,6 +547,41 @@ NSImageName const NSImageNameTouchBarVolumeUpTemplate =
     return self;
 }
 
+- (CGImageRef) CGImageForProposedRect: (NSRect *) proposedDestRect
+                              context: (NSGraphicsContext *) context
+                                hints: (NSDictionary *) hints
+{
+    NSSize size = (proposedDestRect != NULL) ? proposedDestRect->size : [self size];
+    if (!(size.width > 0 && size.height > 0 && isfinite(size.width) && isfinite(size.height)))
+        return NULL;
+    size_t width = ceil(size.width), height = ceil(size.height);
+
+    CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
+    // An explicit byte order: Onyx2D stores the default order as ABGR, unlike Apple's RGBA.
+    CGContextRef bitmap = CGBitmapContextCreate(NULL, width, height, 8, width * 4,
+            colorSpace, kCGImageAlphaPremultipliedLast | kCGBitmapByteOrder32Big);
+    CGColorSpaceRelease(colorSpace);
+    if (bitmap == NULL)
+        return NULL;
+    CGContextClearRect(bitmap, CGRectMake(0, 0, width, height));
+
+    // The thread dictionary may be the only owner of the current context.
+    NSGraphicsContext *previous = [[NSGraphicsContext currentContext] retain];
+    [NSGraphicsContext setCurrentContext:
+            [NSGraphicsContext graphicsContextWithGraphicsPort: bitmap flipped: NO]];
+    [self drawInRect: NSMakeRect(0, 0, width, height)
+            fromRect: NSZeroRect
+           operation: NSCompositeSourceOver
+            fraction: 1.0];
+    [NSGraphicsContext setCurrentContext: previous];
+    [previous release];
+    CGImageRef image = CGBitmapContextCreateImage(bitmap);
+    CGContextRelease(bitmap);
+
+    // The caller doesn't own the result.
+    return (CGImageRef) [(id) image autorelease];
+}
+
 - initWithPasteboard: (NSPasteboard *) pasteboard {
 
     NSString *available =
@@ -545,6 +608,8 @@ NSImageName const NSImageNameTouchBarVolumeUpTemplate =
     [_name release];
     [_backgroundColor release];
     [_representations release];
+    [_accessibilityDescription release];
+    [_symbolConfiguration release];
     [super dealloc];
 }
 
@@ -554,6 +619,8 @@ NSImageName const NSImageNameTouchBarVolumeUpTemplate =
     result->_name = [_name copy];
     result->_backgroundColor = [_backgroundColor copy];
     result->_representations = [_representations mutableCopy];
+    result->_accessibilityDescription = [_accessibilityDescription copy];
+    result->_symbolConfiguration = [_symbolConfiguration retain];
 
     return result;
 }
@@ -1269,6 +1336,183 @@ NSImageName const NSImageNameTouchBarVolumeUpTemplate =
                     _representations];
 }
 
+- (NSString *) accessibilityDescription {
+    return _accessibilityDescription;
+}
+
+- (void) setAccessibilityDescription: (NSString *) description {
+    description = [description copy];
+    [_accessibilityDescription release];
+    _accessibilityDescription = description;
+}
+
+// Darling does not ship SF Symbols artwork (it is Apple's proprietary asset
+// catalog), so every system symbol is drawn as the same generic template glyph:
+// a rounded square outline sized like a symbol at the configured point size.
+// Apple returns nil for names it doesn't know; here only nil or empty names do,
+// because there is no symbol list to check against and apps usually expect an
+// image for the names they ship with.
++ (NSImage *) _symbolPlaceholderWithDescription: (NSString *) description
+                                  configuration:
+                                          (NSImageSymbolConfiguration *)
+                                                  configuration
+{
+    static BOOL logged = NO;
+    if (!logged) {
+        logged = YES;
+        NSLog(@"NSImage: SF Symbols are not available, system symbol images "
+              @"are drawn as placeholders");
+    }
+
+    if (configuration == nil)
+        configuration = [NSImageSymbolConfiguration
+                configurationWithScale: NSImageSymbolScaleMedium];
+
+    CGFloat side = [configuration _placeholderSide];
+    NSSize size = NSMakeSize(side, side);
+    NSCustomImageRep *rep = [[NSCustomImageRep alloc]
+            initWithDrawSelector: @selector(_drawSymbolPlaceholder:)
+                        delegate: [NSImageSymbolConfiguration class]];
+    [rep setSize: size];
+
+    NSImage *image = [[[self alloc] initWithSize: size] autorelease];
+    [image addRepresentation: rep];
+    [rep release];
+    [image setTemplate: YES];
+    [image setAccessibilityDescription: description];
+    image->_symbolConfiguration = [configuration retain];
+    return image;
+}
+
++ (instancetype) imageWithSystemSymbolName: (NSString *) name
+                  accessibilityDescription: (NSString *) description
+{
+    if ([name length] == 0)
+        return nil;
+    return [self _symbolPlaceholderWithDescription: description
+                                     configuration: nil];
+}
+
++ (instancetype) imageWithSystemSymbolName: (NSString *) name
+                             variableValue: (double) value
+                  accessibilityDescription: (NSString *) description
+{
+    return [self imageWithSystemSymbolName: name
+                  accessibilityDescription: description];
+}
+
++ (instancetype) _imageWithSystemSymbolName: (NSString *) name {
+    return [self imageWithSystemSymbolName: name accessibilityDescription: nil];
+}
+
+- (NSImage *) imageWithSymbolConfiguration:
+        (NSImageSymbolConfiguration *) configuration
+{
+    if (_symbolConfiguration == nil)
+        return [[self copy] autorelease];
+
+    NSImageSymbolConfiguration *merged = [_symbolConfiguration
+            configurationByApplyingConfiguration: configuration];
+    return [[self class]
+            _symbolPlaceholderWithDescription: _accessibilityDescription
+                                configuration: merged];
+}
+
+- (NSImageSymbolConfiguration *) symbolConfiguration {
+    return _symbolConfiguration;
+}
+
+@end
+
+@implementation NSImageSymbolConfiguration
+
++ (instancetype) configurationWithPointSize: (CGFloat) pointSize
+                                     weight: (NSFontWeight) weight
+                                      scale: (NSImageSymbolScale) scale
+{
+    NSImageSymbolConfiguration *result = [[[self alloc] init] autorelease];
+    result->_pointSize = pointSize;
+    result->_weight = weight;
+    result->_scale = scale;
+    return result;
+}
+
++ (instancetype) configurationWithPointSize: (CGFloat) pointSize
+                                     weight: (NSFontWeight) weight
+{
+    return [self configurationWithPointSize: pointSize
+                                     weight: weight
+                                      scale: 0];
+}
+
++ (instancetype) configurationWithScale: (NSImageSymbolScale) scale {
+    return [self configurationWithPointSize: 0 weight: 0 scale: scale];
+}
+
+- (NSImageSymbolConfiguration *) configurationByApplyingConfiguration:
+        (NSImageSymbolConfiguration *) configuration
+{
+    // -copy returns self (configurations are immutable), so build a new object
+    // instead of changing the receiver, which other images may share.
+    NSImageSymbolConfiguration *result =
+            [[self class] configurationWithPointSize: _pointSize
+                                              weight: _weight
+                                               scale: _scale];
+    if (configuration != nil) {
+        if (configuration->_pointSize > 0) {
+            result->_pointSize = configuration->_pointSize;
+            result->_weight = configuration->_weight;
+        }
+        if (configuration->_scale != 0)
+            result->_scale = configuration->_scale;
+    }
+    return result;
+}
+
+- copyWithZone: (NSZone *) zone {
+    return [self retain];
+}
+
+- (BOOL) isEqual: (id) other {
+    if (other == self)
+        return YES;
+    if (![other isKindOfClass: [NSImageSymbolConfiguration class]])
+        return NO;
+    NSImageSymbolConfiguration *o = other;
+    return o->_pointSize == _pointSize && o->_weight == _weight &&
+           o->_scale == _scale;
+}
+
+- (NSUInteger) hash {
+    return (NSUInteger) (_pointSize * 31) ^ (NSUInteger) _scale;
+}
+
+// Side of the square placeholder: the point size (default: the system font
+// size) plus a little padding, adjusted for the symbol scale.
+- (CGFloat) _placeholderSide {
+    CGFloat pointSize = _pointSize > 0 ? _pointSize : 13.0;
+    CGFloat factor = 1.0;
+    if (_scale == NSImageSymbolScaleSmall)
+        factor = 0.8;
+    else if (_scale == NSImageSymbolScaleLarge)
+        factor = 1.3;
+    return ceil(pointSize * factor + 3.0);
+}
+
++ (void) _drawSymbolPlaceholder: (NSCustomImageRep *) rep {
+    NSSize size = [rep size];
+    CGFloat line = MAX(1.0, floor(size.width / 12.0));
+    NSRect box = NSInsetRect(NSMakeRect(0, 0, size.width, size.height),
+                             line * 1.5, line * 1.5);
+    CGFloat radius = box.size.width / 5.0;
+    NSBezierPath *path = [NSBezierPath bezierPathWithRoundedRect: box
+                                                         xRadius: radius
+                                                         yRadius: radius];
+    [path setLineWidth: line];
+    [[NSColor blackColor] setStroke];
+    [path stroke];
+}
+
 @end
 
 @implementation NSBundle (NSImage)
@@ -1292,6 +1536,13 @@ NSImageName const NSImageNameTouchBarVolumeUpTemplate =
 
     return [self pathForResource: [name stringByDeletingPathExtension]
                           ofType: [name pathExtension]];
+}
+
+- (NSImage *) imageForResource: (NSString *) name {
+    NSString *path = [self pathForImageResource: name];
+    if (path == nil)
+        return nil;
+    return [[[NSImage alloc] initWithContentsOfFile: path] autorelease];
 }
 
 @end

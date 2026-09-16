@@ -22,6 +22,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSImage.h>
 #import <AppKit/NSMenu.h>
 #import <AppKit/NSMenuItem.h>
+#import <AppKit/NSObject+BindingSupport.h>
 #import <Foundation/NSKeyedArchiver.h>
 #import <AppKit/NSButtonCell.h>
 
@@ -37,6 +38,15 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 + (NSMenuItem *) separatorItem {
     return [[[self alloc] initWithTitle: nil action: NULL
                           keyEquivalent: nil] autorelease];
+}
+
++ (NSMenuItem *) sectionHeaderWithTitle: (NSString *) title {
+    NSMenuItem *item = [[[self alloc] initWithTitle: title ?: @""
+                                             action: NULL
+                                      keyEquivalent: @""] autorelease];
+    item->_isSectionHeader = YES;
+    [item setEnabled: NO];
+    return item;
 }
 
 - (void) encodeWithCoder: (NSCoder *) coder {
@@ -125,7 +135,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
     _target = nil;
     _action = action;
     _keyEquivalent = [keyEquivalent copy];
-    _keyEquivalentModifierMask = 0;
+    _keyEquivalentModifierMask = NSCommandKeyMask;
     _mnemonic = @"";
     _mnemonicLocation = 0;
     _submenu = nil;
@@ -148,6 +158,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
     [_offStateImage release];
     [_representedObject release];
     [_identifier release];
+    [_actionImage release];
+    [_toolTip release];
     [super dealloc];
 }
 
@@ -164,7 +176,37 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
     copy->_mixedStateImage = [_mixedStateImage retain];
     copy->_offStateImage = [_offStateImage retain];
     copy->_representedObject = [_representedObject retain];
+    copy->_actionImage = [_actionImage retain];
+    copy->_toolTip = [_toolTip copyWithZone: zone];
     return copy;
+}
+
+// Stored only: Darling's menus don't show tooltips.
+- (NSString *) toolTip {
+    return _toolTip;
+}
+
+- (void) setToolTip: (NSString *) toolTip {
+    if (toolTip != _toolTip) {
+        [_toolTip release];
+        _toolTip = [toolTip copy];
+    }
+}
+
+// A menu item's value binding drives its state (checkmark), not an objectValue.
+- (id) _replacementKeyPathForBinding: (id) binding {
+    if ([binding isEqual: @"value"]) {
+        return @"state";
+    }
+    return [super _replacementKeyPathForBinding: binding];
+}
+
+// A bound value that is nil (an unset default with no transformer) unchecks the item.
+- (void) setNilValueForKey: (NSString *) key {
+    if ([key isEqualToString: @"state"])
+        [self setState: NSOffState];
+    else
+        [super setNilValueForKey: key];
 }
 
 - (NSMenu *) menu {
@@ -246,6 +288,16 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 - (NSMenu *) submenu {
     return _submenu;
+}
+
+- (BOOL) isSectionHeader {
+    return _isSectionHeader;
+}
+
+- (void) setSectionHeader: (BOOL) flag {
+    _isSectionHeader = flag;
+    if (flag)
+        [self setEnabled: NO];
 }
 
 - (BOOL) isSeparatorItem {
@@ -437,6 +489,19 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
                              [self class], self, [self title],
                              NSStringFromSelector(_action),
                              ([self hasSubmenu] ? @"YES" : @"NO")];
+}
+
+// Private AppKit API (macOS 26): an image describing the item's action, which
+// apps set from a system symbol image. Stored and returned; Cocotron's menus
+// don't draw it.
+- (NSImage *) _actionImage {
+    return _actionImage;
+}
+
+- (void) _setActionImage: (NSImage *) image {
+    image = [image retain];
+    [_actionImage release];
+    _actionImage = image;
 }
 
 @end

@@ -120,6 +120,8 @@ APPKIT_EXPORT NSString *const NSTextDidChangeNotification;
 - (void) setFont: (NSFont *) font;
 - (void) setFont: (NSFont *) font range: (NSRange) range;
 - (void) setAlignment: (NSTextAlignment) alignment;
+- (void) setBaseWritingDirection: (NSWritingDirection) direction
+                           range: (NSRange) range;
 
 - (void) setTextColor: (NSColor *) color;
 - (void) setTextColor: (NSColor *) color range: (NSRange) range;
@@ -172,4 +174,8 @@ APPKIT_EXPORT NSString *const NSTextDidChangeNotification;
 - (void) textDidEndEditing: (NSNotification *) notification;
 - (void) textDidChange: (NSNotification *) notification;
 
+@end
+
+@interface NSText (NSRTFDWriting)
+- (BOOL) writeRTFDToFile: (NSString *) path atomically: (BOOL) atomically;
 @end
