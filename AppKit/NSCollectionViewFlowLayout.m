@@ -25,6 +25,7 @@ NSString *const NSCollectionElementKindSectionFooter =
         @"UICollectionElementKindSectionFooter";
 
 @implementation NSCollectionViewFlowLayout
+@synthesize itemSize = _itemSize;
 
 - (NSMethodSignature *)methodSignatureForSelector:(SEL)aSelector
 {
@@ -34,6 +35,12 @@ NSString *const NSCollectionElementKindSectionFooter =
 - (void)forwardInvocation:(NSInvocation *)anInvocation
 {
     NSLog(@"Stub called: %@ in %@", NSStringFromSelector([anInvocation selector]), [self class]);
+}
+
+- (instancetype) init {
+    if ((self = [super init]) != nil)
+        _itemSize = NSMakeSize(50, 50);
+    return self;
 }
 
 @end

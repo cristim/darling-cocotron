@@ -266,6 +266,9 @@ CORETEXT_EXPORT CFArrayRef CTFontCopyFeatureSettings(CTFontRef font);
 
 CORETEXT_EXPORT bool CTFontGetGlyphsForCharacters(CTFontRef font, const UniChar *characters, CGGlyph *glyphs, CFIndex count);
 CORETEXT_EXPORT void CTFontDrawGlyphs(CTFontRef font, const CGGlyph *glyphs, const CGPoint *positions, size_t count, CGContextRef context);
+// Draws from the context's text position, advancing it by each advance.
+CORETEXT_EXPORT void CTFontDrawGlyphsWithAdvances(CTFontRef font, const CGGlyph *glyphs, const CGSize *advances, size_t count, CGContextRef context);
+CORETEXT_EXPORT bool CTFontShouldAntiAlias(CTFontRef font);
 CORETEXT_EXPORT CFIndex CTFontGetLigatureCaretPositions(CTFontRef font, CGGlyph glyph, CGFloat *positions, CFIndex maxPositions);
 
 CORETEXT_EXPORT CGFontRef CTFontCopyGraphicsFont(

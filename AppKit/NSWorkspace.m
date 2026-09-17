@@ -19,6 +19,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 #import <AppKit/NSRaise.h>
 #import <AppKit/NSWorkspace.h>
+#import <AppKit/NSRunningApplication.h>
 #import <Foundation/Foundation.h>
 
 NSString *const NSWorkspaceApplicationKey = @"NSWorkspaceApplicationKey";
@@ -27,6 +28,7 @@ NSString *const NSWorkspaceWillPowerOffNotification =
         @"NSWorkspaceWillPowerOffNotification";
 
 NSString *const NSWorkspaceRecycleOperation = @"NSWorkspaceRecycleOperation";
+NSString *const NSWorkspaceDuplicateOperation = @"NSWorkspaceDuplicateOperation";
 
 NSString *const NSWorkspaceLaunchConfigurationAppleEvent =
         @"NSWorkspaceLaunchConfigurationAppleEvent";
@@ -327,6 +329,73 @@ static NSWorkspaceOpenConfiguration* _singletonNsWorkspaceOpenConfig;
         _singletonNsWorkspaceOpenConfig = [[NSWorkspaceOpenConfiguration alloc] init];
     });
     return _singletonNsWorkspaceOpenConfig;
+}
+
+@end
+
+@implementation NSWorkspace (NSOpenURLsWithApplication)
+
+// Opens file URLs with the application (by path) and other URLs with
+// -openURL:. Returns nil with an error if anything couldn't be opened. Launched
+// applications aren't tracked, so success returns an NSRunningApplication that
+// doesn't describe the opened application.
+- (NSRunningApplication *) openURLs: (NSArray<NSURL *> *) urls
+               withApplicationAtURL: (NSURL *) applicationURL
+                            options: (NSUInteger) options
+                      configuration: (NSDictionary *) configuration
+                              error: (NSError **) error
+{
+    BOOL ok = YES;
+    for (NSURL *url in urls) {
+        @try {
+            if ([url isFileURL])
+                ok = [self openFile: [url path] withApplication: [applicationURL path]] && ok;
+            else
+                ok = [self openURL: url] && ok;
+        } @catch (NSException *exception) {
+            ok = NO;
+        }
+    }
+    if (!ok) {
+        if (error)
+            *error = [NSError errorWithDomain: NSCocoaErrorDomain code: NSFileReadUnknownError userInfo: nil];
+        return nil;
+    }
+    if (error)
+        *error = nil;
+    return [[[NSRunningApplication alloc] init] autorelease];
+}
+
+- (NSRunningApplication *) launchApplicationAtURL: (NSURL *) url
+                                          options: (NSUInteger) options
+                                    configuration: (NSDictionary *) configuration
+                                            error: (NSError **) error
+{
+    BOOL ok = NO;
+    NSString *reason = nil;
+    if (![url isFileURL]) {
+        reason = [NSString stringWithFormat: @"%@ is not a file URL", url];
+    } else {
+        @try {
+            ok = [self launchApplication: [url path]];
+        } @catch (NSException *exception) {
+            reason = [exception reason];
+        }
+    }
+    if (!ok) {
+        if (error) {
+            NSDictionary *userInfo = reason
+                    ? [NSDictionary dictionaryWithObject: reason forKey: NSLocalizedDescriptionKey]
+                    : nil;
+            *error = [NSError errorWithDomain: NSCocoaErrorDomain
+                                         code: NSFileReadUnknownError
+                                     userInfo: userInfo];
+        }
+        return nil;
+    }
+    if (error)
+        *error = nil;
+    return [[[NSRunningApplication alloc] init] autorelease];
 }
 
 @end

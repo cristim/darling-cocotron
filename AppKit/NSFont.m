@@ -326,6 +326,10 @@ static NSLock *_cacheLock = nil;
     [O2Font setPreferredFontNames: fontNames];
 }
 
++ (BOOL) supportsSecureCoding {
+    return YES;
+}
+
 - (void) encodeWithCoder: (NSCoder *) coder {
     if ([coder allowsKeyedCoding]) {
 #ifndef DARLING
@@ -349,7 +353,7 @@ static NSLock *_cacheLock = nil;
 
     if ([coder allowsKeyedCoding]) {
         NSKeyedUnarchiver *keyed = (NSKeyedUnarchiver *) coder;
-        NSString *fontName = [keyed decodeObjectForKey: @"NSName"];
+        NSString *fontName = [keyed decodeObjectOfClass: [NSString class] forKey: @"NSName"];
 #ifndef DARLING
         name = [[NSFont nibFontTranslator] translateFromNibFontName: fontName];
 #else
@@ -571,6 +575,11 @@ static NSLock *_cacheLock = nil;
 
 - (NSString *) fontName {
     return _name;
+}
+
+// Lets CoreText draw an NSFont passed as a CTFontRef.
+- (CGFontRef) cgFont {
+    return _cgFont;
 }
 
 - (const CGFloat *) matrix {

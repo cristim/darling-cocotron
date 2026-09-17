@@ -21,7 +21,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSPanel.h>
 #import <Foundation/NSURL.h>
 
-@class NSView, NSOutlineView;
+@class NSView, NSOutlineView, NSTextField;
 
 enum {
     NSFileHandlingPanelCancelButton = NSCancelButton,
@@ -42,13 +42,24 @@ enum {
     BOOL _showsHiddenFiles;
 
     BOOL _treatsFilePackagesAsDirectories;
+    BOOL _canSelectHiddenExtension;
+    BOOL _extensionHidden;
     NSView *_accessoryView;
 
     IBOutlet NSOutlineView *_outlineView;
+    NSArray *_allowedContentTypes;
+    NSTextField *_nameField;
+    BOOL _allowsOtherFileTypes;
+    BOOL _runsAsSheet;
+    NSUInteger _styleMaskBeforeSheet;
+    id _sheetCompletionHandler;
 }
 
 @property (copy) NSString *nameFieldStringValue;
 @property BOOL showsHiddenFiles;
+// Stored only: the panel has no hide-extension checkbox.
+@property BOOL canSelectHiddenExtension;
+@property (getter=isExtensionHidden) BOOL extensionHidden;
 
 + (NSSavePanel *) savePanel;
 
@@ -56,6 +67,8 @@ enum {
 - (NSString *) filename;
 
 - (void) beginWithCompletionHandler: (void (^)(NSModalResponse result)) handler;
+- (void) beginSheetModalForWindow: (NSWindow *) window
+                completionHandler: (void (^)(NSModalResponse result)) handler;
 
 - (NSInteger) runModalForDirectory: (NSString *) directory
                               file: (NSString *) file;
@@ -80,6 +93,10 @@ enum {
 - (void) setAccessoryView: (NSView *) view;
 - (void) setCanCreateDirectories: (BOOL) value;
 - (void) setAllowedFileTypes: (NSArray *) value;
+// UTType objects (macOS 11). Setting them also sets allowedFileTypes to their
+// preferred filename extensions, or nil (any file) when none has one.
+- (NSArray *) allowedContentTypes;
+- (void) setAllowedContentTypes: (NSArray *) types;
 - (void) setAllowsOtherFileTypes: (BOOL) value;
 
 - (void) setMessage: (NSString *) message;

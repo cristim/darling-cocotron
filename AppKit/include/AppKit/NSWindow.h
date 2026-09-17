@@ -30,6 +30,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 @class NSView, NSEvent, NSColor, NSColorSpace, NSCursor, NSImage, NSScreen,
         NSText, NSTextView, CGWindow, NSPasteboard, NSSheetContext,
+        NSTitlebarAccessoryViewController,
         NSUndoManager, NSButton, NSButtonCell, NSDrawer, NSDockTile, NSToolbar,
         NSWindowAnimationContext, NSTrackingArea, NSThemeFrame,
         NSWindowController, NSMenuItem, CARenderer;
@@ -86,6 +87,14 @@ typedef NS_ENUM(NSUInteger, NSWindowBackingLocation) {
     NSWindowBackingLocationDefault = 0x00,
     NSWindowBackingLocationVideoMemory = 0x01,
     NSWindowBackingLocationMainMemory = 0x02
+};
+
+typedef NS_ENUM(NSInteger, NSWindowToolbarStyle) {
+    NSWindowToolbarStyleAutomatic,
+    NSWindowToolbarStyleExpanded,
+    NSWindowToolbarStylePreference,
+    NSWindowToolbarStyleUnified,
+    NSWindowToolbarStyleUnifiedCompact,
 };
 
 enum {
@@ -147,7 +156,7 @@ APPKIT_EXPORT const NSNotificationName NSWindowWillEnterFullScreenNotification;
 APPKIT_EXPORT const NSNotificationName NSWindowWillExitFullScreenNotification;
 APPKIT_EXPORT const NSNotificationName NSWindowDidExposeNotification;
 
-@interface NSWindow : NSResponder <NSUserInterfaceItemIdentification, NSAccessibility> {
+@interface NSWindow : NSResponder <NSUserInterfaceItemIdentification, NSAccessibility, NSAppearanceCustomization> {
     NSRect _frame;
     NSWindowStyleMask _styleMask;
     NSBackingStoreType _backingType;
@@ -244,12 +253,21 @@ APPKIT_EXPORT const NSNotificationName NSWindowDidExposeNotification;
     NSRect _savedFrame;
     NSPoint _mouseDownLocationInWindow;
 
+    NSAppearance *_appearance;
     NSUserInterfaceItemIdentifier _identifier;
 
     BOOL _isAccessible;
+    Class _restorationClass;
+    BOOL _restorable;
+
+    NSMutableArray *_titlebarAccessoryViewControllers;
+    NSWindowToolbarStyle _toolbarStyle;
 }
 
 @property(class) BOOL allowsAutomaticWindowTabbing;
+// Stored only: Cocotron doesn't restore windows.
+@property(assign) Class restorationClass;
+@property(getter=isRestorable) BOOL restorable;
 
 + (NSWindowDepth) defaultDepthLimit;
 
@@ -425,6 +443,7 @@ APPKIT_EXPORT const NSNotificationName NSWindowDidExposeNotification;
 - (NSButton *) standardWindowButton: (NSWindowButton) value;
 - (NSButtonCell *) defaultButtonCell;
 - (NSWindow *) attachedSheet;
+- (NSWindow *) sheetParent;
 
 - (id) windowController;
 - (NSArray *) drawers;
@@ -458,6 +477,18 @@ APPKIT_EXPORT const NSNotificationName NSWindowDidExposeNotification;
 
 - (NSPoint) convertBaseToScreen: (NSPoint) point;
 - (NSPoint) convertScreenToBase: (NSPoint) point;
+- (NSPoint) convertPointToScreen: (NSPoint) point;
+- (NSPoint) convertPointFromScreen: (NSPoint) point;
+- (NSRect) convertRectToScreen: (NSRect) rect;
+- (NSRect) convertRectFromScreen: (NSRect) rect;
+- (CGFloat) backingScaleFactor;
+
+- (void) beginSheet: (NSWindow *) sheet
+        completionHandler: (void (^)(NSInteger returnCode)) handler;
+- (void) endSheet: (NSWindow *) sheet;
+- (void) endSheet: (NSWindow *) sheet returnCode: (NSInteger) returnCode;
+
+@property(readonly, strong) NSAppearance *effectiveAppearance;
 
 - (NSRect) frameRectForContentRect: (NSRect) rect;
 - (NSRect) contentRectForFrameRect: (NSRect) rect;
@@ -620,6 +651,15 @@ APPKIT_EXPORT const NSNotificationName NSWindowDidExposeNotification;
 
 - (CGSubWindow *) _createSubWindowWithFrame: (CGRect) frame;
 
+@end
+
+@interface NSWindow (NSWindowTitlebarAccessories)
+// Stored only: accessories aren't shown and the toolbar style doesn't change
+// drawing.
+@property(readonly, copy) NSArray *titlebarAccessoryViewControllers;
+- (void) addTitlebarAccessoryViewController:
+        (NSTitlebarAccessoryViewController *) controller;
+@property NSWindowToolbarStyle toolbarStyle;
 @end
 
 @interface NSWindow (Darling)

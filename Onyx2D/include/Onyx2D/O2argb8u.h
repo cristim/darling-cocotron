@@ -102,33 +102,14 @@ static inline O2argb8u O2argb8uMultiplyByCoverageAdd(O2argb8u left,
                                                      O2argb8u right,
                                                      uint32_t rightCoverage)
 {
-    uint32_t srb = *(uint32_t *) &left;
-    uint32_t sag = srb >> 8;
-
-    sag &= 0x00FF00FF;
-    srb &= 0x00FF00FF;
-    sag = ((sag * leftCoverage) >> 8) & 0x00FF00FF;
-    srb = ((srb * leftCoverage) >> 8) & 0x00FF00FF;
-
-    uint32_t drb = *(uint32_t *) &right;
-    uint32_t dag = drb >> 8;
-
-    dag &= 0x00FF00FF;
-    drb &= 0x00FF00FF;
-
-    dag = ((dag * rightCoverage) >> 8) & 0x00FF00FF;
-    drb = ((drb * rightCoverage) >> 8) & 0x00FF00FF;
-
-    uint32_t r;
-
-    sag += dag;
-    r = RI_INT_MIN(sag, 0x00FF0000) << 8;
-    r |= RI_INT_MIN(sag & 0xFFFF, 255) << 8;
-    srb += drb;
-    r |= RI_INT_MIN(srb, 0x00FF0000);
-    r |= RI_INT_MIN(srb & 0xFFFF, 255);
-
-    return *(O2argb8u *) &r;
+    // Sum weighted samples before truncating. Rounding each contribution
+    // separately loses coverage even when both samples have the same value.
+    O2argb8u result;
+    result.r = RI_INT_MIN((left.r * leftCoverage + right.r * rightCoverage) >> 8, 255);
+    result.g = RI_INT_MIN((left.g * leftCoverage + right.g * rightCoverage) >> 8, 255);
+    result.b = RI_INT_MIN((left.b * leftCoverage + right.b * rightCoverage) >> 8, 255);
+    result.a = RI_INT_MIN((left.a * leftCoverage + right.a * rightCoverage) >> 8, 255);
+    return result;
 }
 
 static inline O2argb8u O2argb8uAdd(O2argb8u result, O2argb8u other) {

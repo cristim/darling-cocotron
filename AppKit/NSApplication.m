@@ -28,6 +28,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSImageView.h>
 #import <AppKit/NSMenu.h>
 #import <AppKit/NSMenuItem.h>
+#import <AppKit/NSKeyValueBinding.h>
+#import <AppKit/NSObject+BindingSupport.h>
 #import <AppKit/NSModalSessionX.h>
 #import <AppKit/NSNibLoading.h>
 #import <AppKit/NSPageLayout.h>
@@ -50,6 +52,8 @@ const NSNotificationName NSApplicationWillFinishLaunchingNotification =
         @"NSApplicationWillFinishLaunchingNotification";
 const NSNotificationName NSApplicationDidFinishLaunchingNotification =
         @"NSApplicationDidFinishLaunchingNotification";
+const NSNotificationName NSApplicationDidFinishRestoringWindowsNotification =
+        @"NSApplicationDidFinishRestoringWindowsNotification";
 
 const NSNotificationName NSApplicationWillBecomeActiveNotification =
         @"NSApplicationWillBecomeActiveNotification";
@@ -102,6 +106,30 @@ NSApplication *NSApp = nil;
 @end
 
 @implementation NSApplication
+
+- (NSUserInterfaceLayoutDirection) userInterfaceLayoutDirection {
+    // Use the app's selected localization, not the user's regional locale:
+    // an app without an RTL localization still presents its LTR interface.
+    NSString *language = [[[NSBundle mainBundle] preferredLocalizations] firstObject];
+    if (language != nil &&
+        [NSLocale characterDirectionForLanguage: language] ==
+                NSLocaleLanguageDirectionRightToLeft) {
+        return NSUserInterfaceLayoutDirectionRightToLeft;
+    }
+    return NSUserInterfaceLayoutDirectionLeftToRight;
+}
+
+@synthesize appearance = _appearance;
+
+- (NSAppearance *) effectiveAppearance {
+    static NSAppearance *aqua = nil;
+
+    if (_appearance != nil)
+        return _appearance;
+    if (aqua == nil)
+        aqua = [[NSAppearance appearanceNamed: NSAppearanceNameAqua] retain];
+    return aqua;
+}
 
 + (NSApplication *) sharedApplication {
     if (NSApp == nil) {
@@ -195,13 +223,16 @@ NSApplication *NSApp = nil;
     return _windows;
 }
 
+// Window numbers come from CGWindow's registry, so look the number up there.
+// Asking every window for its number instead would create a platform window
+// for each window that doesn't have one yet, now on every mouse event too.
 - (NSWindow *) windowWithWindowNumber: (NSInteger) number {
-    for (NSWindow *window in _windows) {
-        if ([window windowNumber] == number) {
-            return window;
-        }
-    }
-    return nil;
+    NSWindow *window = [[CGWindow windowWithWindowNumber: number] delegate];
+
+    if (window == nil ||
+        [_windows indexOfObjectIdenticalTo: window] == NSNotFound)
+        return nil;
+    return window;
 }
 
 - (NSMenu *) mainMenu {
@@ -888,6 +919,14 @@ NSApplication *NSApp = nil;
 }
 
 - (BOOL) sendAction: (SEL) action to: target from: sender {
+    // Choosing a menu item whose value is bound and that has no action toggles
+    // its state; the binding writes the new value to the bound object.
+    if (action == NULL && [sender isKindOfClass: [NSMenuItem class]] &&
+        [sender _binderForBinding: NSValueBinding] != nil) {
+        [sender setState: [sender state] == NSOnState ? NSOffState : NSOnState];
+        return YES;
+    }
+
     if ([target respondsToSelector: action]) {
         [target performSelector: action withObject: sender];
         return YES;
@@ -925,8 +964,29 @@ NSApplication *NSApp = nil;
     [_windows makeObjectsPerformSelector: @selector(update)];
 }
 
+// There are no other Darling applications to take activation from, so activating
+// means making a window key again, which asks the platform for input focus: the
+// key window, else the main window, else the frontmost window that can become key.
 - (void) activateIgnoringOtherApps: (BOOL) flag {
-    NSUnimplementedMethod();
+    NSWindow *window = _keyWindow;
+
+    if (![window isVisible])
+        window = _mainWindow;
+    if (![window isVisible]) {
+        window = nil;
+        for (NSWindow *check in [self orderedWindows]) {
+            if ([check isVisible] && [check canBecomeKeyWindow]) {
+                window = check;
+                break;
+            }
+        }
+    }
+
+    [window makeKeyAndOrderFront: self];
+}
+
+- (void) activate {
+    [self activateIgnoringOtherApps: NO];
 }
 
 - (void) deactivate {
@@ -1124,7 +1184,7 @@ NSApplication *NSApp = nil;
         }
         [sheet _setSheetContext: nil];
     } else {
-        NSUInteger count = [_windows count];
+        NSInteger count = [_windows count];
 
         while (--count >= 0) {
             NSWindow *check = _windows[count];
@@ -1149,7 +1209,7 @@ NSApplication *NSApp = nil;
 }
 
 - (void) endSheet: (NSWindow *) sheet {
-    [self endSheet: sheet returnCode: 0];
+    [self endSheet: sheet returnCode: NSRunStoppedResponse];
 }
 
 - (void) reportException: (NSException *) exception {
@@ -1682,3 +1742,36 @@ BOOL NSPerformService(NSString *itemName, NSPasteboard *pasteboard) {
     NSUnimplementedFunction();
     return NO;
 }
+
+@implementation NSApplication (NSWindowEnumeration)
+
+- (void) enumerateWindowsWithOptions: (NSWindowListOptions) options
+                          usingBlock: (void (^)(NSWindow *window, BOOL *stop)) block
+{
+    if (block == nil)
+        return;
+    NSArray *windows = (options & NSWindowListOrderedFrontToBack)
+                               ? [self orderedWindows]
+                               : [[[self windows] copy] autorelease];
+    BOOL stop = NO;
+    for (NSWindow *window in windows) {
+        block(window, &stop);
+        if (stop)
+            break;
+    }
+}
+
+@end
+
+@implementation NSApplication (NSApplicationPerformanceTesting)
+
+- (void) startedTest: (NSString *) name {
+}
+
+- (void) finishedTest: (NSString *) name {
+}
+
+- (void) failedTest: (NSString *) name withFailure: (NSString *) failureReason {
+}
+
+@end

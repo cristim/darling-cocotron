@@ -19,6 +19,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSCollectionViewItem.h>
 #import <AppKit/NSView.h>
 
+@class NSCollectionViewLayout;
+
 typedef NSString *NSCollectionViewSupplementaryElementKind;
 
 @interface NSCollectionView : NSView {
@@ -32,6 +34,9 @@ typedef NSString *NSCollectionViewSupplementaryElementKind;
     NSArray *_backgroundColors;
     BOOL _allowsMultipleSelection;
     NSIndexSet *_selectionIndexes;
+    NSCollectionViewLayout *_collectionViewLayout;
+    NSMutableDictionary *_itemClasses;
+    NSSet *_selectionIndexPaths;
 }
 
 - (NSArray *) content;
@@ -65,6 +70,19 @@ typedef NSString *NSCollectionViewSupplementaryElementKind;
 - (BOOL) isFirstResponder;
 - (NSCollectionViewItem *) newItemForRepresentedObject: object;
 
+@property(retain) NSCollectionViewLayout *collectionViewLayout;
+@property(copy) NSSet *selectionIndexPaths;
+
+- (void) registerClass: (Class) itemClass forItemWithIdentifier: (NSString *) identifier;
+- (NSCollectionViewItem *) makeItemWithIdentifier: (NSString *) identifier
+                                     forIndexPath: (NSIndexPath *) indexPath;
+
+@end
+
+@interface NSIndexPath (NSCollectionViewAdditions)
++ (NSIndexPath *) indexPathForItem: (NSInteger) item inSection: (NSInteger) section;
+@property(readonly) NSInteger item;
+@property(readonly) NSInteger section;
 @end
 
 @protocol NSCollectionViewDelegate <NSObject>

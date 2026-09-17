@@ -248,11 +248,23 @@ static NSData *makeWindowIcon() {
         XSetTransientForHint(_display, _window, [mainWindow windowHandle]);
     }
 
+#if defined(DARLING) && defined(__arm64__)
+    // XCreateIC() is variadic and lives in the native (Linux) libX11. Darwin arm64 passes
+    // variadic arguments on the stack, Linux arm64 in registers, so call it through a
+    // non-variadic prototype: all 8 arguments then go in x0-x7, where libX11 reads them.
+    _xic = ((XIC (*)(XIM, const char *, long, const char *, Window, const char *, Window, void *)) XCreateIC)(
+        x11disp->_xim,
+        XNInputStyle, XIMPreeditNothing | XIMStatusNothing,
+        XNClientWindow, _window,
+        XNFocusWindow, _window,
+        NULL);
+#else
     _xic = XCreateIC(x11disp->_xim,
         XNInputStyle, XIMPreeditNothing | XIMStatusNothing,
         XNClientWindow, _window,
         XNFocusWindow, _window,
         NULL);
+#endif
 
     _cglWindow = CGLGetWindow((void *) _window);
 
@@ -389,6 +401,27 @@ static NSData *makeWindowIcon() {
     // TODO: background color
 }
 
+// Window opacity through the EWMH _NET_WM_WINDOW_OPACITY property (a CARDINAL
+// where 0xffffffff is fully opaque), honoured by compositing window managers.
+- (void) setAlphaValue: (CGFloat) value {
+    // After -invalidate there is no X window (CGSSetWindowAlpha can still find
+    // this object by number until it is deallocated).
+    if (_window == 0)
+        return;
+
+    Atom opacity = XInternAtom(_display, "_NET_WM_WINDOW_OPACITY", False);
+
+    if (value >= 1.0) {
+        XDeleteProperty(_display, _window, opacity);
+    } else {
+        unsigned long cardinal =
+                (unsigned long) (MAX(value, 0.0) * (double) 0xffffffffUL);
+        XChangeProperty(_display, _window, opacity, XA_CARDINAL, 32,
+                        PropModeReplace, (unsigned char *) &cardinal, 1);
+    }
+    XFlush(_display);
+}
+
 - (void) invalidate {
     // This is essentially dealloc; we release our contexts
     // and windows, but unlike dealloc, this method can be called
@@ -412,7 +445,11 @@ static NSData *makeWindowIcon() {
     }
 
     if (_window) {
-        XDestroyIC(_xic);
+        // _xic is NULL when there is no input method; XDestroyIC() doesn't accept NULL.
+        if (_xic != NULL) {
+            XDestroyIC(_xic);
+            _xic = NULL;
+        }
 
         [(X11Display *) [NSDisplay currentDisplay] setWindow: nil
                                                        forID: _window];
@@ -515,6 +552,9 @@ static NSData *makeWindowIcon() {
 - (void) hideWindow {
     XUnmapWindow(_display, _window);
     _mapped = NO;
+    // A focus request still waiting for MapNotify is void once the window is
+    // ordered out; otherwise a later non-key orderFront would take focus.
+    _wantsInputFocus = NO;
 }
 
 - (void) placeAboveWindow: (NSInteger) otherNumber {
@@ -541,9 +581,97 @@ static NSData *makeWindowIcon() {
     }
 }
 
+// Without a window manager nothing moves X input focus: it stays PointerRoot, so
+// key events went to whichever window was under the pointer and no window ever
+// received FocusIn, which left -[NSApplication keyWindow] nil. Ask for focus
+// explicitly: through the EWMH _NET_ACTIVE_WINDOW request when a window manager
+// is running, otherwise with XSetInputFocus once the window is viewable.
+static Window supportingWMCheckWindow(Display *display, Window window,
+                                      Atom check)
+{
+    Atom type;
+    int format;
+    unsigned long count, remaining;
+    unsigned char *data = NULL;
+    Window result = None;
+
+    if (XGetWindowProperty(display, window, check, 0, 1, False, XA_WINDOW,
+                           &type, &format, &count, &remaining, &data) ==
+                Success &&
+        data != NULL && type == XA_WINDOW && format == 32 && count == 1)
+        result = (Window) * (long *) data;
+    if (data != NULL)
+        XFree(data);
+    return result;
+}
+
+static BOOL windowManagerIsRunning(Display *display) {
+    Atom check = XInternAtom(display, "_NET_SUPPORTING_WM_CHECK", True);
+    if (check == None)
+        return NO;
+
+    // A window manager that exited can leave the root property behind. Per
+    // EWMH the child window it names must carry the same property naming
+    // itself; a stale id fails that (the BadWindow is only logged).
+    Window child =
+            supportingWMCheckWindow(display, DefaultRootWindow(display), check);
+    return child != None &&
+           supportingWMCheckWindow(display, child, check) == child;
+}
+
+- (void) requestInputFocus {
+    Window focused;
+    int revert;
+    XGetInputFocus(_display, &focused, &revert);
+    if (focused == _window) {
+        _wantsInputFocus = NO;
+        return;
+    }
+
+    if (windowManagerIsRunning(_display)) {
+        XEvent event;
+        memset(&event, 0, sizeof(event));
+        event.xclient.type = ClientMessage;
+        event.xclient.window = _window;
+        event.xclient.message_type =
+                XInternAtom(_display, "_NET_ACTIVE_WINDOW", False);
+        event.xclient.format = 32;
+        event.xclient.data.l[0] = 1; // source indication: application
+        event.xclient.data.l[1] = CurrentTime;
+        XSendEvent(_display, DefaultRootWindow(_display), False,
+                   SubstructureRedirectMask | SubstructureNotifyMask, &event);
+        XFlush(_display);
+        _wantsInputFocus = NO;
+        return;
+    }
+
+    XWindowAttributes attributes;
+    if (XGetWindowAttributes(_display, _window, &attributes) &&
+        attributes.map_state == IsViewable) {
+        XSetInputFocus(_display, _window, RevertToPointerRoot, CurrentTime);
+        // Send it now: an idle run loop may not flush Xlib's output buffer until the
+        // next event, so key events typed meanwhile would still go to the old window.
+        XFlush(_display);
+        _wantsInputFocus = NO;
+    } else {
+        // Not viewable yet (the map request is still pending): retry on MapNotify.
+        _wantsInputFocus = YES;
+    }
+}
+
+- (void) mapNotified {
+    if (_wantsInputFocus)
+        [self requestInputFocus];
+}
+
 - (void) makeKey {
     [self ensureMapped];
     XRaiseWindow(_display, _window);
+    // FocusIn activates the NSWindow, which makes it key again and ends up here.
+    // Requesting focus from that path would answer every (possibly stale) FocusIn
+    // with a new focus change, and two windows would bounce focus forever.
+    if (!_receivingFocus)
+        [self requestInputFocus];
 }
 
 - (void) makeMain {

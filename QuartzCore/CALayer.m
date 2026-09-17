@@ -117,7 +117,10 @@ NSString *const kCAContentsFormatGray8Uint = @"Gray8";
             [self addAnimation: action forKey: @"bounds"];
     }
 
+    BOOL sizeChanged = !CGSizeEqualToSize(_bounds.size, value.size);
     _bounds = value;
+    if (sizeChanged && _needsDisplayOnBoundsChange)
+        [self setNeedsDisplay];
 }
 
 - (CGRect) frame {
@@ -240,7 +243,78 @@ NSString *const kCAContentsFormatGray8Uint = @"Gray8";
     [_animations release];
     [_minificationFilter release];
     [_magnificationFilter release];
+    if (_backgroundColor)
+        CGColorRelease(_backgroundColor);
+    if (_borderColor)
+        CGColorRelease(_borderColor);
+    [_textureContents release];
     [super dealloc];
+}
+
+static void replaceColor(CGColorRef *slot, CGColorRef value) {
+    if (*slot == value)
+        return;
+    if (value)
+        CGColorRetain(value);
+    if (*slot)
+        CGColorRelease(*slot);
+    *slot = value;
+}
+
+- (CGColorRef) backgroundColor {
+    return _backgroundColor;
+}
+
+// Appearance changes need a new frame even when no view is redisplayed: the
+// context's timer renders and presents one, then stops again once idle.
+- (void) setBackgroundColor: (CGColorRef) value {
+    replaceColor(&_backgroundColor, value);
+    [_context startTimerIfNeeded];
+}
+
+- (CGColorRef) borderColor {
+    return _borderColor;
+}
+
+- (void) setBorderColor: (CGColorRef) value {
+    replaceColor(&_borderColor, value);
+    [_context startTimerIfNeeded];
+}
+
+- (CGFloat) borderWidth {
+    return _borderWidth;
+}
+
+- (void) setBorderWidth: (CGFloat) value {
+    _borderWidth = value;
+    [_context startTimerIfNeeded];
+}
+
+- (CGFloat) cornerRadius {
+    return _cornerRadius;
+}
+
+- (void) setCornerRadius: (CGFloat) value {
+    _cornerRadius = value;
+    [_context startTimerIfNeeded];
+}
+
+- (BOOL) masksToBounds {
+    return _masksToBounds;
+}
+
+- (void) setMasksToBounds: (BOOL) value {
+    _masksToBounds = value;
+    [_context startTimerIfNeeded];
+}
+
+- (BOOL) isHidden {
+    return _hidden;
+}
+
+- (void) setHidden: (BOOL) value {
+    _hidden = value;
+    [_context startTimerIfNeeded];
 }
 
 - (void) _setSuperLayer: (CALayer *) parent {
@@ -270,22 +344,56 @@ NSString *const kCAContentsFormatGray8Uint = @"Gray8";
     layer->_superlayer = nil;
 }
 
+// Draws the layer's content with -drawInContext: (or the delegate's
+// -drawLayer:inContext:) into a bitmap the size of the bounds and makes that the
+// layer's contents, which the renderer uploads as a texture. A delegate that
+// implements -displayLayer: sets the contents itself instead.
 - (void) display {
-    if ([_delegate respondsToSelector: @selector(displayLayer:)])
+    if ([_delegate respondsToSelector: @selector(displayLayer:)]) {
         [_delegate displayLayer: self];
-    else {
-#if 0
-
-#warning create bitmap context
-
-    [self drawInContext:context];
-    _contents=image;
-    [self setContents:image];
-#endif
+        return;
     }
+
+    size_t width = (size_t) ceil(MAX(_bounds.size.width, 0));
+    size_t height = (size_t) ceil(MAX(_bounds.size.height, 0));
+    if (width == 0 || height == 0) {
+        [self setContents: nil];
+        return;
+    }
+
+    CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
+    CGContextRef context = CGBitmapContextCreate(
+            NULL, width, height, 8, 0, colorSpace,
+            kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Host);
+    CGColorSpaceRelease(colorSpace);
+    if (context == NULL)
+        return;
+
+    CGContextClearRect(context, CGRectMake(0, 0, width, height));
+    // Layer coordinates: the bounds origin is the bitmap's bottom-left corner.
+    CGContextTranslateCTM(context, -_bounds.origin.x, -_bounds.origin.y);
+    [self drawInContext: context];
+
+    CGImageRef image = CGBitmapContextCreateImage(context);
+    [self setContents: (id) image];
+    if (image != NULL)
+        CGImageRelease(image);
+    CGContextRelease(context);
 }
 
 - (void) displayIfNeeded {
+    if (_needsDisplay) {
+        _needsDisplay = NO;
+        [self display];
+    }
+}
+
+- (BOOL) needsDisplayOnBoundsChange {
+    return _needsDisplayOnBoundsChange;
+}
+
+- (void) setNeedsDisplayOnBoundsChange: (BOOL) value {
+    _needsDisplayOnBoundsChange = value;
 }
 
 - (void) drawInContext: (CGContextRef) context {
@@ -305,10 +413,13 @@ NSString *const kCAContentsFormatGray8Uint = @"Gray8";
 
 - (void) setNeedsDisplay {
     _needsDisplay = YES;
+    // Get a frame rendered: the context's timer renders, presents, and stops
+    // again once no animations are running.
+    [_context startTimerIfNeeded];
 }
 
 - (void) setNeedsDisplayInRect: (CGRect) rect {
-    _needsDisplay = YES;
+    [self setNeedsDisplay];
 }
 
 - (void) addAnimation: (CAAnimation *) animation forKey: (NSString *) key {
@@ -362,6 +473,16 @@ NSString *const kCAContentsFormatGray8Uint = @"Gray8";
     value = [value copy];
     [_textureId release];
     _textureId = value;
+}
+
+- (id) _textureContents {
+    return _textureContents;
+}
+
+- (void) _setTextureContents: (id) value {
+    value = [value retain];
+    [_textureContents release];
+    _textureContents = value;
 }
 
 @end

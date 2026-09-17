@@ -132,6 +132,17 @@ const CGFloat NSTableViewDefaultRowHeight = 16.0f;
         _editedRow = -1;
         _numberOfRows = -1;
         _draggingRow = -1;
+        _draggingSourceMaskLocal = NSDragOperationEvery;
+        _draggingSourceMaskNonLocal = NSDragOperationNone;
+        // Nibs archive "every operation" as -1; NSDragOperationEvery is 32 bits wide here.
+        if ([keyed containsValueForKey: @"NSDraggingSourceMaskForLocal"])
+            _draggingSourceMaskLocal = (NSDragOperation) [keyed
+                    decodeIntegerForKey: @"NSDraggingSourceMaskForLocal"] &
+                    NSDragOperationEvery;
+        if ([keyed containsValueForKey: @"NSDraggingSourceMaskForNonLocal"])
+            _draggingSourceMaskNonLocal = (NSDragOperation) [keyed
+                    decodeIntegerForKey: @"NSDraggingSourceMaskForNonLocal"] &
+                    NSDragOperationEvery;
 
         // row background and grid attributes for OS X >= 10.3
         _alternatingRowBackground = (flags & 0x00800000) ? YES : NO;
@@ -159,6 +170,8 @@ const CGFloat NSTableViewDefaultRowHeight = 16.0f;
     _editedRow = -1;
     _numberOfRows = -1;
     _draggingRow = -1;
+    _draggingSourceMaskLocal = NSDragOperationEvery;
+    _draggingSourceMaskNonLocal = NSDragOperationNone;
 
     _allowsColumnReordering = YES;
     _allowsColumnResizing = YES;
@@ -1043,22 +1056,45 @@ static CGFloat rowHeightAtIndex(NSTableView *self, NSInteger index) {
 }
 
 - (void) selectColumn: (NSInteger) column byExtendingSelection: (BOOL) extend {
-    NSTableColumn *tableColumn = [_tableColumns objectAtIndex: column];
+    [self selectColumnIndexes: [NSIndexSet indexSetWithIndex: column]
+         byExtendingSelection: extend];
+}
 
-    // selecting a column deselects all rows
-    [self selectRowIndexes: [NSIndexSet indexSet] byExtendingSelection: NO];
+- (void) selectColumnIndexes: (NSIndexSet *) indexes
+        byExtendingSelection: (BOOL) extend
+{
+    // Like selectRowIndexes:, out-of-range indexes leave the selection untouched.
+    if ([indexes count] > 0 && [indexes lastIndex] >= [_tableColumns count])
+        return;
+
+    // Selecting a column deselects all rows. Not through selectRowIndexes:, which
+    // also clears the columns and, without allowsEmptySelection, re-selects row 0.
+    if ([_selectedRowIndexes count] > 0) {
+        [self willChangeValueForKey: @"selectedRowIndexes"];
+        [_selectedRowIndexes release];
+        _selectedRowIndexes = [[NSIndexSet alloc] init];
+        [self didChangeValueForKey: @"selectedRowIndexes"];
+    }
 
     if (extend == NO)
         [_selectedColumns removeAllObjects];
 
-    if ([_selectedColumns containsObject: tableColumn] == NO) {
-        if ([self delegateShouldSelectTableColumn: tableColumn] == YES)
+    for (NSUInteger i = [indexes firstIndex]; i != NSNotFound;
+         i = [indexes indexGreaterThanIndex: i]) {
+        NSTableColumn *tableColumn = [_tableColumns objectAtIndex: i];
+
+        if (![_selectedColumns containsObject: tableColumn] &&
+            [self delegateShouldSelectTableColumn: tableColumn])
             [_selectedColumns addObject: tableColumn];
     }
 
     [self noteSelectionDidChange];
     [self setNeedsDisplay: YES];
     [_headerView setNeedsDisplay: YES];
+}
+
+- (NSIndexSet *) columnIndexesInRect: (NSRect) rect {
+    return [NSIndexSet indexSetWithIndexesInRange: [self columnsInRect: rect]];
 }
 
 - (void) deselectRow: (NSInteger) row {
@@ -1958,8 +1994,17 @@ static CGFloat rowHeightAtIndex(NSTableView *self, NSInteger index) {
     [self tile];
 }
 
+- (void) setDraggingSourceOperationMask: (NSDragOperation) mask
+                               forLocal: (BOOL) isLocal
+{
+    if (isLocal)
+        _draggingSourceMaskLocal = mask;
+    else
+        _draggingSourceMaskNonLocal = mask;
+}
+
 - (NSDragOperation) draggingSourceOperationMaskForLocal: (BOOL) isLocal {
-    return NSDragOperationCopy;
+    return isLocal ? _draggingSourceMaskLocal : _draggingSourceMaskNonLocal;
 }
 
 - (NSInteger) _getDraggedRow: (id<NSDraggingInfo>) info {
@@ -2089,5 +2134,15 @@ static CGFloat rowHeightAtIndex(NSTableView *self, NSInteger index) {
 @end
 
 @implementation NSTableView (Bindings)
+
+@end
+
+@implementation NSTableView (NSTableViewStyle)
+
+// Private AppKit: the insets a table view style adds around its rows. Cocotron
+// has only the plain style.
+- (NSEdgeInsets) _styleContentInsets {
+    return NSEdgeInsetsMake(0, 0, 0, 0);
+}
 
 @end

@@ -40,6 +40,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSView.h>
 #import <AppKit/NSViewBackingLayer.h>
 #import <AppKit/NSWindow-Private.h>
+#import <AppKit/NSDocument.h>
+#import <AppKit/NSWindowController.h>
 #import <CoreGraphics/CGWindow.h>
 #import <Foundation/NSKeyedArchiver.h>
 #import <Onyx2D/O2Context.h>
@@ -73,6 +75,7 @@ const NSViewFullScreenModeOptionKey NSFullScreenModeApplicationPresentationOptio
 @synthesize identifier = _identifier;
 @synthesize translatesAutoresizingMaskIntoConstraints = _translatesAutoresizingMaskIntoConstraints;
 @synthesize appearance = _appearance;
+@synthesize wantsBestResolutionOpenGLSurface = _wantsBestResolutionOpenGLSurface;
 
 static BOOL NSViewLayersEnabled = YES;
 static BOOL NSShowAllViews = NO;
@@ -179,12 +182,14 @@ typedef struct __VFlags {
         //[coder encodeObject: _backgroundFilters
         //             forKey: @"NSViewBackgroundFilters"];
         [coder encodeObject: _animations forKey: @"NSViewAnimations"];
-        //[coder encodeBool: _canDrawConcurrently
-        //           forKey: @"NSViewCanDrawConcurrently"];
+        [coder encodeBool: _canDrawConcurrently
+                   forKey: @"NSViewCanDrawConcurrently"];
         [coder encodeBool: _wantsLayer forKey: @"NSViewIsLayerTreeHost"];
         [coder encodeInteger: _layerContentsRedrawPolicy
                       forKey: @"NSViewLayerContentsRedrawPolicy"];
         [coder encodeObject: _contentFilters forKey: @"NSViewContentFilters"];
+        [coder encodeBool: _wantsBestResolutionOpenGLSurface
+                   forKey: @"NSViewWantsBestResolutionOpenGLSurface"];
     } else {
         [NSException raise: NSInvalidArchiveOperationException
                     format: @"TODO: support unkeyed encoding in NSView"];
@@ -227,6 +232,8 @@ typedef struct __VFlags {
         // alternative for enabling it when it should be.
         _autoresizesSubviews = YES;
         _isHidden = (vFlags & 0x80000000) ? YES : NO;
+        _wantsBestResolutionOpenGLSurface = [keyed
+                decodeBoolForKey: @"NSViewWantsBestResolutionOpenGLSurface"];
         _tag = 0; // IB assigns a default tag id of 0 - which is different from
                   // the default in the docs.
         if ([keyed containsValueForKey: @"NSTag"])
@@ -438,6 +445,7 @@ typedef struct __VFlags {
 
     _window = nil;
     [_menu release];
+    [_accessibilityTitle release];
 
     _superview = nil;
     [_subviews makeObjectsPerformSelector: @selector(_setSuperview:)
@@ -1026,6 +1034,62 @@ static inline void buildTransformsIfNeeded(NSView *self) {
     CGFloat maxy = floor(NSMaxY(rect) + 0.5);
 
     return NSMakeRect(minx, miny, maxx - minx, maxy - miny);
+}
+
+// inwardBit is the axis option's NSAlign...Inward bit; Outward and Nearest are 8 and 16 bits higher.
+static CGFloat alignValue(CGFloat value, NSAlignmentOptions options,
+                          NSAlignmentOptions inwardBit, BOOL isMinEdge)
+{
+    if (options & (inwardBit << 16))
+        return round(value);
+    if (options & inwardBit)
+        return isMinEdge ? ceil(value) : floor(value);
+    if (options & (inwardBit << 8))
+        return isMinEdge ? floor(value) : ceil(value);
+    return value;
+}
+
+static void alignAxis(CGFloat *origin, CGFloat *length, NSAlignmentOptions options,
+                      NSAlignmentOptions minBit, NSAlignmentOptions maxBit,
+                      NSAlignmentOptions sizeBit)
+{
+    const NSAlignmentOptions anyForm = 1 | (1 << 8) | (1 << 16);
+    CGFloat min = alignValue(*origin, options, minBit, YES);
+    CGFloat max = alignValue(*origin + *length, options, maxBit, NO);
+    if (options & (sizeBit * anyForm)) {
+        CGFloat size = alignValue(*length, options, sizeBit, NO);
+        if ((options & (maxBit * anyForm)) && !(options & (minBit * anyForm)))
+            min = max - size;
+        else
+            max = min + size;
+    }
+    *origin = min;
+    *length = max - min;
+}
+
+// Cocotron's backing store has one pixel per point in window coordinates. Without a window
+// there is no backing store, so align in view coordinates.
+- (NSRect) backingAlignedRect: (NSRect) rect options: (NSAlignmentOptions) options {
+    BOOL inWindow = ([self window] != nil);
+    NSRect base = inWindow ? [self convertRect: rect toView: nil] : rect;
+    // A flipped view's min-Y edge is the max-Y edge in window coordinates.
+    BOOL swapY = inWindow && [self isFlipped];
+    alignAxis(&base.origin.x, &base.size.width, options, NSAlignMinXInward,
+              NSAlignMaxXInward, NSAlignWidthInward);
+    alignAxis(&base.origin.y, &base.size.height, options,
+              swapY ? NSAlignMaxYInward : NSAlignMinYInward,
+              swapY ? NSAlignMinYInward : NSAlignMaxYInward, NSAlignHeightInward);
+    return inWindow ? [self convertRect: base fromView: nil] : base;
+}
+
+- (NSString *) accessibilityTitle {
+    return _accessibilityTitle;
+}
+
+- (void) setAccessibilityTitle: (NSString *) title {
+    title = [title copy];
+    [_accessibilityTitle release];
+    _accessibilityTitle = title;
 }
 
 - (void) setFrame: (NSRect) frame {
@@ -2114,9 +2178,10 @@ static NSView *viewBeingPrinted = nil;
            (_window != nil && ![self isHiddenOrHasHiddenAncestor]);
 }
 
+// Cocotron always draws views serially on the main thread, so this is only a
+// hint that is stored (and archived) for callers that read it back.
 - (BOOL) canDrawConcurrently {
-    NSUnimplementedMethod();
-    return NO;
+    return _canDrawConcurrently;
 }
 
 - (void) viewWillDraw {
@@ -2124,7 +2189,7 @@ static NSView *viewBeingPrinted = nil;
 }
 
 - (void) setCanDrawConcurrently: (BOOL) canDraw {
-    NSUnimplementedMethod();
+    _canDrawConcurrently = canDraw;
 }
 
 - (void) _lockFocusInContext: (NSGraphicsContext *) context {
@@ -2585,9 +2650,14 @@ static NSView *viewBeingPrinted = nil;
     return nil;
 }
 
+// The window's document's display name, else the window's title.
 - (NSString *) printJobTitle {
-    NSUnimplementedMethod();
-    return nil;
+    NSWindow *window = [self window];
+    NSDocument *document = [[window windowController] document];
+    if (document != nil)
+        return [document displayName];
+    NSString *title = [window title];
+    return [title length] > 0 ? title : nil;
 }
 
 - (void) drawSheetBorderWithSize: (NSSize) size {
@@ -2832,6 +2902,40 @@ static NSView *viewBeingPrinted = nil;
     return aRect;
 }
 
+static NSRect scaleRect(NSRect rect, CGFloat scale) {
+    return NSMakeRect(rect.origin.x * scale, rect.origin.y * scale,
+                      rect.size.width * scale, rect.size.height * scale);
+}
+
+static CGFloat backingScaleFactor(NSView *view) {
+    NSWindow *window = [view window];
+    return window != nil ? [window backingScaleFactor] : 1.0;
+}
+
+- (NSRect) convertRectToBacking: (NSRect) rect {
+    return scaleRect(rect, backingScaleFactor(self));
+}
+
+- (NSRect) convertRectFromBacking: (NSRect) rect {
+    return scaleRect(rect, 1.0 / backingScaleFactor(self));
+}
+
+- (NSPoint) convertPointToBacking: (NSPoint) point {
+    return [self convertRectToBacking: (NSRect){point, NSZeroSize}].origin;
+}
+
+- (NSPoint) convertPointFromBacking: (NSPoint) point {
+    return [self convertRectFromBacking: (NSRect){point, NSZeroSize}].origin;
+}
+
+- (NSSize) convertSizeToBacking: (NSSize) size {
+    return [self convertRectToBacking: (NSRect){NSZeroPoint, size}].size;
+}
+
+- (NSSize) convertSizeFromBacking: (NSSize) size {
+    return [self convertRectFromBacking: (NSRect){NSZeroPoint, size}].size;
+}
+
 - (void) showDefinitionForAttributedString: (NSAttributedString *) string
                                    atPoint: (NSPoint) origin
 {
@@ -2924,6 +3028,123 @@ static NSView *viewBeingPrinted = nil;
     } else {
         _verticalContentCompressionResistancePriority = contentCompressionResistancePriority;
     }
+}
+
+@end
+
+// Provided by Foundation's NSLayoutAnchor (not imported by Foundation.h).
+@interface NSObject (NSViewAnchorCreation)
+- (instancetype) initWithItem: (id) item attribute: (NSInteger) attribute;
+@end
+
+@implementation NSView (NSViewLayoutState)
+
+- (BOOL) needsLayout {
+    return _needsLayout;
+}
+
+- (void) setNeedsLayout: (BOOL) flag {
+    _needsLayout = flag;
+}
+
+- (BOOL) needsUpdateConstraints {
+    return _needsUpdateConstraints;
+}
+
+- (void) setNeedsUpdateConstraints: (BOOL) flag {
+    _needsUpdateConstraints = flag;
+}
+
+- (BOOL) clipsToBounds {
+    return _clipsToBounds;
+}
+
+- (void) setClipsToBounds: (BOOL) flag {
+    _clipsToBounds = flag;
+}
+
+- (NSRect) preparedContentRect {
+    return _hasPreparedContentRect ? _preparedContentRect : [self visibleRect];
+}
+
+- (void) setPreparedContentRect: (NSRect) rect {
+    _preparedContentRect = rect;
+    _hasPreparedContentRect = YES;
+}
+
+// A new anchor of the named Foundation class, or of NSLayoutAnchor when that
+// subclass is missing; nil when Foundation can't create anchors.
+static id anchorForView(NSView *view, NSString *className,
+                        NSLayoutAttribute attribute)
+{
+    Class cls = NSClassFromString(className);
+    if (cls == Nil)
+        cls = NSClassFromString(@"NSLayoutAnchor");
+    if (cls == Nil ||
+        ![cls instancesRespondToSelector: @selector(initWithItem:attribute:)])
+        return nil;
+    return [[[cls alloc] initWithItem: view attribute: attribute] autorelease];
+}
+
+- (NSLayoutDimension *) widthAnchor {
+    return anchorForView(self, @"NSLayoutDimension", NSLayoutAttributeWidth);
+}
+
+- (NSLayoutDimension *) heightAnchor {
+    return anchorForView(self, @"NSLayoutDimension", NSLayoutAttributeHeight);
+}
+
+- (NSLayoutXAxisAnchor *) leadingAnchor {
+    return anchorForView(self, @"NSLayoutXAxisAnchor", NSLayoutAttributeLeading);
+}
+
+- (NSLayoutXAxisAnchor *) trailingAnchor {
+    return anchorForView(self, @"NSLayoutXAxisAnchor", NSLayoutAttributeTrailing);
+}
+
+- (NSLayoutXAxisAnchor *) leftAnchor {
+    return anchorForView(self, @"NSLayoutXAxisAnchor", NSLayoutAttributeLeft);
+}
+
+- (NSLayoutXAxisAnchor *) rightAnchor {
+    return anchorForView(self, @"NSLayoutXAxisAnchor", NSLayoutAttributeRight);
+}
+
+- (NSLayoutXAxisAnchor *) centerXAnchor {
+    return anchorForView(self, @"NSLayoutXAxisAnchor", NSLayoutAttributeCenterX);
+}
+
+- (NSLayoutYAxisAnchor *) topAnchor {
+    return anchorForView(self, @"NSLayoutYAxisAnchor", NSLayoutAttributeTop);
+}
+
+- (NSLayoutYAxisAnchor *) bottomAnchor {
+    return anchorForView(self, @"NSLayoutYAxisAnchor", NSLayoutAttributeBottom);
+}
+
+- (NSLayoutYAxisAnchor *) centerYAnchor {
+    return anchorForView(self, @"NSLayoutYAxisAnchor", NSLayoutAttributeCenterY);
+}
+
+- (void) addConstraints: (NSArray *) constraints {
+    [NSLayoutConstraint activateConstraints: constraints];
+}
+
+- (void) layoutSubtreeIfNeeded {
+    _needsLayout = NO;
+    [_subviews makeObjectsPerformSelector: _cmd];
+}
+
+@end
+
+@implementation NSView (NSViewEffectiveAppearance)
+
+- (NSAppearance *) effectiveAppearance {
+    if (_appearance != nil)
+        return _appearance;
+    if (_superview != nil)
+        return [_superview effectiveAppearance];
+    return [NSAppearance currentAppearance];
 }
 
 @end

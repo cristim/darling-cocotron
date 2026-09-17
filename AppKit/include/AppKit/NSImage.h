@@ -18,9 +18,12 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 #import <AppKit/NSBitmapImageRep.h>
+#import <AppKit/NSFontDescriptor.h>
 #import <AppKit/NSGraphics.h>
 
 @class NSImageRep;
+@class NSImageSymbolConfiguration;
+@class NSGraphicsContext;
 
 typedef enum {
     NSImageCacheDefault,
@@ -46,10 +49,14 @@ typedef enum {
     BOOL _isDataRetained;
     BOOL _cacheIsValid;
     NSImageCacheMode _cacheMode;
+    NSString *_accessibilityDescription;
+    NSImageSymbolConfiguration *_symbolConfiguration;
 }
 
 + (NSArray *) imageFileTypes;
 + (NSArray *) imageUnfilteredFileTypes;
++ (NSArray *) imageTypes;
++ (NSArray *) imageUnfilteredTypes;
 + (NSArray *) imagePasteboardTypes;
 + (NSArray *) imageUnfilteredPasteboardTypes;
 
@@ -62,6 +69,9 @@ typedef enum {
 - initWithContentsOfFile: (NSString *) path;
 - initWithContentsOfURL: (NSURL *) url;
 - initWithCGImage: (CGImageRef) cgImage size: (NSSize) size;
+- (CGImageRef) CGImageForProposedRect: (NSRect *) proposedDestRect
+                              context: (NSGraphicsContext *) context
+                                hints: (NSDictionary *) hints;
 
 - initWithPasteboard: (NSPasteboard *) pasteboard;
 - initByReferencingFile: (NSString *) path;
@@ -153,10 +163,51 @@ typedef enum {
         respectFlipped: (BOOL) respectFlipped
                  hints: (NSDictionary<NSString *, id> *) hints;
 
+- (NSString *) accessibilityDescription;
+- (void) setAccessibilityDescription: (NSString *) description;
+
+// SF Symbols. Darling has no symbol artwork: these return a generic template
+// placeholder glyph for any non-empty name (nil for a nil or empty name).
++ (instancetype) imageWithSystemSymbolName: (NSString *) name
+                  accessibilityDescription: (NSString *) description;
++ (instancetype) imageWithSystemSymbolName: (NSString *) name
+                             variableValue: (double) value
+                  accessibilityDescription: (NSString *) description;
+- (NSImage *) imageWithSymbolConfiguration:
+        (NSImageSymbolConfiguration *) configuration;
+- (NSImageSymbolConfiguration *) symbolConfiguration;
+// Private AppKit spelling of imageWithSystemSymbolName:accessibilityDescription:.
++ (instancetype) _imageWithSystemSymbolName: (NSString *) name;
+
+@end
+
+typedef NS_ENUM(NSInteger, NSImageSymbolScale) {
+    NSImageSymbolScaleSmall = 1,
+    NSImageSymbolScaleMedium = 2,
+    NSImageSymbolScaleLarge = 3,
+};
+
+@interface NSImageSymbolConfiguration : NSObject <NSCopying> {
+    CGFloat _pointSize;
+    NSFontWeight _weight;
+    NSImageSymbolScale _scale;
+}
+
++ (instancetype) configurationWithPointSize: (CGFloat) pointSize
+                                     weight: (NSFontWeight) weight;
++ (instancetype) configurationWithPointSize: (CGFloat) pointSize
+                                     weight: (NSFontWeight) weight
+                                      scale: (NSImageSymbolScale) scale;
++ (instancetype) configurationWithScale: (NSImageSymbolScale) scale;
+- (NSImageSymbolConfiguration *) configurationByApplyingConfiguration:
+        (NSImageSymbolConfiguration *) configuration;
+
 @end
 
 @interface NSBundle (NSImage)
 - (NSString *) pathForImageResource: (NSString *) name;
+// A new image from pathForImageResource:, or nil.
+- (NSImage *) imageForResource: (NSString *) name;
 @end
 
 @protocol NSImageDelegate <NSObject>
@@ -206,6 +257,8 @@ APPKIT_EXPORT NSImageName const NSImageNameMobileMe;
 APPKIT_EXPORT NSImageName const NSImageNameMultipleDocuments;
 APPKIT_EXPORT NSImageName const NSImageNameNetwork;
 APPKIT_EXPORT NSImageName const NSImageNamePathTemplate;
+APPKIT_EXPORT NSImageName const NSImageNamePauseTemplate;
+APPKIT_EXPORT NSImageName const NSImageNamePlayTemplate;
 APPKIT_EXPORT NSImageName const NSImageNamePreferencesGeneral;
 APPKIT_EXPORT NSImageName const NSImageNameQuickLookTemplate;
 APPKIT_EXPORT NSImageName const NSImageNameRefreshFreestandingTemplate;
@@ -235,6 +288,7 @@ APPKIT_EXPORT NSImageName const NSImageNameTouchBarDeleteTemplate;
 APPKIT_EXPORT NSImageName const NSImageNameTouchBarPauseTemplate;
 APPKIT_EXPORT NSImageName const NSImageNameTouchBarPlayTemplate;
 APPKIT_EXPORT NSImageName const NSImageNameTouchBarRecordStopTemplate;
+APPKIT_EXPORT NSImageName const NSImageNameTouchBarAddTabTemplate;
 
 APPKIT_EXPORT NSImageHintKey const NSImageHintInterpolation;
 APPKIT_EXPORT NSImageHintKey const NSImageHintCTM;

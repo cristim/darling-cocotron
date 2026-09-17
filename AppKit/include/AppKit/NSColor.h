@@ -30,6 +30,8 @@ typedef NSString *NSColorSpaceName;
 @class NSImage;
 @class NSPasteboard;
 
+@class NSColorSpace;
+
 @interface NSColor : NSObject <NSCopying, NSCoding> {
     NSColorListName _catalogName;
     NSColorName _colorName;
@@ -37,6 +39,10 @@ typedef NSString *NSColorSpaceName;
 }
 
 @property(class, strong, readonly) NSColor *labelColor;
+@property(class, strong, readonly) NSColor *secondaryLabelColor;
+@property(class, strong, readonly) NSColor *tertiaryLabelColor;
+@property(class, strong, readonly) NSColor *quaternaryLabelColor;
+@property(class, strong, readonly) NSColor *systemRedColor;
 
 @property(class, strong, readonly) NSColor *textColor;
 @property(class, strong, readonly) NSColor *selectedTextColor;
@@ -225,6 +231,9 @@ typedef NSString *NSColorSpaceName;
 + (NSColor *) colorWithCatalogName: (NSString *) catalogName
                          colorName: (NSString *) colorName;
 
++ (NSColor *) colorNamed: (NSColorName) name;
++ (NSColor *) colorNamed: (NSColorName) name bundle: (NSBundle *) bundle;
+
 + (NSColor *) colorFromPasteboard: (NSPasteboard *) pasteboard;
 
 + (NSColor *) colorWithPatternImage: (NSImage *) image;
@@ -283,4 +292,8 @@ typedef NSString *NSColorSpaceName;
 
 - (void) writeToPasteboard: (NSPasteboard *) pasteboard;
 
+@end
+
+@interface NSColor (NSColorSpaceConversion)
+- (NSColor *) colorUsingColorSpace: (NSColorSpace *) space;
 @end

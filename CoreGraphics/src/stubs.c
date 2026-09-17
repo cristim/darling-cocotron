@@ -94,3 +94,63 @@ CGWindowLevel CGShieldingWindowLevel(void) {
         puts("STUB: CGShieldingWindowLevel called");
     return 0;
 }
+
+void* CGColorSpaceGetBaseColorSpace(void* space) {
+    return NULL;
+}
+
+void CGColorSpaceGetColorTable(void* space, uint8_t *table) {
+}
+
+size_t CGColorSpaceGetColorTableCount(void* space) {
+    return 0;
+}
+
+void CGPathAddRelativeArc(void* path, const void *m, CGFloat x, CGFloat y, CGFloat radius, CGFloat startAngle, CGFloat delta) {
+}
+
+void CGPathAddRoundedRect(void* path, const void *m, CGRect rect, CGFloat cornerWidth, CGFloat cornerHeight) {
+}
+
+void* CGPathCreateCopyByDashingPath(void* path, const void *m, CGFloat phase, const CGFloat *lengths, size_t count) {
+    return NULL;
+}
+
+void* CGPathCreateCopyByStrokingPath(void* path, const void *m, CGFloat lineWidth, int lineCap, int lineJoin, CGFloat miterLimit) {
+    return NULL;
+}
+
+void CGRectDivide(CGRect rect, CGRect *slice, CGRect *remainder, CGFloat amount, CGRectEdge edge) {
+    if (slice == NULL && remainder == NULL) return;
+    if (amount < 0) amount = 0;
+    CGRect s = rect;
+    CGRect r = rect;
+    switch (edge) {
+        case CGRectMinXEdge:
+            if (amount > rect.size.width) amount = rect.size.width;
+            s.size.width = amount;
+            r.origin.x += amount;
+            r.size.width -= amount;
+            break;
+        case CGRectMaxXEdge:
+            if (amount > rect.size.width) amount = rect.size.width;
+            s.origin.x = rect.origin.x + rect.size.width - amount;
+            s.size.width = amount;
+            r.size.width -= amount;
+            break;
+        case CGRectMinYEdge:
+            if (amount > rect.size.height) amount = rect.size.height;
+            s.size.height = amount;
+            r.origin.y += amount;
+            r.size.height -= amount;
+            break;
+        case CGRectMaxYEdge:
+            if (amount > rect.size.height) amount = rect.size.height;
+            s.origin.y = rect.origin.y + rect.size.height - amount;
+            s.size.height = amount;
+            r.size.height -= amount;
+            break;
+    }
+    if (slice) *slice = s;
+    if (remainder) *remainder = r;
+}

@@ -75,6 +75,8 @@ typedef NSUInteger NSUsableScrollerParts;
 }
 
 + (CGFloat) scrollerWidth;
++ (CGFloat) scrollerWidthForControlSize: (NSControlSize) controlSize
+                          scrollerStyle: (NSScrollerStyle) scrollerStyle;
 
 - (CGFloat) knobProportion;
 - (NSScrollArrowPosition) arrowsPosition;

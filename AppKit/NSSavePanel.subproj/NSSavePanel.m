@@ -21,18 +21,41 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSApplication.h>
 #import <AppKit/NSDisplay.h>
 #import <AppKit/NSRaise.h>
+#import <AppKit/NSOutlineView.h>
 #import <AppKit/NSSavePanel.h>
+#import <AppKit/NSScrollView.h>
+#import <AppKit/NSTextField.h>
 #import <AppKit/NSView.h>
+
+// UTType; Darling's UTType may not implement it.
+@interface NSObject (NSSavePanelContentTypes)
+- (NSString *) preferredFilenameExtension;
+@end
 
 @implementation NSSavePanel
 
 @synthesize showsHiddenFiles=_showsHiddenFiles;
+@synthesize canSelectHiddenExtension = _canSelectHiddenExtension;
+@synthesize extensionHidden = _extensionHidden;
+
+// Like macOS, panels start in ~/Documents when there is one.
+static NSString *defaultDirectory(void) {
+    NSString *documents =
+            [NSHomeDirectory() stringByAppendingPathComponent: @"Documents"];
+    BOOL isDirectory = NO;
+    if ([[NSFileManager defaultManager] fileExistsAtPath: documents
+                                             isDirectory: &isDirectory] &&
+        isDirectory)
+        return documents;
+    return NSHomeDirectory();
+}
 
 - (id) resetToDefaultValues {
     _dialogTitle = @"Save";
     _nameFieldStringValue = @"";
+    [_nameField setStringValue: @""];
     _filename = @"";
-    _directory = [NSHomeDirectory() copy];
+    _directory = [defaultDirectory() copy];
     _requiredFileType = @"";
     _treatsFilePackagesAsDirectories = NO;
     _accessoryView = nil;
@@ -55,9 +78,41 @@ static NSSavePanel *_newPanel = nil;
                               defer: YES];
     } else {
         [NSBundle loadNibNamed: @"NSSavePanel" owner: self];
+        [_newPanel _addNameField];
     }
     // FIXME: release it?
     return [_newPanel resetToDefaultValues];
+}
+
+// The panel nib only has a file browser; saving also needs a field for the new file's name.
+- (void) _addNameField {
+    const CGFloat height = 22, spacing = 8, labelWidth = 64;
+    NSScrollView *browser = [_outlineView enclosingScrollView];
+    NSRect frame = [browser frame];
+    frame.size.height -= height + spacing;
+    [browser setFrame: frame];
+
+    NSRect row = NSMakeRect(NSMinX(frame), NSMaxY(frame) + spacing, labelWidth,
+                            height);
+    NSTextField *label = [[[NSTextField alloc] initWithFrame: row] autorelease];
+    [label setStringValue: NSLocalizedStringFromTableInBundle(
+                                   @"Save As:", nil,
+                                   [NSBundle bundleForClass: [NSSavePanel class]],
+                                   @"The label of the save panel's name field")];
+    [label setEditable: NO];
+    [label setSelectable: NO];
+    [label setBezeled: NO];
+    [label setDrawsBackground: NO];
+    [label setAutoresizingMask: NSViewMinYMargin];
+    [[browser superview] addSubview: label];
+
+    row.origin.x += labelWidth;
+    row.size.width = NSWidth(frame) - labelWidth;
+    _nameField = [[NSTextField alloc] initWithFrame: row];
+    [_nameField setAutoresizingMask: NSViewWidthSizable | NSViewMinYMargin];
+    [_nameField setTarget: self];
+    [_nameField setAction: @selector(_selectFile:)];
+    [[browser superview] addSubview: _nameField];
 }
 
 - init {
@@ -71,7 +126,11 @@ static NSSavePanel *_newPanel = nil;
     [_filename release];
     [_directory release];
     [_requiredFileType release];
+    [_allowedFileTypes release];
+    [_allowedContentTypes release];
     [_accessoryView release];
+    [_nameField release];
+    [_sheetCompletionHandler release];
     [super dealloc];
 }
 
@@ -100,8 +159,11 @@ static NSSavePanel *_newPanel = nil;
 }
 
 - (NSString *) nameFieldStringValue {
-    id ret = [_nameFieldStringValue copy];
-    return ret;
+    if (_nameField != nil) {
+        [_nameField validateEditing];
+        return [_nameField stringValue];
+    }
+    return [[_nameFieldStringValue copy] autorelease];
 }
 
 - (void) setNameFieldStringValue: (NSString *) value {
@@ -111,28 +173,128 @@ static NSSavePanel *_newPanel = nil;
     if (_nameFieldStringValue == nil) {
         _nameFieldStringValue = @"";
     }
+    [_nameField setStringValue: _nameFieldStringValue];
+}
+
+// The directory selected in the browser, the one holding a selected file, or the panel's directory.
+- (NSString *) _selectedDirectory {
+    NSInteger row = [_outlineView selectedRow];
+    if (row < 0)
+        return _directory;
+
+    NSString *path = [[_outlineView itemAtRow: row] path];
+    BOOL isDirectory = NO;
+    if ([[NSFileManager defaultManager] fileExistsAtPath: path
+                                             isDirectory: &isDirectory] &&
+        isDirectory)
+        return path;
+    return [path stringByDeletingLastPathComponent];
+}
+
+// Like macOS, a name without an allowed extension gets the first allowed one.
+- (NSString *) _nameWithAllowedExtension: (NSString *) name {
+    NSArray *types = [self allowedFileTypes];
+    if ([types count] == 0 && [_requiredFileType length] > 0)
+        types = [NSArray arrayWithObject: _requiredFileType];
+    if ([types count] == 0)
+        return name;
+
+    NSString *extension = [name pathExtension];
+    if (_allowsOtherFileTypes && [extension length] > 0)
+        return name;
+    for (NSString *type in types) {
+        if ([type caseInsensitiveCompare: extension] == NSOrderedSame)
+            return name;
+    }
+    return [name stringByAppendingPathExtension: [types objectAtIndex: 0]];
 }
 
 - (IBAction) _selectFile: (id) sender {
-    NSURL *url = [_outlineView itemAtRow: [_outlineView selectedRow]];
-    [self _setFilename: [url path]];
+    if (_nameField == nil) {
+        NSURL *url = [_outlineView itemAtRow: [_outlineView selectedRow]];
+        [self _setFilename: [url path]];
+    } else {
+        NSString *name = [self nameFieldStringValue];
+        if ([name length] == 0) {
+            [_nameField selectText: self];
+            NSBeep();
+            return;
+        }
+        // Like macOS, a typed path starting with / or ~ names the folder too.
+        NSString *path = [name stringByExpandingTildeInPath];
+        if (![path isAbsolutePath])
+            path = [[self _selectedDirectory]
+                    stringByAppendingPathComponent: name];
+        [self _setFilename: [[path stringByDeletingLastPathComponent]
+                                    stringByAppendingPathComponent:
+                                            [self _nameWithAllowedExtension:
+                                                          [path lastPathComponent]]]];
+    }
 
-    [NSApp stopModalWithCode: NSOKButton];
+    [self _endWithCode: NSOKButton];
 }
 
 - (IBAction) _cancel: (id) sender {
-    [NSApp stopModalWithCode: NSCancelButton];
+    [self _endWithCode: NSCancelButton];
+}
+
+- (void) _endWithCode: (NSModalResponse) code {
+    if (_runsAsSheet)
+        [NSApp endSheet: self returnCode: code];
+    else
+        [NSApp stopModalWithCode: code];
 }
 
 - (void) beginWithCompletionHandler: (void (^)(NSModalResponse result)) handler {
     NSUnimplementedMethod();
 }
 
+- (void) beginSheetModalForWindow: (NSWindow *) window
+                completionHandler: (void (^)(NSModalResponse result)) handler
+{
+    if (_runsAsSheet)
+        [NSException raise: NSInternalInconsistencyException
+                    format: @"-[%@ %@]: the panel is already a sheet",
+                            [self class], NSStringFromSelector(_cmd)];
+    if (window == nil) {
+        NSModalResponse result = [self runModal];
+        if (handler != nil)
+            handler(result);
+        return;
+    }
+
+    _sheetCompletionHandler = [handler copy];
+    _styleMaskBeforeSheet = [self styleMask];
+    _runsAsSheet = YES;
+    [NSApp beginSheet: self
+            modalForWindow: window
+             modalDelegate: self
+            didEndSelector: @selector(_sheetDidEnd:returnCode:contextInfo:)
+               contextInfo: NULL];
+}
+
+- (void) _sheetDidEnd: (NSWindow *) sheet
+           returnCode: (NSModalResponse) code
+          contextInfo: (void *) info
+{
+    void (^handler)(NSModalResponse) = _sheetCompletionHandler;
+    _sheetCompletionHandler = nil;
+    _runsAsSheet = NO;
+    [self orderOut: nil];
+    [self setStyleMask: _styleMaskBeforeSheet];
+    if (handler != nil) {
+        handler(code);
+        [handler release];
+    }
+}
+
 - (NSInteger) runModalForDirectory: (NSString *) directory
                               file: (NSString *) file
 {
     [self _setFilename: file];
-    [self setDirectory: directory];
+    if (directory != nil)
+        [self setDirectory: directory];
+    [self setNameFieldStringValue: file];
 
     return [self runModal];
 }
@@ -145,6 +307,9 @@ static NSSavePanel *_newPanel = nil;
                                runModalForDirectory: [self directory]
                                                file: [self filename]];
     } else {
+        // Like macOS, show the panel centered rather than at the (screen-clamped) origin saved in its nib.
+        [self center];
+        [_nameField selectText: self];
         res = [NSApp runModalForWindow: self];
         [self close];
     }
@@ -256,8 +421,30 @@ static NSSavePanel *_newPanel = nil;
     return [[_allowedFileTypes copy] autorelease];
 }
 
+- (NSArray *) allowedContentTypes {
+    return _allowedContentTypes ? [[_allowedContentTypes copy] autorelease]
+                                : [NSArray array];
+}
+
+- (void) setAllowedContentTypes: (NSArray *) types {
+    NSArray *copy = [types copy];
+    [_allowedContentTypes release];
+    _allowedContentTypes = copy;
+
+    NSMutableArray *extensions = [NSMutableArray array];
+    for (id type in types) {
+        if (![type respondsToSelector: @selector(preferredFilenameExtension)])
+            continue;
+        NSString *extension = [type preferredFilenameExtension];
+        if ([extension isKindOfClass: [NSString class]] &&
+            [extension length] > 0 && ![extensions containsObject: extension])
+            [extensions addObject: extension];
+    }
+    [self setAllowedFileTypes: [extensions count] > 0 ? extensions : nil];
+}
+
 - (void) setAllowsOtherFileTypes: (BOOL) value {
-    NSUnimplementedMethod();
+    _allowsOtherFileTypes = value;
 }
 
 - (void) beginSheetForDirectory: (NSString *) path

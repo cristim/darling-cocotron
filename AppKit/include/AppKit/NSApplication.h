@@ -22,6 +22,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSResponder.h>
 #import <AppKit/NSRunningApplication.h>
 #import <AppKit/NSAlert.h>
+#import <AppKit/NSAppearance.h>
 #import <Foundation/NSNotification.h>
 #import <Foundation/NSRunLoop.h>
 
@@ -34,6 +35,8 @@ APPKIT_EXPORT const NSNotificationName
         NSApplicationWillFinishLaunchingNotification;
 APPKIT_EXPORT const NSNotificationName
         NSApplicationDidFinishLaunchingNotification;
+APPKIT_EXPORT const NSNotificationName
+        NSApplicationDidFinishRestoringWindowsNotification;
 
 APPKIT_EXPORT const NSNotificationName
         NSApplicationWillBecomeActiveNotification;
@@ -115,8 +118,13 @@ typedef NS_OPTIONS(NSUInteger, NSApplicationPresentationOptions) {
     NSApplicationPresentationDisableCursorLocationAssistance = 1 << 12,
 };
 
+typedef NS_OPTIONS(NSInteger, NSWindowListOptions) {
+    NSWindowListOrderedFrontToBack = (1 << 0),
+};
+
 @interface NSApplication : NSResponder {
     NSDisplay *_display;
+    NSAppearance *_appearance;
     id _delegate;
     NSMutableArray *_windows;
     NSWindow *_keyWindow;
@@ -142,9 +150,13 @@ typedef NS_OPTIONS(NSUInteger, NSApplicationPresentationOptions) {
     NSApplicationPresentationOptions _presentationOptions;
 }
 
+@property(readonly) NSUserInterfaceLayoutDirection userInterfaceLayoutDirection;
+
 @property(strong) NSMenu *helpMenu;
 @property(readonly) NSApplicationPresentationOptions currentSystemPresentationOptions;
 @property NSApplicationPresentationOptions presentationOptions;
+@property(strong) NSAppearance *appearance;
+@property(readonly, strong) NSAppearance *effectiveAppearance;
 
 + (NSApplication *) sharedApplication;
 
@@ -216,6 +228,7 @@ typedef NS_OPTIONS(NSUInteger, NSApplicationPresentationOptions) {
 - (void) updateWindows;
 
 - (void) activateIgnoringOtherApps: (BOOL) flag;
+- (void) activate;
 - (void) deactivate;
 
 - (NSWindow *) modalWindow;
@@ -398,3 +411,15 @@ APPKIT_EXPORT int NSApplicationMain(int argc, const char *argv[]);
 APPKIT_EXPORT void NSUpdateDynamicServices(void);
 APPKIT_EXPORT BOOL NSPerformService(NSString *itemName,
                                     NSPasteboard *pasteboard);
+
+@interface NSApplication (NSWindowEnumeration)
+- (void) enumerateWindowsWithOptions: (NSWindowListOptions) options
+                                usingBlock: (void (^)(NSWindow *window, BOOL *stop)) block;
+@end
+
+// Performance-test hooks; they do nothing here.
+@interface NSApplication (NSApplicationPerformanceTesting)
+- (void) startedTest: (NSString *) name;
+- (void) finishedTest: (NSString *) name;
+- (void) failedTest: (NSString *) name withFailure: (NSString *) failureReason;
+@end

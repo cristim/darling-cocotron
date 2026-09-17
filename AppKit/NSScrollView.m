@@ -93,10 +93,11 @@ static Class _rulerViewClass = nil;
                        controlSize: (NSControlSize) controlSize
                      scrollerStyle: (NSScrollerStyle) scrollerStyle
 {
-    NSUnimplementedMethod();
+    // Only legacy scrollers take up space; the control size isn't used.
+    BOOL legacy = scrollerStyle == NSScrollerStyleLegacy;
     return [self frameSizeForContentSize: cSize
-                   hasHorizontalScroller: YES
-                     hasVerticalScroller: YES
+                   hasHorizontalScroller: legacy && horizontalScrollerClass != Nil
+                     hasVerticalScroller: legacy && verticalScrollerClass != Nil
                               borderType: type];
 }
 
@@ -141,7 +142,11 @@ static Class _rulerViewClass = nil;
                        controlSize: (NSControlSize) controlSize
                      scrollerStyle: (NSScrollerStyle) scrollerStyle
 {
-    NSUnimplementedMethod();
+    BOOL legacy = scrollerStyle == NSScrollerStyleLegacy;
+    return [self contentSizeForFrameSize: fSize
+                   hasHorizontalScroller: legacy && horizontalScrollerClass != Nil
+                     hasVerticalScroller: legacy && verticalScrollerClass != Nil
+                              borderType: type];
 }
 
 + (void) setRulerViewClass: (Class) class {
@@ -239,6 +244,16 @@ static Class _rulerViewClass = nil;
     }
 
     return bounds;
+}
+
+// Private AppKit: how far the border insets the content on each side.
+- (NSEdgeInsets) _boundsInsetForBorder {
+    NSRect bounds = [self bounds];
+    NSRect inset = [self insetBounds];
+    return NSEdgeInsetsMake(NSMinY(inset) - NSMinY(bounds),
+                            NSMinX(inset) - NSMinX(bounds),
+                            NSMaxY(bounds) - NSMaxY(inset),
+                            NSMaxX(bounds) - NSMaxX(inset));
 }
 
 - (NSView *) _headerView {
@@ -845,6 +860,23 @@ static Class _rulerViewClass = nil;
 
     if (_maxMagnification < _magnification)
         [self setMagnification: value];
+}
+
+// The content insets live on the clip view, where nibs archive them.
+- (BOOL) automaticallyAdjustsContentInsets {
+    return [_clipView automaticallyAdjustsContentInsets];
+}
+
+- (void) setAutomaticallyAdjustsContentInsets: (BOOL) value {
+    [_clipView setAutomaticallyAdjustsContentInsets: value];
+}
+
+- (NSEdgeInsets) contentInsets {
+    return [_clipView contentInsets];
+}
+
+- (void) setContentInsets: (NSEdgeInsets) insets {
+    [_clipView setContentInsets: insets];
 }
 
 - (void) setAllowsMagnification: (BOOL) value {

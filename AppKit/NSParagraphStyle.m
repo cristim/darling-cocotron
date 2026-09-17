@@ -18,6 +18,7 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 #import <Foundation/NSKeyedArchiver.h>
+#import <Foundation/NSLocale.h>
 
 #import <AppKit/NSParagraphStyle.h>
 #import <AppKit/NSRaise.h>
@@ -34,9 +35,16 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
     return shared;
 }
 
+// Right to left for languages written that way (Arabic, Hebrew, ...), left to
+// right otherwise; nil means the user's preferred language.
 + (NSWritingDirection) defaultWritingDirectionForLanguage: (NSString *) languageName {
-    NSUnimplementedMethod();
-    return NSWritingDirectionNatural;
+    NSString *language = languageName ? languageName : [[NSLocale preferredLanguages] firstObject];
+    if (language == nil)
+        return NSWritingDirectionLeftToRight;
+    return [NSLocale characterDirectionForLanguage: language] ==
+                           NSLocaleLanguageDirectionRightToLeft
+                   ? NSWritingDirectionRightToLeft
+                   : NSWritingDirectionLeftToRight;
 }
 
 + (NSArray *) _defaultTabStops {
@@ -104,9 +112,28 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
         _tighteningFactorForTruncation =
                 [coder decodeFloatForKey: @"TighteningFactor"];
     } else {
-        [NSException raise: NSInvalidArgumentException
-                    format: @"-[%@ %s] is not implemented for coder %@",
-                            [self class], sel_getName(_cmd), coder];
+        // Typedstream: the alignment (NSLeftTextAlignment..NSNaturalTextAlignment), a char, the tab stops (nil for the
+        // default ones) and a short of flags. Flag 0x10 appends one float as "[1f]" whose meaning isn't established, so
+        // it is read but not applied; any other flag or a nonzero char is refused.
+        unsigned char alignment, unknownChar;
+        NSArray *tabStops;
+        unsigned short flags;
+        [coder decodeValuesOfObjCTypes: "CC@S", &alignment, &unknownChar, &tabStops, &flags];
+        [tabStops autorelease];
+        if (alignment > NSNaturalTextAlignment || unknownChar != 0 || (flags & ~0x10) != 0)
+            [NSException raise: NSInvalidArgumentException
+                        format: @"-[%@ %s]: unsupported archived values %u %u %u", [self class], sel_getName(_cmd),
+                                alignment, unknownChar, flags];
+        if (flags & 0x10) {
+            float unknownFloat[1];
+            [coder decodeValueOfObjCType: "[1f]" at: unknownFloat];
+        }
+        [self _initWithDefaults];
+        _alignment = alignment;
+        if (tabStops != nil) {
+            [_tabStops release];
+            _tabStops = [tabStops mutableCopy];
+        }
     }
 
     return self;
@@ -137,6 +164,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
     _tabStops = [other->_tabStops copy];
     _hyphenationFactor = other->_hyphenationFactor;
     _tighteningFactorForTruncation = other->_tighteningFactorForTruncation;
+    _horizontalAlignment = other->_horizontalAlignment;
     return self;
 }
 
@@ -195,6 +223,10 @@ static inline id mutableCopyWithZone(NSParagraphStyle *self, NSZone *zone) {
 
 - mutableCopyWithZone: (NSZone *) zone {
     return mutableCopyWithZone(self, zone);
+}
+
+- (NSInteger) horizontalAlignment {
+    return _horizontalAlignment;
 }
 
 - (NSWritingDirection) baseWritingDirection {

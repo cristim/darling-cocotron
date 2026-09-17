@@ -19,6 +19,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 #import <AppKit/NSBezierPath.h>
 #import <AppKit/NSColor.h>
+#import <AppKit/NSColorSpace.h>
 #import <AppKit/NSColor_CGColor.h>
 #import <AppKit/NSColor_catalog.h>
 #import <AppKit/NSImage.h>
@@ -35,6 +36,11 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 static int NSColor_ignoresAlpha = -1;
 
 NSNotificationName const NSSystemColorsDidChangeNotification = @"NSSystemColorsDidChangeNotification";
+
+// NSColor_assetCatalog.m
+@interface NSColor (NSAssetCatalog)
++ (NSColor *) _colorNamedInAssetCatalog: (NSString *) name bundle: (NSBundle *) bundle;
+@end
 
 @interface NSColor (private)
 - (NSColorListName) catalogName;
@@ -460,6 +466,43 @@ NSNotificationName const NSSystemColorsDidChangeNotification = @"NSSystemColorsD
     return [NSColor colorWithCatalogName: @"System" colorName: @"labelColor"];
 }
 
+// NSDisplay.m
+NSColor *NSColorGetCatalogColor(NSColorListName catalogName,
+                                NSColorName colorName);
+
+// A System catalog color that display backends may not know: the value a
+// backend registered in the catalog, else the given default.
+static NSColor *systemCatalogColor(NSColorName name, NSColor *fallback) {
+    NSColor *color = NSColorGetCatalogColor(@"System", name);
+    return [NSColor_catalog colorWithCatalogName: @"System"
+                                       colorName: name
+                                           color: color ? color : fallback];
+}
+
+// Label text at decreasing emphasis: black with less alpha than labelColor.
++ (NSColor *) secondaryLabelColor {
+    return systemCatalogColor(@"secondaryLabelColor",
+                              [NSColor colorWithCalibratedWhite: 0.0 alpha: 0.5]);
+}
+
++ (NSColor *) tertiaryLabelColor {
+    return systemCatalogColor(@"tertiaryLabelColor",
+                              [NSColor colorWithCalibratedWhite: 0.0 alpha: 0.26]);
+}
+
++ (NSColor *) quaternaryLabelColor {
+    return systemCatalogColor(@"quaternaryLabelColor",
+                              [NSColor colorWithCalibratedWhite: 0.0 alpha: 0.1]);
+}
+
++ (NSColor *) systemRedColor {
+    return systemCatalogColor(@"systemRedColor",
+                              [NSColor colorWithCalibratedRed: 1.0
+                                                        green: 0.23
+                                                         blue: 0.19
+                                                        alpha: 1.0]);
+}
+
 + (NSColor *) unemphasizedSelectedTextColor {
     return [NSColor colorWithCatalogName: @"System"
                                colorName: @"unemphasizedSelectedTextColor"];
@@ -690,6 +733,37 @@ NSNotificationName const NSSystemColorsDidChangeNotification = @"NSSystemColorsD
                                        colorName: colorName];
 }
 
++ (NSColor *) colorNamed: (NSColorName) name {
+    return [self colorNamed: name bundle: nil];
+}
+
+// Looks a color up by name: first in the bundle's asset catalog (the main bundle if nil), then among
+// NSColor's own colors, i.e. names of an argument-less NSColor class method such as +textColor,
+// +labelColor or +redColor. The method is called rather than looking the name up in the display's color
+// table, which only knows system colors and logs "missing color" and returns red for anything else (for
+// example redColor or clearColor). Like macOS, an unknown name returns nil.
++ (NSColor *) colorNamed: (NSColorName) name bundle: (NSBundle *) bundle {
+    NSColor *catalogColor = [self _colorNamedInAssetCatalog: name bundle: bundle];
+    if (catalogColor != nil)
+        return catalogColor;
+
+    if (name == nil || ![name hasSuffix: @"Color"] || [name hasPrefix: @"_"] ||
+        [name rangeOfString: @":"].location != NSNotFound)
+        return nil;
+
+    SEL selector = NSSelectorFromString(name);
+    if (![NSColor respondsToSelector: selector])
+        return nil;
+
+    NSMethodSignature *signature = [NSColor methodSignatureForSelector: selector];
+    if (signature == nil || [signature numberOfArguments] != 2 ||
+        [signature methodReturnType][0] != '@')
+        return nil;
+
+    id color = [NSColor performSelector: selector];
+    return [color isKindOfClass: [NSColor class]] ? color : nil;
+}
+
 + (NSColor *) colorWithGenericGamma22White: (CGFloat) white
                                      alpha: (CGFloat) alpha
 {
@@ -905,8 +979,7 @@ static void releasePatternInfo(void *info) {
 }
 
 - (NSColor *) colorUsingColorSpaceName: (NSColorSpaceName) colorSpace {
-    NSInvalidAbstractInvocation();
-    return nil;
+    return [self colorUsingColorSpaceName: colorSpace device: nil];
 }
 
 - (NSColor *) colorUsingColorSpaceName: (NSColorSpaceName) colorSpace
@@ -1000,6 +1073,52 @@ static void releasePatternInfo(void *info) {
     }
 
     return NSColor_ignoresAlpha;
+}
+
+@end
+
+@implementation NSColor (NSColorSpaceConversion)
+
+// Converts to a calibrated grayscale color for monochrome color spaces and to
+// calibrated RGB otherwise. Returns nil for a nil color space or a color whose
+// components can't be converted.
+- (NSColor *) colorUsingColorSpace: (NSColorSpace *) space {
+    if (space == nil)
+        return nil;
+
+    CGColorSpaceRef cgSpace = [space CGColorSpace];
+    BOOL gray = cgSpace != NULL &&
+                CGColorSpaceGetModel(cgSpace) == kCGColorSpaceModelMonochrome;
+
+    // Named conversion first; not every NSColor subclass implements it (e.g.
+    // CGColor-backed colors), so fall back to the CGColor's components.
+    @try {
+        NSColor *converted = [self colorUsingColorSpaceName:
+                gray ? NSCalibratedWhiteColorSpace : NSCalibratedRGBColorSpace];
+        if (converted != nil)
+            return converted;
+    } @catch (NSException *exception) {
+    }
+
+    CGColorRef cgColor = [self respondsToSelector: @selector(CGColor)] ? [self CGColor] : NULL;
+    if (cgColor == NULL)
+        return nil;
+    size_t count = CGColorGetNumberOfComponents(cgColor);
+    const CGFloat *c = CGColorGetComponents(cgColor);
+    if (c == NULL)
+        return nil;
+
+    if (count == 4) { // RGBA
+        if (gray)
+            return [NSColor colorWithCalibratedWhite: (c[0] + c[1] + c[2]) / 3 alpha: c[3]];
+        return [NSColor colorWithCalibratedRed: c[0] green: c[1] blue: c[2] alpha: c[3]];
+    }
+    if (count == 2) { // white + alpha
+        if (gray)
+            return [NSColor colorWithCalibratedWhite: c[0] alpha: c[1]];
+        return [NSColor colorWithCalibratedRed: c[0] green: c[0] blue: c[0] alpha: c[1]];
+    }
+    return nil;
 }
 
 @end

@@ -33,6 +33,18 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
     return [NSButtonCell class];
 }
 
++ (instancetype) buttonWithImage: (NSImage *) image target: (id) target action: (SEL) action {
+    NSButton *button = [[[self alloc] initWithFrame: NSZeroRect] autorelease];
+    [button setButtonType: NSMomentaryPushInButton];
+    [button setBezelStyle: NSRoundedBezelStyle];
+    [button setImage: image];
+    [button setImagePosition: NSImageOnly];
+    [button setTarget: target];
+    [button setAction: action];
+    [button sizeToFit];
+    return button;
+}
+
 - initWithCoder: (NSCoder *) coder {
     [super initWithCoder: coder];
 
@@ -46,6 +58,11 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
     }
 
     return self;
+}
+
+- (void) dealloc {
+    [_contentTintColor release];
+    [super dealloc];
 }
 
 - (BOOL) resignFirstResponder {
@@ -291,6 +308,32 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
     if (newFont != nil) {
         [self setFont: newFont];
     }
+}
+
+@end
+
+@implementation NSButton (NSDestructiveAction)
+
+- (BOOL) hasDestructiveAction {
+    return _hasDestructiveAction;
+}
+
+- (void) setHasDestructiveAction: (BOOL) value {
+    _hasDestructiveAction = value;
+}
+
+@end
+
+@implementation NSButton (NSButtonContentTint)
+
+- (NSColor *) contentTintColor {
+    return _contentTintColor;
+}
+
+- (void) setContentTintColor: (NSColor *) color {
+    color = [color copy];
+    [_contentTintColor release];
+    _contentTintColor = color;
 }
 
 @end

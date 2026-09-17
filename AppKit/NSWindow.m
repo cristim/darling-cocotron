@@ -45,6 +45,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSWindowAnimationContext.h>
 #import <ApplicationServices/ApplicationServices.h>
 #import <CoreGraphics/CGWindow.h>
+#include <math.h>
 
 const NSNotificationName NSWindowDidBecomeKeyNotification =
         @"NSWindowDidBecomeKeyNotification";
@@ -204,10 +205,45 @@ NSInteger NSBitsPerPixelFromDepth(NSWindowDepth depth) {
 
 @end
 
+// Modal delegate that hands the return code of a sheet to a completion handler.
+@interface NSWindowSheetCompletion : NSObject {
+    void (^_handler)(NSInteger returnCode);
+}
+@end
+
+@implementation NSWindowSheetCompletion
+
+- initWithHandler: (void (^)(NSInteger returnCode)) handler {
+    if ((self = [super init]))
+        _handler = [handler copy];
+    return self;
+}
+
+- (void) dealloc {
+    [_handler release];
+    [super dealloc];
+}
+
+- (void) sheetDidEnd: (NSWindow *) sheet
+          returnCode: (NSInteger) returnCode
+         contextInfo: (void *) contextInfo
+{
+    if (_handler != nil)
+        _handler(returnCode);
+    // NSSheetContext doesn't retain its delegate, so this balances the alloc
+    // in -beginSheet:completionHandler:.
+    [self release];
+}
+
+@end
+
 @implementation NSWindow
 
+@synthesize appearance = _appearance;
 @synthesize identifier = _identifier;
 @synthesize accessibilityElement = _isAccessible;
+@synthesize restorationClass = _restorationClass;
+@synthesize restorable = _restorable;
 
 static BOOL _allowsAutomaticWindowTabbing;
 
@@ -336,6 +372,7 @@ static BOOL _allowsAutomaticWindowTabbing;
     _makeSureIsOnAScreen = YES;
     _releaseWhenClosed = YES;
     _viewsNeedDisplay = YES;
+    _restorable = YES;
     _flushNeeded = YES;
     _resizeIncrements = NSMakeSize(1, 1);
     _contentResizeIncrements = NSMakeSize(1, 1);
@@ -404,6 +441,7 @@ static BOOL _allowsAutomaticWindowTabbing;
     [_title release];
     [_miniwindowTitle release];
     [_miniwindowImage release];
+    [_appearance release];
     [_backgroundView _setWindow: nil];
     [_backgroundView release];
     [_menu release];
@@ -420,6 +458,7 @@ static BOOL _allowsAutomaticWindowTabbing;
     [_threadToContext release];
     [_undoManager release];
     [_identifier release];
+    [_titlebarAccessoryViewControllers release];
     [super dealloc];
 }
 
@@ -1425,6 +1464,14 @@ static BOOL _allowsAutomaticWindowTabbing;
     return [_sheetContext sheet];
 }
 
+- (NSWindow *) sheetParent {
+    for (NSWindow *window in [NSApp windows]) {
+        if (window != self && [window attachedSheet] == self)
+            return window;
+    }
+    return nil;
+}
+
 - (id) windowController {
     return _windowController;
 }
@@ -1837,8 +1884,11 @@ static BOOL _allowsAutomaticWindowTabbing;
         newFieldEditor = [_delegate windowWillReturnFieldEditor: self
                                                        toObject: object];
 
-    if (create && newFieldEditor == nil && _sharedFieldEditor == nil)
+    if (create && newFieldEditor == nil && _sharedFieldEditor == nil) {
         newFieldEditor = _sharedFieldEditor = [[NSTextView alloc] init];
+        // Cells draw their titles without padding; keep editing aligned.
+        [[_sharedFieldEditor textContainer] setLineFragmentPadding: 0];
+    }
 
     if (newFieldEditor)
         _currentFieldEditor = newFieldEditor;
@@ -2921,6 +2971,7 @@ static BOOL _allowsAutomaticWindowTabbing;
 
     sheet->_isVisible = NO;
     [[sheet platformWindow] sheetOrderOutToFrame: sheetFrame];
+    [(NSThemeFrame *) [sheet _backgroundView] setWindowBorderType: NSNoBorder];
 
     [_sheetContext release];
     _sheetContext = nil;
@@ -3459,7 +3510,7 @@ static BOOL _allowsAutomaticWindowTabbing;
 }
 
 - (CGSubWindow *) _createSubWindowWithFrame: (CGRect) frame {
-    return [_platformWindow createSubWindowWithFrame: frame];
+    return [[self platformWindow] createSubWindowWithFrame: frame];
 }
 
 + (BOOL) allowsAutomaticWindowTabbing {
@@ -3468,6 +3519,63 @@ static BOOL _allowsAutomaticWindowTabbing;
 
 + (void) setAllowsAutomaticWindowTabbing: (BOOL) allowsAutomaticWindowTabbing {
     _allowsAutomaticWindowTabbing = allowsAutomaticWindowTabbing;
+}
+
+- (NSAppearance *) effectiveAppearance {
+    return _appearance != nil ? _appearance : [NSApp effectiveAppearance];
+}
+
+- (CGFloat) backingScaleFactor {
+    // Query only an existing native window: asking for a scale must not map it.
+    if ([_platformWindow respondsToSelector: @selector(backingScaleFactor)]) {
+        CGFloat scale = [_platformWindow backingScaleFactor];
+        if (isfinite(scale) && scale > 0) return scale;
+    }
+    NSScreen *screen = [self screen];
+    return screen != nil ? [screen backingScaleFactor] : 1.0;
+}
+
+- (NSPoint) convertPointToScreen: (NSPoint) point {
+    return [self convertBaseToScreen: point];
+}
+
+- (NSPoint) convertPointFromScreen: (NSPoint) point {
+    return [self convertScreenToBase: point];
+}
+
+- (NSRect) convertRectToScreen: (NSRect) rect {
+    rect.origin = [self convertBaseToScreen: rect.origin];
+    return rect;
+}
+
+- (NSRect) convertRectFromScreen: (NSRect) rect {
+    rect.origin = [self convertScreenToBase: rect.origin];
+    return rect;
+}
+
+- (void) beginSheet: (NSWindow *) sheet
+        completionHandler: (void (^)(NSInteger returnCode)) handler
+{
+    // Sheets aren't queued: attaching would drop the current sheet's context
+    // without ending it, so a second sheet is refused and its handler never runs.
+    if ([self attachedSheet] != nil) {
+        NSLog(@"-[NSWindow beginSheet:completionHandler:] %@ already has a sheet", self);
+        return;
+    }
+    [NSApp beginSheet: sheet
+            modalForWindow: self
+             modalDelegate: [[NSWindowSheetCompletion alloc]
+                                    initWithHandler: handler]
+            didEndSelector: @selector(sheetDidEnd:returnCode:contextInfo:)
+               contextInfo: NULL];
+}
+
+- (void) endSheet: (NSWindow *) sheet {
+    [NSApp endSheet: sheet];
+}
+
+- (void) endSheet: (NSWindow *) sheet returnCode: (NSInteger) returnCode {
+    [NSApp endSheet: sheet returnCode: returnCode];
 }
 
 @end
@@ -3484,6 +3592,34 @@ static BOOL _allowsAutomaticWindowTabbing;
     }
 
     return _platformWindow;
+}
+
+@end
+
+@implementation NSWindow (NSWindowTitlebarAccessories)
+
+- (NSArray *) titlebarAccessoryViewControllers {
+    return _titlebarAccessoryViewControllers
+            ? [NSArray arrayWithArray: _titlebarAccessoryViewControllers]
+            : [NSArray array];
+}
+
+- (void) addTitlebarAccessoryViewController:
+        (NSTitlebarAccessoryViewController *) controller
+{
+    if (controller == nil)
+        return;
+    if (_titlebarAccessoryViewControllers == nil)
+        _titlebarAccessoryViewControllers = [[NSMutableArray alloc] init];
+    [_titlebarAccessoryViewControllers addObject: controller];
+}
+
+- (NSWindowToolbarStyle) toolbarStyle {
+    return _toolbarStyle;
+}
+
+- (void) setToolbarStyle: (NSWindowToolbarStyle) style {
+    _toolbarStyle = style;
 }
 
 @end

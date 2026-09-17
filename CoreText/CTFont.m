@@ -358,6 +358,24 @@ void CTFontDrawGlyphs(CTFontRef font, const CGGlyph *glyphs, const CGPoint *posi
     printf("STUB %s\n", __PRETTY_FUNCTION__);
 }
 
+void CTFontDrawGlyphsWithAdvances(CTFontRef font, const CGGlyph *glyphs,
+                                  const CGSize *advances, size_t count,
+                                  CGContextRef context)
+{
+    // font may also be an NSFont, which answers -cgFont as well.
+    CGFontRef graphicsFont = [font cgFont];
+    if (graphicsFont == NULL || context == NULL || count == 0)
+        return;
+    CGContextSetFont(context, graphicsFont);
+    CGContextSetFontSize(context, CTFontGetSize(font));
+    CGContextShowGlyphsWithAdvances(context, glyphs, advances, count);
+}
+
+bool CTFontShouldAntiAlias(CTFontRef font)
+{
+    return true;
+}
+
 CFIndex CTFontGetLigatureCaretPositions(CTFontRef font, CGGlyph glyph, CGFloat *positions,
                                         CFIndex maxPositions)
 {

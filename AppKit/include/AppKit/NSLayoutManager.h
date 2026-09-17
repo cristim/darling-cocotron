@@ -17,6 +17,7 @@ COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
+#import <AppKit/NSCell.h>
 #import <AppKit/NSFont.h>
 #import <Foundation/Foundation.h>
 
@@ -60,6 +61,9 @@ typedef NS_ENUM(NSInteger, NSTextLayoutOrientation) {
 
     NSUInteger _rectCacheCapacity, _rectCacheCount;
     NSRect *_rectCache;
+
+    NSImageScaling _defaultAttachmentScaling;
+    BOOL _usesDefaultHyphenation;
 }
 
 - init;
@@ -127,6 +131,11 @@ typedef NS_ENUM(NSInteger, NSTextLayoutOrientation) {
 - (NSRect) lineFragmentUsedRectForGlyphAtIndex: (NSUInteger) glyphIndex
                                 effectiveRange:
                                         (NSRangePointer) effectiveGlyphRange;
+- (void) enumerateLineFragmentsForGlyphRange: (NSRange) glyphRange
+                                  usingBlock: (void (^)(NSRect lineRect, NSRect usedRect,
+                                                        NSTextContainer *textContainer,
+                                                        NSRange lineGlyphRange,
+                                                        BOOL *stop)) block;
 - (NSRect) usedRectForTextContainer: (NSTextContainer *) container;
 - (NSRect) extraLineFragmentRect;
 - (NSRect) extraLineFragmentUsedRect;
@@ -278,6 +287,14 @@ typedef NS_ENUM(NSInteger, NSTextLayoutOrientation) {
                                    enabled: (BOOL) isEnabled;
 
 - (void) setAllowsNonContiguousLayout: (BOOL) value;
+
+// Stored only: attachments are drawn at their own size. NSImageScaleNone
+// by default.
+- (NSImageScaling) defaultAttachmentScaling;
+- (void) setDefaultAttachmentScaling: (NSImageScaling) scaling;
+// Stored only (NO by default): the typesetter doesn't hyphenate.
+- (BOOL) usesDefaultHyphenation;
+- (void) setUsesDefaultHyphenation: (BOOL) flag;
 @end
 
 @protocol NSLayoutManagerDelegate <NSObject>

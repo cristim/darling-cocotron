@@ -28,6 +28,12 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSWindowController.h>
 #import <objc/runtime.h>
 
+// UTType, when the application has loaded UniformTypeIdentifiers.
+@interface NSObject (NSDocumentControllerContentTypes)
++ (id) typeWithIdentifier: (NSString *) identifier;
+- (NSString *) preferredFilenameExtension;
+@end
+
 @interface _NSUnsupportedDocument : NSObject
 
 - (instancetype) initWithType: (NSString *) type error: (NSError **) error;
@@ -156,14 +162,17 @@ static NSDocumentController *shared = nil;
     return _autosavingDelay;
 }
 
+// The CFBundleDocumentTypes entry for a type: its CFBundleTypeName, or one of its
+// LSItemContentTypes (the uniform type identifiers modern apps use as type names).
 - (NSDictionary *) _infoForType: (NSString *) type {
-    int i, count = [_fileTypes count];
-
-    for (i = 0; i < count; i++) {
-        NSDictionary *check = [_fileTypes objectAtIndex: i];
-        NSString *name = [check objectForKey: @"CFBundleTypeName"];
-
-        if ([name isEqualToString: type])
+    if (type == nil)
+        return nil;
+    for (NSDictionary *check in _fileTypes) {
+        if ([type isEqualToString: [check objectForKey: @"CFBundleTypeName"]])
+            return check;
+    }
+    for (NSDictionary *check in _fileTypes) {
+        if ([[check objectForKey: @"LSItemContentTypes"] containsObject: type])
             return check;
     }
     return nil;
@@ -177,21 +186,30 @@ static NSDocumentController *shared = nil;
 }
 
 - (Class) documentClassForType: (NSString *) type {
-    NSString *result = nil;
-    for (NSDictionary *fileType in _fileTypes) {
-        if ([type isEqualToString: [fileType objectForKey: @"CFBundleTypeName"]]) {
-            result = [fileType objectForKey: @"NSDocumentClass"];
-            break;
-        }
-    }
+    NSString *result = [[self _infoForType: type] objectForKey: @"NSDocumentClass"];
 
     return (result == nil) ? nil : NSClassFromString(result);
 }
 
 - (NSArray *) fileExtensionsFromType: (NSString *) type {
     NSDictionary *info = [self _infoForType: type];
+    NSArray *extensions = [info objectForKey: @"CFBundleTypeExtensions"];
+    if ([extensions count] > 0)
+        return extensions;
 
-    return [info objectForKey: @"CFBundleTypeExtensions"];
+    // Types named only by content type identifiers list no extensions; UTType knows them.
+    NSArray *identifiers = [info objectForKey: @"LSItemContentTypes"];
+    if (identifiers == nil && type != nil)
+        identifiers = [NSArray arrayWithObject: type];
+    Class contentType = NSClassFromString(@"UTType");
+    NSMutableArray *result = [NSMutableArray array];
+    for (NSString *identifier in identifiers) {
+        NSString *extension = [[contentType typeWithIdentifier: identifier]
+                preferredFilenameExtension];
+        if ([extension length] > 0 && ![result containsObject: extension])
+            [result addObject: extension];
+    }
+    return [result count] > 0 ? result : nil;
 }
 
 - (NSArray *) _allFileExtensions {
@@ -220,10 +238,9 @@ static NSDocumentController *shared = nil;
     return nil;
 }
 
+// Stored only: Cocotron doesn't autosave documents.
 - (void) setAutosavingDelay: (NSTimeInterval) value {
     _autosavingDelay = value;
-
-    NSUnimplementedMethod();
 }
 
 - (NSArray *) documents {
@@ -508,6 +525,24 @@ static NSDocumentController *shared = nil;
 
         return result;
     }
+}
+
+- (void) openDocumentWithContentsOfURL: (NSURL *) url
+                               display: (BOOL) display
+                     completionHandler: (void (^)(NSDocument *document, BOOL documentWasAlreadyOpen, NSError *error)) completionHandler
+{
+    BOOL wasAlreadyOpen = url != nil && [self documentForURL: url] != nil;
+    NSError *error = nil;
+    NSDocument *document = [self openDocumentWithContentsOfURL: url
+                                                       display: display
+                                                         error: &error];
+    if (document == nil && error == nil)
+        error = [NSError errorWithDomain: NSCocoaErrorDomain
+                                    code: NSFileReadUnknownError
+                                userInfo: nil];
+    if (completionHandler)
+        completionHandler(document, document != nil && wasAlreadyOpen,
+                          document != nil ? nil : error);
 }
 
 - (BOOL) reopenDocumentForURL: (NSURL *) url
@@ -861,6 +896,35 @@ static BOOL actionIsDocumentController(SEL selector) {
 {
     NSUnimplementedMethod();
     return 0;
+}
+
+@end
+
+@implementation NSDocumentController (NSDocumentDuplication)
+
+- (id) duplicateDocumentWithContentsOfURL: (NSURL *) url
+                                  copying: (BOOL) duplicateByCopying
+                              displayName: (NSString *) displayNameOrNil
+                                    error: (NSError **) error
+{
+    NSString *type = [self typeForContentsOfURL: url error: error];
+    NSDocument *document = nil;
+    if (type != nil)
+        document = [self makeDocumentForURL: nil
+                          withContentsOfURL: url
+                                     ofType: type
+                                      error: error];
+    if (document == nil) {
+        if (error != NULL && *error == nil)
+            *error = [NSError errorWithDomain: NSCocoaErrorDomain
+                                         code: NSFileReadUnknownError
+                                     userInfo: nil];
+        return nil;
+    }
+    [self addDocument: document];
+    [document makeWindowControllers];
+    [document showWindows];
+    return document;
 }
 
 @end
