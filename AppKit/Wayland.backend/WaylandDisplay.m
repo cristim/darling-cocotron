@@ -166,6 +166,11 @@ int WaylandDispatch(const void *kind, void *proxy, uint32_t opcode,
     return 0;
 }
 
+__attribute__((constructor))
+static void WaylandBackendLoadMarker(void) {
+    fprintf(stderr, "[WL] backend bundle loaded\n");
+}
+
 struct wl_proxy *WaylandCreateObject(struct wl_proxy *proxy, uint32_t opcode,
                                      const struct wl_interface *interface,
                                      union wl_argument *args,
@@ -174,6 +179,7 @@ struct wl_proxy *WaylandCreateObject(struct wl_proxy *proxy, uint32_t opcode,
     struct wl_proxy *created = WaylandMarshal(proxy, opcode, interface, 0, args);
     if (created == NULL) {
         NSLog(@"Wayland backend: cannot create a %s", interface->name);
+        fprintf(stderr, "[WL] FATAL cannot create proxy for interface %s\n", interface->name);
         exit(1);
     }
     if (kind != 0)
@@ -409,6 +415,8 @@ static NSString *stringWithCodepoint(uint32_t codepoint) {
 - (void) connectionFailed {
     NSLog(@"Wayland backend: lost the connection to the compositor (error %d)",
           WL.wl_display_get_error(_wlDisplay));
+    fprintf(stderr, "[WL] FATAL lost compositor connection, error %d\n",
+            WL.wl_display_get_error(_wlDisplay));
     exit(1);
 }
 
@@ -487,6 +495,7 @@ static NSString *stringWithCodepoint(uint32_t codepoint) {
             _registry, WP_REGISTRY_BIND, interface, version, 0, args);
     if (proxy == NULL) {
         NSLog(@"Wayland backend: cannot bind %s", interface->name);
+        fprintf(stderr, "[WL] FATAL cannot bind interface %s version %u\n", interface->name, version);
         exit(1);
     }
     if (kind != 0)
