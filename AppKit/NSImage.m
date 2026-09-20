@@ -1213,6 +1213,15 @@ NSImageName const NSImageNameTouchBarVolumeUpTemplate =
    reports, so accumulate and emit periodically. The n == 1 emit is deliberate:
    it makes silence mean "this path never ran" rather than "ran, nothing to
    say". */
+/* Load-time marker. Without it, silence from the probes below is ambiguous:
+   it could mean the draw path never ran, or that this build is not the AppKit
+   the process actually loaded. fprintf rather than NSLog because this runs
+   before Foundation is necessarily usable. */
+__attribute__((constructor))
+static void NSImageProbeBuildMarker(void) {
+    fprintf(stderr, "[NSImage] probe build loaded\n");
+}
+
 typedef struct {
     const char *name;
     int n;
@@ -1224,9 +1233,12 @@ static void NSImageDrawProbeAdd(NSImageDrawProbe *probe, NSTimeInterval seconds)
     probe->n++;
     probe->totalMs += ms;
     if (ms > probe->maxMs) probe->maxMs = ms;
+    /* fprintf, not NSLog: the load marker below reaches stderr while NSLog's
+       destination in this container is unverified, and a probe whose output
+       sink is unproven cannot make silence mean anything. */
     if (probe->n == 1 || (probe->n % 100) == 0)
-        NSLog(@"[NSImage] %s n=%d mean=%.3fms max=%.3fms", probe->name,
-              probe->n, probe->totalMs / probe->n, probe->maxMs);
+        fprintf(stderr, "[NSImage] %s n=%d mean=%.3fms max=%.3fms\n", probe->name,
+                probe->n, probe->totalMs / probe->n, probe->maxMs);
 }
 
 - (void) drawInRect: (NSRect) rect
