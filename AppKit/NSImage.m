@@ -610,6 +610,7 @@ NSImageName const NSImageNameTouchBarVolumeUpTemplate =
     [_representations release];
     [_accessibilityDescription release];
     [_symbolConfiguration release];
+    [_scaledRepCache release];
     [super dealloc];
 }
 
@@ -621,6 +622,7 @@ NSImageName const NSImageNameTouchBarVolumeUpTemplate =
     result->_representations = [_representations mutableCopy];
     result->_accessibilityDescription = [_accessibilityDescription copy];
     result->_symbolConfiguration = [_symbolConfiguration retain];
+    result->_scaledRepCache = nil;
 
     return result;
 }
@@ -969,6 +971,7 @@ NSImageName const NSImageNameTouchBarVolumeUpTemplate =
     // This is important because you can change the size of a drawn image
     // and it doesn't destroy the cache. It is recached next time it is drawn.
     _cacheIsValid = NO;
+    [_scaledRepCache removeAllObjects];
 }
 
 - (void) cancelIncrementalLoad {
@@ -1212,10 +1215,15 @@ NSImageName const NSImageNameTouchBarVolumeUpTemplate =
 
     // Keep a lid on any intermediate allocations while producing caches
     NSAutoreleasePool *pool = [NSAutoreleasePool new];
+    NSTimeInterval tAny0 = [NSDate timeIntervalSinceReferenceDate];
     NSImageRep *any = [[[self
             _bestUncachedFallbackCachedRepresentationForDevice: nil
                                                           size: rect.size]
             retain] autorelease];
+    NSTimeInterval tAny = [NSDate timeIntervalSinceReferenceDate] - tAny0;
+    if (tAny > 0.3)
+        NSLog(@"[NSImage] any-lookup took=%.2fms size=%.1fx%.1f", tAny * 1000, rect.size.width, rect.size.height);
+    NSTimeInterval tEntry = tAny0;
     NSImageRep *cachedRep = nil;
     CGContextRef context;
     NSRect fullRect = {.origin = NSZeroPoint, .size = self.size};
@@ -1304,10 +1312,73 @@ NSImageName const NSImageNameTouchBarVolumeUpTemplate =
     }
     [[NSGraphicsContext currentContext] setCompositingOperation: operation];
 
-    [self drawRepresentation: cachedRep inRect: rect];
+    if (canCache && [cachedRep isKindOfClass: [NSBitmapImageRep class]] &&
+        !NSEqualSizes(rect.size, [cachedRep size])) {
+        // A full bitmap drawn scaled this frame will likely be drawn scaled
+        // again next frame (scrolling). Pre-scale it once so subsequent frames
+        // blit 1:1 instead of re-interpolating every frame.
+        NSValue *key = [NSValue valueWithSize: rect.size];
+        if (_scaledRepCache == nil)
+            _scaledRepCache = [NSMutableDictionary new];
+        NSBitmapImageRep *scaled = [_scaledRepCache objectForKey: key];
+        static int s_hits, s_misses;
+        if (scaled == nil) {
+            s_misses++;
+            if ((s_misses % 10) == 1)
+                NSLog(@"[NSImage] scaled-rep MISS size=%.2fx%.2f cache=%d", rect.size.width, rect.size.height, (int)[_scaledRepCache count]);
+        } else {
+            s_hits++;
+            if ((s_hits % 10) == 1)
+                NSLog(@"[NSImage] scaled-rep HIT size=%.2fx%.2f total%dh%d", rect.size.width, rect.size.height, s_hits, s_misses);
+        }
+
+        if (scaled == nil) {
+            scaled = [[[NSBitmapImageRep alloc]
+                    initWithBitmapDataPlanes: NULL
+                                  pixelsWide: MAX(1, (int) rect.size.width)
+                                  pixelsHigh: MAX(1, (int) rect.size.height)
+                               bitsPerSample: 8
+                             samplesPerPixel: 4
+                                    hasAlpha: YES
+                                    isPlanar: NO
+                              colorSpaceName: NSDeviceRGBColorSpace
+                                 bytesPerRow: 0
+                                bitsPerPixel: 32] autorelease];
+
+            [self lockFocusOnRepresentation: scaled];
+            [self drawRepresentation: cachedRep
+                              inRect: NSMakeRect(0, 0, rect.size.width,
+                                                 rect.size.height)];
+            [self unlockFocus];
+
+            if ([_scaledRepCache count] > 4)
+                [_scaledRepCache removeAllObjects];
+            [_scaledRepCache setObject: scaled forKey: key];
+        }
+
+        cachedRep = scaled;
+    }
+
+    {
+        NSTimeInterval t0 = [NSDate timeIntervalSinceReferenceDate];
+        [self drawRepresentation: cachedRep inRect: rect];
+        NSTimeInterval dt = [NSDate timeIntervalSinceReferenceDate] - t0;
+        if (canCache && dt > 0.3)
+            NSLog(@"[NSImage] final-draw took=%.2fms rep=%@ size=%.1fx%.1f rect=%.1fx%.1f",
+                  dt * 1000, NSStringFromClass([cachedRep class]),
+                  [cachedRep size].width, [cachedRep size].height,
+                  rect.size.width, rect.size.height);
+    }
 
     CGContextRestoreGState(context);
 
+    if (canCache && rect.size.width <= 100.0 && rect.size.height <= 100.0) {
+        double dtTot = ([NSDate timeIntervalSinceReferenceDate] - tEntry) * 1000;
+        static int s_probe;
+        if (dtTot > 1.0 && (s_probe++ % 20) < 2)
+            NSLog(@"[NSImage] TOTAL drawInRect=%.2fms rect=%.1fx%.1f",
+                  dtTot, rect.size.width, rect.size.height);
+    }
     [pool release];
 }
 
