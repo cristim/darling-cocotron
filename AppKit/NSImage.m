@@ -1207,6 +1207,28 @@ NSImageName const NSImageNameTouchBarVolumeUpTemplate =
              fraction: fraction];
 }
 
+/* Draw-phase timing probes. The earlier versions of these were gated on
+   dt > 0.3 SECONDS, so they never fired on the path being measured. Logging
+   every draw instead would swamp a grid refresh and distort the very cost it
+   reports, so accumulate and emit periodically. The n == 1 emit is deliberate:
+   it makes silence mean "this path never ran" rather than "ran, nothing to
+   say". */
+typedef struct {
+    const char *name;
+    int n;
+    double totalMs, maxMs;
+} NSImageDrawProbe;
+
+static void NSImageDrawProbeAdd(NSImageDrawProbe *probe, NSTimeInterval seconds) {
+    double ms = seconds * 1000.0;
+    probe->n++;
+    probe->totalMs += ms;
+    if (ms > probe->maxMs) probe->maxMs = ms;
+    if (probe->n == 1 || (probe->n % 100) == 0)
+        NSLog(@"[NSImage] %s n=%d mean=%.3fms max=%.3fms", probe->name,
+              probe->n, probe->totalMs / probe->n, probe->maxMs);
+}
+
 - (void) drawInRect: (NSRect) rect
            fromRect: (NSRect) source
           operation: (NSCompositingOperation) operation
@@ -1221,8 +1243,10 @@ NSImageName const NSImageNameTouchBarVolumeUpTemplate =
                                                           size: rect.size]
             retain] autorelease];
     NSTimeInterval tAny = [NSDate timeIntervalSinceReferenceDate] - tAny0;
-    if (tAny > 0.3)
-        NSLog(@"[NSImage] any-lookup took=%.2fms size=%.1fx%.1f", tAny * 1000, rect.size.width, rect.size.height);
+    {
+        static NSImageDrawProbe fallbackLookup = {"fallback-rep-lookup"};
+        NSImageDrawProbeAdd(&fallbackLookup, tAny);
+    }
     NSTimeInterval tEntry = tAny0;
     NSImageRep *cachedRep = nil;
     CGContextRef context;
@@ -1363,21 +1387,18 @@ NSImageName const NSImageNameTouchBarVolumeUpTemplate =
         NSTimeInterval t0 = [NSDate timeIntervalSinceReferenceDate];
         [self drawRepresentation: cachedRep inRect: rect];
         NSTimeInterval dt = [NSDate timeIntervalSinceReferenceDate] - t0;
-        if (canCache && dt > 0.3)
-            NSLog(@"[NSImage] final-draw took=%.2fms rep=%@ size=%.1fx%.1f rect=%.1fx%.1f",
-                  dt * 1000, NSStringFromClass([cachedRep class]),
-                  [cachedRep size].width, [cachedRep size].height,
-                  rect.size.width, rect.size.height);
+        if (canCache) {
+            static NSImageDrawProbe finalDraw = {"final-draw"};
+            NSImageDrawProbeAdd(&finalDraw, dt);
+        }
     }
 
     CGContextRestoreGState(context);
 
     if (canCache && rect.size.width <= 100.0 && rect.size.height <= 100.0) {
-        double dtTot = ([NSDate timeIntervalSinceReferenceDate] - tEntry) * 1000;
-        static int s_probe;
-        if (dtTot > 1.0 && (s_probe++ % 20) < 2)
-            NSLog(@"[NSImage] TOTAL drawInRect=%.2fms rect=%.1fx%.1f",
-                  dtTot, rect.size.width, rect.size.height);
+        static NSImageDrawProbe totalDraw = {"total-drawInRect"};
+        NSImageDrawProbeAdd(&totalDraw,
+                            [NSDate timeIntervalSinceReferenceDate] - tEntry);
     }
     [pool release];
 }
