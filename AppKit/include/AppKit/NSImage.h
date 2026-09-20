@@ -51,6 +51,7 @@ typedef enum {
     NSImageCacheMode _cacheMode;
     NSString *_accessibilityDescription;
     NSImageSymbolConfiguration *_symbolConfiguration;
+    NSMutableDictionary *_scaledRepCache;
 }
 
 + (NSArray *) imageFileTypes;
