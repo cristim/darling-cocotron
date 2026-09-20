@@ -38,8 +38,15 @@
 #include <sys/mman.h>
 #include <unistd.h>
 #include <limits.h>
+#include <time.h>
 #import "WaylandScale.h"
 #include <math.h>
+
+static double _wlnow(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return ts.tv_sec + ts.tv_nsec / 1e9;
+}
 
 // NSView replaces the user CTM whenever it locks focus. Keep scaling in the
 // device transform, alongside Onyx2D's bottom-left to top-left conversion.
@@ -820,10 +827,17 @@ static void sendRequest(struct wl_proxy *proxy, uint32_t opcode, uint32_t flags)
     if (buffer == NULL)
         return;
 
+    double t0 = _wlnow();
     // Both start with the top row.
     for (size_t row = 0; row < height; row++)
         memcpy((uint8_t *) buffer->data + row * width * 4,
                pixels + row * sourceStride, width * 4);
+    double t1 = _wlnow();
+    static double lastPresent = 0;
+    double gap = lastPresent ? (t1 - lastPresent) * 1e3 : 0;
+    lastPresent = t1;
+    fprintf(stderr, "WAYLAND_PRESENT: t=%.3f %zux%zu copy=%.2fms gap_next=%.2fms\n",
+            t1, width, height, (t1 - t0) * 1e3, gap);
 
     union wl_argument args[4] = {{.o = (struct wl_object *) buffer->buffer},
                                  {.i = 0},
