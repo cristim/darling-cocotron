@@ -22,6 +22,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <Foundation/Foundation.h>
 
 @class NSTextStorage, NSLayoutManager, NSTextContainer;
+@class NSStringDrawer_Engine;
 
 APPKIT_EXPORT const CGFloat NSStringDrawerLargeDimension;
 
@@ -30,6 +31,7 @@ APPKIT_EXPORT const CGFloat NSStringDrawerLargeDimension;
     NSLayoutManager *_layoutManager;
     NSTextContainer *_textContainer;
     NSCache *_cache;
+    NSCache *_drawCache;
 }
 
 + (NSStringDrawer *) sharedStringDrawer;
