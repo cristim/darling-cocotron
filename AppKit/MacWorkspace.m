@@ -217,9 +217,10 @@ static NSImage *ImageFromIcnsFile(NSString *file) {
 {
     /* LaunchServices is not available in the Darling guest yet.  The
        Applications viewer nevertheless has a real bundle path, so launch
-       its CFBundleExecutable directly.  Keeping the inherited environment
-       is intentional: it carries the reviewed Wayland display and the
-       app-only PAC setting without changing either globally. */
+       its CFBundleExecutable directly.  The inherited environment carries
+       the reviewed display backend; arm64e app code needs pointer
+       authentication disabled, so force DARLING_DISABLE_PTRAUTH=1 here
+       (same as the homebrew-actions launcher does per every launch). */
     NSString *bundlePath = application;
     if (!bundlePath && path && [path hasSuffix: @".app"])
         bundlePath = path;
@@ -240,7 +241,8 @@ static NSImage *ImageFromIcnsFile(NSString *file) {
     if (![[NSFileManager defaultManager] fileExistsAtPath: launchPath isDirectory: &isDirectory] || isDirectory)
         return NO;
 
-    NSDictionary *environment = [[NSProcessInfo processInfo] environment];
+    NSMutableDictionary *environment = [[[NSProcessInfo processInfo] environment] mutableCopy];
+    [environment setObject: @"1" forKey: @"DARLING_DISABLE_PTRAUTH"];
     NSLog(@"NSWorkspace launch argv=[%@] bundle=%@ backend=%@ wayland=%@ display=%@ pac=%@",
           launchPath, bundlePath,
           [environment objectForKey: @"DARLING_APPKIT_BACKEND"],
