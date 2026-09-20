@@ -1236,6 +1236,15 @@ static void NSImageDrawProbeAdd(NSImageDrawProbe *probe, NSTimeInterval seconds)
     /* fprintf, not NSLog: the load marker below reaches stderr while NSLog's
        destination in this container is unverified, and a probe whose output
        sink is unproven cannot make silence mean anything. */
+    /* SINKTEST: is NSLog from framework code audible anywhere? The two
+       fprintf lines are the control. If they appear and the NSLog between
+       them does not, NSLog is silent rather than the code not having run.
+       Framework code is the same context the ~9,800 stub bodies log from. */
+    if (probe->n == 1) {
+        fprintf(stderr, "[SINKTEST] control BEFORE NSLog\n");
+        NSLog(@"[SINKTEST] NSLog from framework code");
+        fprintf(stderr, "[SINKTEST] control AFTER NSLog\n");
+    }
     if (probe->n == 1 || (probe->n % 100) == 0)
         fprintf(stderr, "[NSImage] %s n=%d mean=%.3fms max=%.3fms\n", probe->name,
                 probe->n, probe->totalMs / probe->n, probe->maxMs);
