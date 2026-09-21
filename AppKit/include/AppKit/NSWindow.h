@@ -308,8 +308,8 @@ APPKIT_EXPORT const NSNotificationName NSWindowDidExposeNotification;
 - (BOOL) allowsConcurrentViewDrawing;
 - (void) setAllowsConcurrentViewDrawing: (BOOL) allows;
 
-- (NSView *) contentView;
-- (id<NSWindowDelegate>) delegate;
+@property (retain) NSView *contentView;
+@property (weak) id<NSWindowDelegate> delegate;
 
 - (NSString *) title;
 - (NSString *) representedFilename;
@@ -326,11 +326,11 @@ APPKIT_EXPORT const NSNotificationName NSWindowDidExposeNotification;
 
 - (NSSize) minSize;
 - (NSSize) maxSize;
-- (NSSize) contentMinSize;
-- (NSSize) contentMaxSize;
+@property NSSize contentMinSize;
+@property NSSize contentMaxSize;
 
 - (BOOL) isOneShot;
-- (BOOL) isOpaque;
+@property (getter=isOpaque) BOOL opaque;
 - (BOOL) hasDynamicDepthLimit;
 - (BOOL) isReleasedWhenClosed;
 - (BOOL) preventsApplicationTerminationWhenModal;
@@ -371,7 +371,6 @@ APPKIT_EXPORT const NSNotificationName NSWindowDidExposeNotification;
 - (NSToolbar *) toolbar;
 - (NSView *) initialFirstResponder;
 
-- (void) setDelegate: (id<NSWindowDelegate>) delegate;
 - (void) setFrame: (NSRect) frame display: (BOOL) display;
 - (void) setFrame: (NSRect) frame display: (BOOL) display animate: (BOOL) flag;
 - (void) setContentSize: (NSSize) contentSize;
@@ -380,8 +379,6 @@ APPKIT_EXPORT const NSNotificationName NSWindowDidExposeNotification;
 - (void) setStyleMask: (NSWindowStyleMask) styleMask;
 - (void) setMinSize: (NSSize) size;
 - (void) setMaxSize: (NSSize) size;
-- (void) setContentMinSize: (NSSize) value;
-- (void) setContentMaxSize: (NSSize) value;
 - (void) setContentBorderThickness: (CGFloat) thickness
                            forEdge: (NSRectEdge) edge;
 - (void) setMovable: (BOOL) movable;
@@ -398,7 +395,6 @@ APPKIT_EXPORT const NSNotificationName NSWindowDidExposeNotification;
                                            forEdge: (NSRectEdge) edge;
 - (void) setTitle: (NSString *) title;
 - (void) setTitleWithRepresentedFilename: (NSString *) filename;
-- (void) setContentView: (NSView *) view;
 
 - (void) setInitialFirstResponder: (NSView *) view;
 - (void) setMiniwindowImage: (NSImage *) image;
@@ -418,7 +414,6 @@ APPKIT_EXPORT const NSNotificationName NSWindowDidExposeNotification;
 - (void) setCanBecomeVisibleWithoutLogin: (BOOL) flag;
 - (void) setCollectionBehavior: (NSWindowCollectionBehavior) behavior;
 - (void) setLevel: (NSInteger) value;
-- (void) setOpaque: (BOOL) value;
 - (void) setParentWindow: (NSWindow *) value;
 - (void) setPreservesContentDuringLiveResize: (BOOL) value;
 - (void) setRepresentedFilename: (NSString *) value;
@@ -485,7 +480,7 @@ APPKIT_EXPORT const NSNotificationName NSWindowDidExposeNotification;
 - (NSPoint) convertPointFromScreen: (NSPoint) point;
 - (NSRect) convertRectToScreen: (NSRect) rect;
 - (NSRect) convertRectFromScreen: (NSRect) rect;
-- (CGFloat) backingScaleFactor;
+@property (readonly) CGFloat backingScaleFactor;
 
 - (void) beginSheet: (NSWindow *) sheet
         completionHandler: (void (^)(NSInteger returnCode)) handler;

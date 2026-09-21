@@ -55,7 +55,7 @@ typedef enum {
 
 + (NSWritingDirection)defaultWritingDirectionForLanguage: (NSString *)languageName;
 
-- (NSWritingDirection) baseWritingDirection;
+@property (readonly) NSWritingDirection baseWritingDirection;
 
 - (CGFloat) paragraphSpacing;
 - (CGFloat) paragraphSpacingBefore;
@@ -65,22 +65,22 @@ typedef enum {
 
 - (int) headerLevel;
 
-- (CGFloat) firstLineHeadIndent;
+@property (readonly) CGFloat firstLineHeadIndent;
 - (CGFloat) headIndent;
 - (CGFloat) tailIndent;
 
 - (NSTextAlignment) alignment;
-- (NSLineBreakMode) lineBreakMode;
+@property (readonly) NSLineBreakMode lineBreakMode;
 
-- (CGFloat) minimumLineHeight;
-- (CGFloat) maximumLineHeight;
-- (CGFloat) lineHeightMultiple;
-- (CGFloat) lineSpacing;
+@property (readonly) CGFloat minimumLineHeight;
+@property (readonly) CGFloat maximumLineHeight;
+@property (readonly) CGFloat lineHeightMultiple;
+@property (readonly) CGFloat lineSpacing;
 
 - (CGFloat) defaultTabInterval;
 - (NSArray *) tabStops;
 
-- (float) hyphenationFactor;
+@property (readonly) float hyphenationFactor;
 - (float) tighteningFactorForTruncation;
 
 // Undocumented (TextEdit on macOS 26 sets 0); stored, not used for layout.

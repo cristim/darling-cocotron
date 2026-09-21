@@ -79,10 +79,10 @@ typedef enum {
 - initByReferencingURL: (NSURL *) url;
 
 - (NSString *) name;
-- (NSSize) size;
+@property NSSize size;
 - (NSColor *) backgroundColor;
-- (BOOL) isFlipped;
-- (BOOL) isTemplate;
+@property (getter=isFlipped) BOOL flipped;
+@property (setter=setTemplate:) BOOL isTemplate;
 - (BOOL) scalesWhenResized;
 - (BOOL) matchesOnMultipleResolution;
 - (BOOL) usesEPSOnResolutionMismatch;
@@ -94,10 +94,7 @@ typedef enum {
 - delegate;
 
 - (BOOL) setName: (NSString *) value;
-- (void) setSize: (NSSize) value;
 - (void) setBackgroundColor: (NSColor *) value;
-- (void) setFlipped: (BOOL) value;
-- (void) setTemplate: (BOOL) value;
 - (void) setScalesWhenResized: (BOOL) value;
 - (void) setMatchesOnMultipleResolution: (BOOL) value;
 - (void) setUsesEPSOnResolutionMismatch: (BOOL) value;

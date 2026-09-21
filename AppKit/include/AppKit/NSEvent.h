@@ -276,13 +276,13 @@ enum { NSApplicationActivated = 0, NSApplicationDeactivated = 1 };
                            data2: (NSInteger) data2;
 
 - (NSEventType) type;
-- (NSTimeInterval) timestamp;
+@property (readonly) NSTimeInterval timestamp;
 - (NSPoint) locationInWindow;
-- (NSEventModifierFlags) modifierFlags;
-- (NSWindow *) window;
+@property (readonly) NSEventModifierFlags modifierFlags;
+@property (readonly, weak) NSWindow *window;
 - (NSInteger) windowNumber;
 
-- (NSInteger) clickCount;
+@property (readonly) NSInteger clickCount;
 - (CGFloat) deltaX;
 - (CGFloat) deltaY;
 - (CGFloat) deltaZ;
