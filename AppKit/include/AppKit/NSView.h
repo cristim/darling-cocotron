@@ -72,14 +72,14 @@ typedef NS_ENUM(NSInteger, NSViewLayerContentsPlacement) {
     NSViewLayerContentsPlacementBottomLeft,
     NSViewLayerContentsPlacementLeft,
     NSViewLayerContentsPlacementTopLeft
-};
+} NS_SWIFT_NAME(NSView.LayerContentsPlacement);
 
 typedef NS_ENUM(NSInteger, NSViewLayerContentsRedrawPolicy) {
     NSViewLayerContentsRedrawNever = 0,
     NSViewLayerContentsRedrawOnSetNeedsDisplay,
     NSViewLayerContentsRedrawDuringViewResize,
     NSViewLayerContentsRedrawBeforeViewResize
-};
+} NS_SWIFT_NAME(NSView.LayerContentsRedrawPolicy);
 
 APPKIT_EXPORT const NSNotificationName NSViewFrameDidChangeNotification;
 APPKIT_EXPORT const NSNotificationName NSViewBoundsDidChangeNotification;
@@ -313,8 +313,10 @@ APPKIT_EXPORT const NSViewFullScreenModeOptionKey NSFullScreenModeApplicationPre
 - (void) viewWillMoveToSuperview: (NSView *) view;
 - (void) viewDidMoveToSuperview;
 
-- (void) viewWillMoveToWindow: (NSWindow *) window;
+- (void) viewWillMoveToWindow: (NSWindow *) window NS_SWIFT_NAME(viewWillMove(toWindow:));
 - (void) viewDidMoveToWindow;
+- (void) viewDidChangeBackingProperties;
+- (void) viewDidChangeEffectiveAppearance;
 
 - (BOOL) shouldDelayWindowOrderingForEvent: (NSEvent *) event;
 
@@ -517,6 +519,13 @@ APPKIT_EXPORT const NSViewFullScreenModeOptionKey NSFullScreenModeApplicationPre
 // Marks the view as needing layout. There is no constraint solver to notify,
 // so nothing recomputes a size from it.
 - (void) invalidateIntrinsicContentSize;
+
+// Clears needsUpdateConstraints. Subclasses override and call super last;
+// there is no constraint solver for the base implementation to run.
+- (void) updateConstraints;
+// Clears needsLayout. Subclasses override and call super first; frames are not
+// recomputed from constraints.
+- (void) layout;
 
 // Activates the constraints.
 - (void) addConstraints: (NSArray *) constraints;
