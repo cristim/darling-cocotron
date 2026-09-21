@@ -33,7 +33,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 @class NSWindow, NSMenu, NSMenuItem, NSCursor, NSClipView, NSPasteboard,
         NSTextInputContext, NSImage, NSBitmapImageRep, NSScrollView,
         NSTrackingArea, NSShadow, NSScreen, CALayer, CIFilter, CALayerContext,
-        NSLayoutDimension, NSLayoutXAxisAnchor, NSLayoutYAxisAnchor;
+        NSLayoutDimension, NSLayoutXAxisAnchor, NSLayoutYAxisAnchor,
+        NSGestureRecognizer;
 
 // See Cocoa Event Handling Guide : Using Tracking-Area Objects : Compatibility
 // Issues
@@ -144,6 +145,7 @@ APPKIT_EXPORT const NSViewFullScreenModeOptionKey NSFullScreenModeApplicationPre
     NSAppearance *_appearance;
     BOOL _canDrawConcurrently;
 
+    NSMutableArray *_gestureRecognizers;
     BOOL _needsLayout;
     BOOL _needsUpdateConstraints;
     BOOL _clipsToBounds;
@@ -460,12 +462,14 @@ APPKIT_EXPORT const NSViewFullScreenModeOptionKey NSFullScreenModeApplicationPre
 - (NSRect) convertRectFromBase: (NSRect) aRect;
 - (NSRect) convertRectToBase: (NSRect) aRect;
 
-- (NSRect) convertRectToBacking: (NSRect) rect;
-- (NSRect) convertRectFromBacking: (NSRect) rect;
-- (NSPoint) convertPointToBacking: (NSPoint) point;
-- (NSPoint) convertPointFromBacking: (NSPoint) point;
-- (NSSize) convertSizeToBacking: (NSSize) size;
-- (NSSize) convertSizeFromBacking: (NSSize) size;
+// macOS names all six convertToBacking(_:)/convertFromBacking(_:) in Swift,
+// overloaded on the argument type; without these Swift sees the ObjC spellings.
+- (NSRect) convertRectToBacking: (NSRect) rect NS_SWIFT_NAME(convertToBacking(_:));
+- (NSRect) convertRectFromBacking: (NSRect) rect NS_SWIFT_NAME(convertFromBacking(_:));
+- (NSPoint) convertPointToBacking: (NSPoint) point NS_SWIFT_NAME(convertToBacking(_:));
+- (NSPoint) convertPointFromBacking: (NSPoint) point NS_SWIFT_NAME(convertFromBacking(_:));
+- (NSSize) convertSizeToBacking: (NSSize) size NS_SWIFT_NAME(convertToBacking(_:));
+- (NSSize) convertSizeFromBacking: (NSSize) size NS_SWIFT_NAME(convertFromBacking(_:));
 
 // Stored and archived; the X11 backend has no high-resolution surfaces.
 @property BOOL wantsBestResolutionOpenGLSurface;
@@ -507,10 +511,27 @@ APPKIT_EXPORT const NSViewFullScreenModeOptionKey NSFullScreenModeApplicationPre
 @property(readonly, retain) NSLayoutYAxisAnchor *bottomAnchor;
 @property(readonly, retain) NSLayoutYAxisAnchor *centerYAnchor;
 
+// NSViewNoIntrinsicMetric in both dimensions; subclasses that know their own
+// size override it.
+@property(readonly) NSSize intrinsicContentSize;
+// Marks the view as needing layout. There is no constraint solver to notify,
+// so nothing recomputes a size from it.
+- (void) invalidateIntrinsicContentSize;
+
 // Activates the constraints.
 - (void) addConstraints: (NSArray *) constraints;
 // Clears needsLayout in the subtree; frames aren't recomputed.
 - (void) layoutSubtreeIfNeeded;
+
+@end
+
+@interface NSView (NSViewGestureRecognizers)
+
+// Stored only: AppKit never routes events to a recognizer, so a recognizer
+// added here stays in NSGestureRecognizerStatePossible and never fires.
+@property(copy) NSArray *gestureRecognizers;
+- (void) addGestureRecognizer: (NSGestureRecognizer *) recognizer;
+- (void) removeGestureRecognizer: (NSGestureRecognizer *) recognizer;
 
 @end
 

@@ -468,6 +468,7 @@ typedef struct __VFlags {
     [_layerContext release];
 
     [_identifier release];
+    [_gestureRecognizers release];
 
     [super dealloc];
 }
@@ -3126,6 +3127,14 @@ static id anchorForView(NSView *view, NSString *className,
     return anchorForView(self, @"NSLayoutYAxisAnchor", NSLayoutAttributeCenterY);
 }
 
+- (NSSize) intrinsicContentSize {
+    return NSMakeSize(NSViewNoIntrinsicMetric, NSViewNoIntrinsicMetric);
+}
+
+- (void) invalidateIntrinsicContentSize {
+    _needsLayout = YES;
+}
+
 - (void) addConstraints: (NSArray *) constraints {
     [NSLayoutConstraint activateConstraints: constraints];
 }
@@ -3133,6 +3142,31 @@ static id anchorForView(NSView *view, NSString *className,
 - (void) layoutSubtreeIfNeeded {
     _needsLayout = NO;
     [_subviews makeObjectsPerformSelector: _cmd];
+}
+
+@end
+
+@implementation NSView (NSViewGestureRecognizers)
+
+- (NSArray *) gestureRecognizers {
+    return _gestureRecognizers != nil ? [[_gestureRecognizers copy] autorelease]
+                                      : [NSArray array];
+}
+
+- (void) setGestureRecognizers: (NSArray *) recognizers {
+    NSMutableArray *copied = [recognizers mutableCopy];
+    [_gestureRecognizers release];
+    _gestureRecognizers = copied;
+}
+
+- (void) addGestureRecognizer: (NSGestureRecognizer *) recognizer {
+    if (_gestureRecognizers == nil)
+        _gestureRecognizers = [[NSMutableArray alloc] init];
+    [_gestureRecognizers addObject: recognizer];
+}
+
+- (void) removeGestureRecognizer: (NSGestureRecognizer *) recognizer {
+    [_gestureRecognizers removeObjectIdenticalTo: recognizer];
 }
 
 @end
