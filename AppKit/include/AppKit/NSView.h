@@ -72,14 +72,14 @@ typedef NS_ENUM(NSInteger, NSViewLayerContentsPlacement) {
     NSViewLayerContentsPlacementBottomLeft,
     NSViewLayerContentsPlacementLeft,
     NSViewLayerContentsPlacementTopLeft
-};
+} NS_SWIFT_NAME(NSView.LayerContentsPlacement);
 
 typedef NS_ENUM(NSInteger, NSViewLayerContentsRedrawPolicy) {
     NSViewLayerContentsRedrawNever = 0,
     NSViewLayerContentsRedrawOnSetNeedsDisplay,
     NSViewLayerContentsRedrawDuringViewResize,
     NSViewLayerContentsRedrawBeforeViewResize
-};
+} NS_SWIFT_NAME(NSView.LayerContentsRedrawPolicy);
 
 APPKIT_EXPORT const NSNotificationName NSViewFrameDidChangeNotification;
 APPKIT_EXPORT const NSNotificationName NSViewBoundsDidChangeNotification;
@@ -313,8 +313,11 @@ APPKIT_EXPORT const NSViewFullScreenModeOptionKey NSFullScreenModeApplicationPre
 - (void) viewWillMoveToSuperview: (NSView *) view;
 - (void) viewDidMoveToSuperview;
 
-- (void) viewWillMoveToWindow: (NSWindow *) window;
+- (void) viewWillMoveToWindow: (NSWindow *_Nullable) window
+        NS_SWIFT_NAME(viewWillMove(toWindow:));
 - (void) viewDidMoveToWindow;
+- (void) viewDidChangeBackingProperties;
+- (void) viewDidChangeEffectiveAppearance;
 
 - (BOOL) shouldDelayWindowOrderingForEvent: (NSEvent *) event;
 
@@ -517,6 +520,15 @@ APPKIT_EXPORT const NSViewFullScreenModeOptionKey NSFullScreenModeApplicationPre
 // Marks the view as needing layout. There is no constraint solver to notify,
 // so nothing recomputes a size from it.
 - (void) invalidateIntrinsicContentSize;
+
+// Sent by -layoutSubtreeIfNeeded to each view that needs layout. The base
+// implementation only clears needsLayout: there is no constraint solver, so
+// nothing recomputes a frame. Subclasses override and call super first.
+- (void) layout;
+// An override point only. Nothing in this AppKit sends it, because there is no
+// constraint solver and no -updateConstraintsForSubtreeIfNeeded to drive one;
+// an override here does not run unless the application sends it itself.
+- (void) updateConstraints;
 
 // Activates the constraints.
 - (void) addConstraints: (NSArray *) constraints;

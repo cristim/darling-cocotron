@@ -49,6 +49,12 @@ static const NSTimeInterval NSAnimationContextDefaultDuration = 0.25;
         completionHandler();
 }
 
++ (void) runAnimationGroup: (void (NS_NOESCAPE ^)(NSAnimationContext *_Nonnull context))
+                                   changes
+{
+    [self runAnimationGroup: changes completionHandler: nil];
+}
+
 + (void) beginGrouping {
 }
 
@@ -71,6 +77,14 @@ static const NSTimeInterval NSAnimationContextDefaultDuration = 0.25;
 
 - (NSTimeInterval) duration {
     return _duration;
+}
+
+- (void) setAllowsImplicitAnimation: (BOOL) flag {
+    _allowsImplicitAnimation = flag;
+}
+
+- (BOOL) allowsImplicitAnimation {
+    return _allowsImplicitAnimation;
 }
 
 @end

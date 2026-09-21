@@ -1631,6 +1631,12 @@ static void alignAxis(CGFloat *origin, CGFloat *length, NSAlignmentOptions optio
     // Intentionally empty.
 }
 
+- (void) viewDidChangeBackingProperties {
+}
+
+- (void) viewDidChangeEffectiveAppearance {
+}
+
 - (void) viewWillMoveToWindow: (NSWindow *) window {
     // Intentionally empty.
 }
@@ -3139,8 +3145,17 @@ static id anchorForView(NSView *view, NSString *className,
     [NSLayoutConstraint activateConstraints: constraints];
 }
 
-- (void) layoutSubtreeIfNeeded {
+- (void) updateConstraints {
+    _needsUpdateConstraints = NO;
+}
+
+- (void) layout {
     _needsLayout = NO;
+}
+
+- (void) layoutSubtreeIfNeeded {
+    if (_needsLayout)
+        [self layout];
     [_subviews makeObjectsPerformSelector: _cmd];
 }
 
