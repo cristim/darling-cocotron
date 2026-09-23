@@ -11,6 +11,8 @@
     NSView *_view;
     NSUserInterfaceItemIdentifier _identifier;
     NSStoryboard *_storyboard;
+    NSMutableArray *_childViewControllers;
+    NSViewController *_parentViewController;
 }
 
 - initWithNibName: (NSString *) name bundle: (NSBundle *) bundle;
@@ -20,6 +22,17 @@
 
 @property (retain) NSView *view;
 @property(readonly, strong) NSStoryboard *storyboard;
+@property(copy) NSArray<__kindof NSViewController *> *childViewControllers;
+@property(readonly) NSViewController *parentViewController;
+
+- (void) addChildViewController: (NSViewController *) childViewController;
+// Subclasses that track their children override these two; the other child
+// methods go through them.
+- (void) insertChildViewController: (NSViewController *) childViewController
+                           atIndex: (NSInteger) index;
+- (void) removeChildViewControllerAtIndex: (NSInteger) index;
+- (void) removeFromParentViewController;
+
 - (NSString *) title;
 - representedObject;
 
