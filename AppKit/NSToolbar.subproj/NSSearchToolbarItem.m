@@ -49,6 +49,14 @@
     return self;
 }
 
+- (instancetype) initWithCoder: (NSCoder *) coder {
+    self = [super initWithCoder: coder];
+    NSLog(@"QCDEBUG NSSearchToolbarItem id=%@ view=%@ viewclass=%@ frame=%@ cellclass=%@ label=%@ min=%@ max=%@",
+          [self itemIdentifier], [self view], [[self view] class], NSStringFromRect([[self view] frame]),
+          [[(NSControl *)[self view] cell] class], [self label], NSStringFromSize([self minSize]), NSStringFromSize([self maxSize]));
+    return self;
+}
+
 - (void) dealloc {
     [_searchField release];
     [super dealloc];
