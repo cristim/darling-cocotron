@@ -1,5 +1,6 @@
 #import <QuartzCore/CAAnimation.h>
 #import <QuartzCore/CADisplayLink.h>
+#import <QuartzCore/CAFrameRateRange.h>
 #import <QuartzCore/CAConstraintLayoutManager.h>
 #import <QuartzCore/CALayer.h>
 #import <QuartzCore/CAMediaTimingFunction.h>
