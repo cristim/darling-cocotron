@@ -651,6 +651,18 @@ NSImageName const NSImageNameTouchBarVolumeUpTemplate =
     return _size;
 }
 
+- (NSRect) alignmentRect {
+    if (_hasCustomAlignmentRect)
+        return _alignmentRect;
+
+    return NSMakeRect(0, 0, [self size].width, [self size].height);
+}
+
+- (void) setAlignmentRect: (NSRect) rect {
+    _alignmentRect = rect;
+    _hasCustomAlignmentRect = YES;
+}
+
 - (NSColor *) backgroundColor {
     return _backgroundColor;
 }
