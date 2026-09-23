@@ -197,6 +197,7 @@ APPKIT_EXPORT const NSNotificationName NSWindowDidExposeNotification
     NSMutableArray<NSWindow *> *_childWindows;
 
     NSString *_representedFilename;
+    NSURL *_representedURL;
     NSString *_title;
     NSString *_miniwindowTitle;
     NSImage *_miniwindowImage;
