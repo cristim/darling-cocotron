@@ -89,6 +89,7 @@ COREGRAPHICS_EXPORT CFUUIDRef CGDisplayCreateUUIDFromDisplayID(CGDirectDisplayID
 COREGRAPHICS_EXPORT CGDirectDisplayID CGDisplayGetDisplayIDFromUUID(CFUUIDRef uuid);
 COREGRAPHICS_EXPORT boolean_t CGDisplayIsActive(CGDirectDisplayID display);
 COREGRAPHICS_EXPORT boolean_t CGDisplayIsBuiltin(CGDirectDisplayID display);
+COREGRAPHICS_EXPORT boolean_t CGDisplayIsAsleep(CGDirectDisplayID display);
 COREGRAPHICS_EXPORT int32_t CGDisplayRotation(CGDirectDisplayID display);
 COREGRAPHICS_EXPORT CGColorSpaceRef CGDisplayCopyColorSpace(CGDirectDisplayID display);
 

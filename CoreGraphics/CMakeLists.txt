@@ -144,9 +144,12 @@ add_framework(CoreGraphics
 set_property(TARGET CoreGraphics APPEND_STRING PROPERTY
 	LINK_FLAGS " -Wl,-reexport_library,${CMAKE_SOURCE_DIR}/src/external/swift/libswiftCoreGraphics.dylib ")
 
+# NSBundle finds the backends through the framework's Resources link.
+InstallSymlink("Versions/Current/Resources" "${CMAKE_INSTALL_PREFIX}/libexec/darling/System/Library/Frameworks/CoreGraphics.framework/Resources")
+
 function(add_backend name)
 	cmake_parse_arguments(BACKEND "" "INFO_PLIST" "SOURCES;DEPENDENCIES;RESOURCES" ${ARGN})
-	set(path "/System/Library/Frameworks/CoreGraphics.framework/Versions/C/Resources/Backends/${name}.backend/Contents")
+	set(path "/System/Library/Frameworks/CoreGraphics.framework/Versions/${FRAMEWORK_VERSION}/Resources/Backends/${name}.backend/Contents")
 	set(DYLIB_INSTALL_NAME "${path}/MacOS/${name}")
 
 	add_darling_library(${name}_cgbackend SHARED ${BACKEND_SOURCES})

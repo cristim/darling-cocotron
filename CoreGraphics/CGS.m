@@ -200,6 +200,11 @@ CGSConnectionID CGSMainConnectionID(void)
 	return g_defaultConnection;
 }
 
+CGPoint CGSCurrentInputPointerPosition(void)
+{
+	return [_CGSConnectionForID(CGSMainConnectionID()) mouseLocation];
+}
+
 static CGError getWindow(CGSConnectionID cid, CGSWindowID wid, CGSWindow** out)
 {
 	CGSConnection* c = _CGSConnectionForID(cid);

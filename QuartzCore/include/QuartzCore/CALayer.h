@@ -63,6 +63,17 @@ CA_EXPORT NSString *const kCAContentsFormatGray8Uint;
 // The types recent macOS SDK headers use for the kCAContentsFormat* and kCAFilter* constants.
 typedef NSString *CALayerContentsFormat NS_TYPED_ENUM;
 typedef NSString *CALayerContentsFilter NS_TYPED_ENUM;
+typedef NSString *CADynamicRange NS_TYPED_ENUM;
+typedef NSString *CAToneMapMode NS_TYPED_ENUM;
+
+CA_EXPORT CADynamicRange const CADynamicRangeAutomatic;
+CA_EXPORT CADynamicRange const CADynamicRangeStandard;
+CA_EXPORT CADynamicRange const CADynamicRangeConstrainedHigh;
+CA_EXPORT CADynamicRange const CADynamicRangeHigh;
+
+CA_EXPORT CAToneMapMode const CAToneMapModeAutomatic;
+CA_EXPORT CAToneMapMode const CAToneMapModeNever;
+CA_EXPORT CAToneMapMode const CAToneMapModeIfSupported;
 
 @interface CALayer : NSObject {
     CALayerContext *_context;
@@ -78,6 +89,8 @@ typedef NSString *CALayerContentsFilter NS_TYPED_ENUM;
     CGFloat _contentsScale;
     CGRect _contentsCenter;
     NSString *_contentsFormat;
+    NSString *_preferredDynamicRange;
+    NSString *_toneMapMode;
     BOOL _allowsEdgeAntialiasing;
     CATransform3D _transform;
     CATransform3D _sublayerTransform;
@@ -117,6 +130,10 @@ typedef NSString *CALayerContentsFilter NS_TYPED_ENUM;
 @property CGFloat contentsScale;
 @property CGRect contentsCenter;
 @property(copy) CALayerContentsFormat contentsFormat;
+
+// Stored for callers; CARenderer draws standard dynamic range only.
+@property(copy) CADynamicRange preferredDynamicRange;
+@property(copy) CAToneMapMode toneMapMode;
 
 @property CATransform3D transform;
 @property CATransform3D sublayerTransform;

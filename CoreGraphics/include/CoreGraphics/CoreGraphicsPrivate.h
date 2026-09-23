@@ -43,6 +43,8 @@ extern CGError CGSNewConnection(_Nullable CGSDictionaryObj attribs, CGSConnectio
 extern CGError CGSReleaseConnection(CGSConnectionID connId);
 extern CGSConnectionID _CGSDefaultConnection(void);
 extern CGSConnectionID CGSMainConnectionID(void);
+// Pointer location in global display coordinates, origin at the top left.
+extern CGPoint CGSCurrentInputPointerPosition(void);
 extern CGError CGSSetDenyWindowServerConnections(Boolean deny);
 extern void CGSShutdownServerConnections(void);
 
