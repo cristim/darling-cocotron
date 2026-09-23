@@ -1,4 +1,5 @@
 #import <CoreFoundation/CFString.h>
+#import <CoreFoundation/CFNumber.h>
 #import <CoreFoundation/CFSet.h>
 #import <CoreGraphics/CGBase.h>
 #import <CoreText/CoreTextExport.h>
@@ -54,5 +55,8 @@ CORETEXT_EXPORT CTFontDescriptorRef CTFontDescriptorCreateMatchingFontDescriptor
 CORETEXT_EXPORT CTFontDescriptorRef CTFontDescriptorCreateCopyWithAttributes(CTFontDescriptorRef descriptor, CFDictionaryRef attributes);
 CORETEXT_EXPORT CTFontSymbolicTraits CTFontDescriptorGetSymbolicTraits(CTFontDescriptorRef descriptor);
 CORETEXT_EXPORT CTFontDescriptorRef CTFontDescriptorCreateCopyWithSymbolicTraits(CTFontDescriptorRef descriptor, CTFontSymbolicTraits value, CTFontSymbolicTraits mask);
+
+CORETEXT_EXPORT CTFontDescriptorRef CTFontDescriptorCreateCopyWithFeature(CTFontDescriptorRef descriptor, CFNumberRef featureTypeIdentifier, CFNumberRef featureSelectorIdentifier);
+CORETEXT_EXPORT CTFontDescriptorRef CTFontDescriptorCreateCopyWithVariation(CTFontDescriptorRef descriptor, CFNumberRef variationIdentifier, CGFloat variationValue);
 
 CF_IMPLICIT_BRIDGING_DISABLED

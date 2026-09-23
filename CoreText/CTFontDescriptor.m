@@ -1,4 +1,5 @@
 #import <CoreText/CTFontDescriptor.h>
+#import <CoreText/CTFont.h>
 #import <Foundation/NSDictionary.h>
 #import <Foundation/NSArray.h>
 #import <Foundation/NSValue.h>
@@ -115,5 +116,47 @@ CTFontDescriptorRef CTFontDescriptorCreateCopyWithSymbolicTraits(CTFontDescripto
     NSDictionary *changes = [NSDictionary dictionaryWithObject:traits forKey:(id)kCTFontTraitsAttribute];
     CTFontDescriptorRef result = CTFontDescriptorCreateCopyWithAttributes(descriptor, (CFDictionaryRef)changes);
     [traits release];
+    return result;
+}
+
+CTFontDescriptorRef CTFontDescriptorCreateCopyWithFeature(CTFontDescriptorRef descriptor,
+                                                          CFNumberRef featureTypeIdentifier,
+                                                          CFNumberRef featureSelectorIdentifier)
+{
+    if (!descriptor || !featureTypeIdentifier || !featureSelectorIdentifier) return NULL;
+
+    NSArray *oldSettings = [(NSDictionary *)descriptor objectForKey:(id)kCTFontFeatureSettingsAttribute];
+    NSMutableArray *settings = [[NSMutableArray alloc] init];
+    for (NSDictionary *setting in oldSettings) {
+        NSNumber *type = [setting objectForKey:(id)kCTFontFeatureTypeIdentifierKey];
+        if (![type isEqual:(id)featureTypeIdentifier]) {
+            [settings addObject:setting];
+        }
+    }
+    NSDictionary *newSetting = [NSDictionary dictionaryWithObjectsAndKeys:
+        (id)featureTypeIdentifier, (id)kCTFontFeatureTypeIdentifierKey,
+        (id)featureSelectorIdentifier, (id)kCTFontFeatureSelectorIdentifierKey,
+        nil];
+    [settings addObject:newSetting];
+
+    NSDictionary *changes = [NSDictionary dictionaryWithObject:settings forKey:(id)kCTFontFeatureSettingsAttribute];
+    CTFontDescriptorRef result = CTFontDescriptorCreateCopyWithAttributes(descriptor, (CFDictionaryRef)changes);
+    [settings release];
+    return result;
+}
+
+CTFontDescriptorRef CTFontDescriptorCreateCopyWithVariation(CTFontDescriptorRef descriptor,
+                                                            CFNumberRef variationIdentifier,
+                                                            CGFloat variationValue)
+{
+    if (!descriptor || !variationIdentifier) return NULL;
+
+    NSDictionary *oldVariations = [(NSDictionary *)descriptor objectForKey:(id)kCTFontVariationAttribute];
+    NSMutableDictionary *variations = oldVariations ? [oldVariations mutableCopy] : [[NSMutableDictionary alloc] init];
+    [variations setObject:[NSNumber numberWithDouble:variationValue] forKey:(id)variationIdentifier];
+
+    NSDictionary *changes = [NSDictionary dictionaryWithObject:variations forKey:(id)kCTFontVariationAttribute];
+    CTFontDescriptorRef result = CTFontDescriptorCreateCopyWithAttributes(descriptor, (CFDictionaryRef)changes);
+    [variations release];
     return result;
 }
