@@ -1,3 +1,6 @@
+#ifndef CGCONTEXT_H
+#define CGCONTEXT_H
+
 /* Copyright (c) 2006-2007 Christopher J. W. Lloyd
 
 Permission is hereby granted,free of charge,to any person obtaining a copy of
@@ -41,34 +44,34 @@ typedef enum {
     kCGEncodingMacRoman,
 } CGTextEncoding;
 
-typedef enum {
+typedef CF_ENUM(int32_t, CGLineCap) {
     kCGLineCapButt,
     kCGLineCapRound,
     kCGLineCapSquare,
-} CGLineCap;
+};
 
-typedef enum {
+typedef CF_ENUM(int32_t, CGLineJoin) {
     kCGLineJoinMiter,
     kCGLineJoinRound,
     kCGLineJoinBevel,
-} CGLineJoin;
+};
 
-typedef enum {
+typedef CF_ENUM(int32_t, CGPathDrawingMode) {
     kCGPathFill,
     kCGPathEOFill,
     kCGPathStroke,
     kCGPathFillStroke,
     kCGPathEOFillStroke
-} CGPathDrawingMode;
+};
 
-typedef enum {
+typedef CF_ENUM(int32_t, CGInterpolationQuality) {
     kCGInterpolationDefault,
     kCGInterpolationNone,
     kCGInterpolationLow,
     kCGInterpolationHigh,
-} CGInterpolationQuality;
+};
 
-typedef enum {
+typedef CF_ENUM(int32_t, CGBlendMode) {
     // seperable
     kCGBlendModeNormal,
     kCGBlendModeMultiply,
@@ -100,7 +103,7 @@ typedef enum {
     kCGBlendModeXOR,
     kCGBlendModePlusDarker,
     kCGBlendModePlusLighter,
-} CGBlendMode;
+};
 
 typedef int CGTextDrawingMode;
 
@@ -426,8 +429,10 @@ CGContextDrawRadialGradient(CGContextRef c,
 COREGRAPHICS_EXPORT void CGContextDrawTiledImage(CGContextRef c, CGRect rect, CGImageRef image);
 
 COREGRAPHICS_EXPORT void
-CGContextShowGlyphsAtPositions(CGContextRef c,
-                               const CGGlyph * glyphs, const CGPoint * Lpositions,
-                               size_t count);
+CGContextShowGlyphsAtPositions(CGContextRef context,
+                               const CGGlyph *glyphs,
+                               const CGPoint *positions, size_t count);
 
 CF_IMPLICIT_BRIDGING_DISABLED
+
+#endif /* CGCONTEXT_H */

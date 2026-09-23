@@ -23,10 +23,19 @@
 // Animations aren't run: changes made in a group take effect immediately.
 @interface NSAnimationContext : NSObject <NSCopying> {
     NSTimeInterval _duration;
+    BOOL _allowsImplicitAnimation;
 }
 
-+ (void) runAnimationGroup: (void (^)(NSAnimationContext *context)) changes
-         completionHandler: (void (^)(void)) completionHandler;
+// Stored only, like -duration: nothing in this context animates, so the value
+// is never consulted. NO, AppKit's default, is what the context behaves as.
+@property BOOL allowsImplicitAnimation;
+
++ (void) runAnimationGroup:
+                (void (^)(NSAnimationContext *_Nonnull context)) changes
+         completionHandler: (void (^_Nullable)(void)) completionHandler;
++ (void) runAnimationGroup: (void (NS_NOESCAPE ^)(
+                                    NSAnimationContext *_Nonnull context))
+                                    changes;
 
 + (void) beginGrouping;
 + (void) endGrouping;

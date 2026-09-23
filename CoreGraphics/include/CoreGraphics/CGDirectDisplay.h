@@ -1,3 +1,6 @@
+#ifndef CGDIRECTDISPLAY_H
+#define CGDIRECTDISPLAY_H
+
 
 #import <CoreGraphics/CGError.h>
 #import <CoreGraphics/CGGeometry.h>
@@ -89,3 +92,5 @@ COREGRAPHICS_EXPORT boolean_t CGDisplayIsBuiltin(CGDirectDisplayID display);
 COREGRAPHICS_EXPORT int32_t CGDisplayRotation(CGDirectDisplayID display);
 COREGRAPHICS_EXPORT CGColorSpaceRef CGDisplayCopyColorSpace(CGDirectDisplayID display);
 
+
+#endif /* CGDIRECTDISPLAY_H */

@@ -1,3 +1,6 @@
+#ifndef CGDISPLAYCONFIGURATION_H
+#define CGDISPLAYCONFIGURATION_H
+
 #import <CoreFoundation/CoreFoundation.h>
 #import <CoreGraphics/CGDirectDisplay.h>
 #import <CoreGraphics/CGGeometry.h>
@@ -43,3 +46,5 @@ COREGRAPHICS_EXPORT void CGSGetDisplayModeDescriptionOfLength(CGDirectDisplayID 
 COREGRAPHICS_EXPORT void CGSConfigureDisplayMode(CGDisplayConfigRef config, CGDirectDisplayID display, int modeNum);
 COREGRAPHICS_EXPORT CGError CGSConfigureDisplayEnabled(CGDisplayConfigRef config, CGDirectDisplayID display, bool enabled);
 
+
+#endif /* CGDISPLAYCONFIGURATION_H */

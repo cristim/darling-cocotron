@@ -17,6 +17,8 @@ COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,DAMAGES OR OTHER LIABILITY,WHETHER IN
 AN ACTION OF CONTRACT,TORT OR OTHERWISE,ARISING FROM,OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
+#include <limits.h>
+
 #import "CGConversions.h"
 #import <CoreGraphics/CGContext.h>
 #import <CoreGraphics/CoreGraphicsPrivate.h>
@@ -634,9 +636,35 @@ void CGContextDrawTiledImage(CGContextRef c, CGRect rect, CGImageRef image)
     printf("STUB %s\n", __PRETTY_FUNCTION__);
 }
 
-void CGContextShowGlyphsAtPositions(CGContextRef c,
-                                    const CGGlyph * glyphs, const CGPoint * Lpositions,
-                                    size_t count)
+void CGContextShowGlyphsAtPositions(CGContextRef context,
+                                    const CGGlyph *glyphs,
+                                    const CGPoint *positions, size_t count)
 {
-    printf("STUB %s\n", __PRETTY_FUNCTION__);
+    if (context == NULL || glyphs == NULL || positions == NULL || count == 0 ||
+        count > UINT_MAX)
+        return;
+
+    CGSize advances[count];
+    size_t i;
+
+    for (i = 0; i + 1 < count; i++) {
+        advances[i].width = positions[i + 1].x - positions[i].x;
+        advances[i].height = positions[i + 1].y - positions[i].y;
+    }
+
+    // Deliberate approximation: positions do not carry the last glyph's own
+    // advance, so the text position ends at positions[count - 1], not past it.
+    advances[count - 1] = CGSizeMake(0, 0);
+
+    // positions[0] shifts the whole run, so it cannot become an advance. It is
+    // in text space like the advances, hence the text matrix.
+    CGPoint origin = CGContextGetTextPosition(context);
+    CGSize offset = CGSizeApplyAffineTransform(
+            CGSizeMake(positions[0].x, positions[0].y),
+            CGContextGetTextMatrix(context));
+
+    CGContextSetTextPosition(context, origin.x + offset.width,
+                             origin.y + offset.height);
+    CGContextShowGlyphsWithAdvances(context, glyphs, advances,
+                                    (unsigned) count);
 }

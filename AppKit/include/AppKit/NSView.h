@@ -33,7 +33,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 @class NSWindow, NSMenu, NSMenuItem, NSCursor, NSClipView, NSPasteboard,
         NSTextInputContext, NSImage, NSBitmapImageRep, NSScrollView,
         NSTrackingArea, NSShadow, NSScreen, CALayer, CIFilter, CALayerContext,
-        NSLayoutDimension, NSLayoutXAxisAnchor, NSLayoutYAxisAnchor;
+        NSLayoutDimension, NSLayoutXAxisAnchor, NSLayoutYAxisAnchor,
+        NSGestureRecognizer;
 
 // See Cocoa Event Handling Guide : Using Tracking-Area Objects : Compatibility
 // Issues
@@ -71,14 +72,14 @@ typedef NS_ENUM(NSInteger, NSViewLayerContentsPlacement) {
     NSViewLayerContentsPlacementBottomLeft,
     NSViewLayerContentsPlacementLeft,
     NSViewLayerContentsPlacementTopLeft
-};
+} NS_SWIFT_NAME(NSView.LayerContentsPlacement);
 
 typedef NS_ENUM(NSInteger, NSViewLayerContentsRedrawPolicy) {
     NSViewLayerContentsRedrawNever = 0,
     NSViewLayerContentsRedrawOnSetNeedsDisplay,
     NSViewLayerContentsRedrawDuringViewResize,
     NSViewLayerContentsRedrawBeforeViewResize
-};
+} NS_SWIFT_NAME(NSView.LayerContentsRedrawPolicy);
 
 APPKIT_EXPORT const NSNotificationName NSViewFrameDidChangeNotification;
 APPKIT_EXPORT const NSNotificationName NSViewBoundsDidChangeNotification;
@@ -144,6 +145,7 @@ APPKIT_EXPORT const NSViewFullScreenModeOptionKey NSFullScreenModeApplicationPre
     NSAppearance *_appearance;
     BOOL _canDrawConcurrently;
 
+    NSMutableArray *_gestureRecognizers;
     BOOL _needsLayout;
     BOOL _needsUpdateConstraints;
     BOOL _clipsToBounds;
@@ -160,10 +162,10 @@ APPKIT_EXPORT const NSViewFullScreenModeOptionKey NSFullScreenModeApplicationPre
 
 - (instancetype) initWithFrame: (NSRect) frame;
 
-- (NSRect) frame;
+@property NSRect frame;
 - (CGFloat) frameRotation;
 - (CGFloat) frameCenterRotation;
-- (NSRect) bounds;
+@property NSRect bounds;
 - (CGFloat) boundsRotation;
 - (BOOL) isRotatedFromBase;
 - (BOOL) isRotatedOrScaledFromBase;
@@ -174,21 +176,21 @@ APPKIT_EXPORT const NSViewFullScreenModeOptionKey NSFullScreenModeApplicationPre
 
 - (void) scaleUnitSquareToSize: (NSSize) size;
 
-- (NSWindow *) window;
-- (NSView *) superview;
+@property (readonly, weak) NSWindow *window;
+@property (readonly, weak) NSView *superview;
 - (BOOL) isDescendantOf: (NSView *) other;
 - (NSView *) ancestorSharedWithView: (NSView *) view;
 - (NSScrollView *) enclosingScrollView;
 - (NSRect) adjustScroll: (NSRect) toRect;
 
-- (NSArray *) subviews;
-- (BOOL) autoresizesSubviews;
+@property (copy) NSArray *subviews;
+@property BOOL autoresizesSubviews;
 - (NSAutoresizingMaskOptions) autoresizingMask;
 - (NSFocusRingType) focusRingType;
 
 - (NSInteger) tag;
-- (BOOL) isFlipped;
-- (BOOL) isOpaque;
+@property (readonly) BOOL isFlipped;
+@property (readonly) BOOL isOpaque;
 - (CGFloat) alphaValue;
 - (void) setAlphaValue: (CGFloat) alpha;
 - (int) gState;
@@ -199,9 +201,8 @@ APPKIT_EXPORT const NSViewFullScreenModeOptionKey NSFullScreenModeApplicationPre
 - (void) cacheDisplayInRect: (NSRect) rect
            toBitmapImageRep: (NSBitmapImageRep *) imageRep;
 
-- (BOOL) isHidden;
-- (BOOL) isHiddenOrHasHiddenAncestor;
-- (void) setHidden: (BOOL) flag;
+@property (getter=isHidden) BOOL hidden;
+@property (readonly) BOOL isHiddenOrHasHiddenAncestor;
 - (void) viewDidHide;
 - (void) viewDidUnhide;
 
@@ -231,13 +232,11 @@ APPKIT_EXPORT const NSViewFullScreenModeOptionKey NSFullScreenModeApplicationPre
 - (NSRect) backingAlignedRect: (NSRect) rect options: (NSAlignmentOptions) options;
 @property(copy) NSString *accessibilityTitle;
 
-- (void) setFrame: (NSRect) frame;
 - (void) setFrameSize: (NSSize) size;
 - (void) setFrameOrigin: (NSPoint) origin;
 - (void) setFrameRotation: (CGFloat) angle;
 - (void) setFrameCenterRotation: (CGFloat) angle;
 
-- (void) setBounds: (NSRect) bounds;
 - (void) setBoundsSize: (NSSize) size;
 - (void) setBoundsOrigin: (NSPoint) origin;
 - (void) setBoundsRotation: (CGFloat) angle;
@@ -257,13 +256,11 @@ APPKIT_EXPORT const NSViewFullScreenModeOptionKey NSFullScreenModeApplicationPre
          positioned: (NSWindowOrderingMode) ordering
          relativeTo: (NSView *) relativeTo;
 - (void) replaceSubview: (NSView *) oldView with: (NSView *) newView;
-- (void) setSubviews: (NSArray *) newSubviews;
 - (void) sortSubviewsUsingFunction:
                  (NSComparisonResult (*)(id, id, void *)) compareFunction
                            context: (void *) context;
 - (void) didAddSubview: (NSView *) subview;
 - (void) willRemoveSubview: (NSView *) subview;
-- (void) setAutoresizesSubviews: (BOOL) flag;
 - (void) setAutoresizingMask: (NSAutoresizingMaskOptions) mask;
 - (void) setFocusRingType: (NSFocusRingType) value;
 
@@ -311,8 +308,11 @@ APPKIT_EXPORT const NSViewFullScreenModeOptionKey NSFullScreenModeApplicationPre
 - (void) viewWillMoveToSuperview: (NSView *) view;
 - (void) viewDidMoveToSuperview;
 
-- (void) viewWillMoveToWindow: (NSWindow *) window;
+- (void) viewWillMoveToWindow: (NSWindow *_Nullable) window
+        NS_SWIFT_NAME(viewWillMove(toWindow:));
 - (void) viewDidMoveToWindow;
+- (void) viewDidChangeBackingProperties;
+- (void) viewDidChangeEffectiveAppearance;
 
 - (BOOL) shouldDelayWindowOrderingForEvent: (NSEvent *) event;
 
@@ -341,15 +341,10 @@ APPKIT_EXPORT const NSViewFullScreenModeOptionKey NSFullScreenModeApplicationPre
 - (void) setUpGState;
 - (void) renewGState;
 
-- (CALayer *) layer;
-- (void) setLayer: (CALayer *) newLayer;
-- (BOOL) wantsLayer;
-- (void) setWantsLayer: (BOOL) wantsLayer;
-- (NSViewLayerContentsPlacement) layerContentsPlacement;
-- (void) setLayerContentsPlacement: (NSViewLayerContentsPlacement) newPlacement;
-- (NSViewLayerContentsRedrawPolicy) layerContentsRedrawPolicy;
-- (void) setLayerContentsRedrawPolicy:
-        (NSViewLayerContentsRedrawPolicy) newPolicy;
+@property (retain) CALayer *layer;
+@property BOOL wantsLayer;
+@property NSViewLayerContentsPlacement layerContentsPlacement;
+@property NSViewLayerContentsRedrawPolicy layerContentsRedrawPolicy;
 - (CALayer *) makeBackingLayer;
 
 - (NSArray *) backgroundFilters;
@@ -361,8 +356,7 @@ APPKIT_EXPORT const NSViewFullScreenModeOptionKey NSFullScreenModeApplicationPre
 - (NSShadow *) shadow;
 - (void) setShadow: (NSShadow *) shadow;
 
-- (BOOL) needsDisplay;
-- (void) setNeedsDisplay: (BOOL) flag;
+@property BOOL needsDisplay;
 - (void) setNeedsDisplayInRect: (NSRect) rect;
 - (void) setKeyboardFocusRingNeedsDisplayInRect: (NSRect) rect;
 - (void) translateRectsNeedingDisplayInRect: (NSRect) rect by: (NSSize) delta;
@@ -460,12 +454,14 @@ APPKIT_EXPORT const NSViewFullScreenModeOptionKey NSFullScreenModeApplicationPre
 - (NSRect) convertRectFromBase: (NSRect) aRect;
 - (NSRect) convertRectToBase: (NSRect) aRect;
 
-- (NSRect) convertRectToBacking: (NSRect) rect;
-- (NSRect) convertRectFromBacking: (NSRect) rect;
-- (NSPoint) convertPointToBacking: (NSPoint) point;
-- (NSPoint) convertPointFromBacking: (NSPoint) point;
-- (NSSize) convertSizeToBacking: (NSSize) size;
-- (NSSize) convertSizeFromBacking: (NSSize) size;
+// macOS names all six convertToBacking(_:)/convertFromBacking(_:) in Swift,
+// overloaded on the argument type; without these Swift sees the ObjC spellings.
+- (NSRect) convertRectToBacking: (NSRect) rect NS_SWIFT_NAME(convertToBacking(_:));
+- (NSRect) convertRectFromBacking: (NSRect) rect NS_SWIFT_NAME(convertFromBacking(_:));
+- (NSPoint) convertPointToBacking: (NSPoint) point NS_SWIFT_NAME(convertToBacking(_:));
+- (NSPoint) convertPointFromBacking: (NSPoint) point NS_SWIFT_NAME(convertFromBacking(_:));
+- (NSSize) convertSizeToBacking: (NSSize) size NS_SWIFT_NAME(convertToBacking(_:));
+- (NSSize) convertSizeFromBacking: (NSSize) size NS_SWIFT_NAME(convertFromBacking(_:));
 
 // Stored and archived; the X11 backend has no high-resolution surfaces.
 @property BOOL wantsBestResolutionOpenGLSurface;
@@ -507,10 +503,36 @@ APPKIT_EXPORT const NSViewFullScreenModeOptionKey NSFullScreenModeApplicationPre
 @property(readonly, retain) NSLayoutYAxisAnchor *bottomAnchor;
 @property(readonly, retain) NSLayoutYAxisAnchor *centerYAnchor;
 
+// NSViewNoIntrinsicMetric in both dimensions; subclasses that know their own
+// size override it.
+@property(readonly) NSSize intrinsicContentSize;
+// Marks the view as needing layout. There is no constraint solver to notify,
+// so nothing recomputes a size from it.
+- (void) invalidateIntrinsicContentSize;
+
+// Sent by -layoutSubtreeIfNeeded to each view that needs layout. The base
+// implementation only clears needsLayout: there is no constraint solver, so
+// nothing recomputes a frame. Subclasses override and call super first.
+- (void) layout;
+// An override point only. Nothing in this AppKit sends it, because there is no
+// constraint solver and no -updateConstraintsForSubtreeIfNeeded to drive one;
+// an override here does not run unless the application sends it itself.
+- (void) updateConstraints;
+
 // Activates the constraints.
 - (void) addConstraints: (NSArray *) constraints;
 // Clears needsLayout in the subtree; frames aren't recomputed.
 - (void) layoutSubtreeIfNeeded;
+
+@end
+
+@interface NSView (NSViewGestureRecognizers)
+
+// Stored only: AppKit never routes events to a recognizer, so a recognizer
+// added here stays in NSGestureRecognizerStatePossible and never fires.
+@property(copy) NSArray *gestureRecognizers;
+- (void) addGestureRecognizer: (NSGestureRecognizer *) recognizer;
+- (void) removeGestureRecognizer: (NSGestureRecognizer *) recognizer;
 
 @end
 

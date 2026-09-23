@@ -1,6 +1,6 @@
 #import <AppKit/AppKit.h>
 #import <CoreGraphics/CGSubWindow.h>
-#import <CoreGraphics/CGWindow.h>
+#import <CoreGraphics/CGWindowPrivate.h>
 #import <OpenGL/CGLInternal.h>
 #import <OpenGL/gl.h>
 #import <QuartzCore/CALayer.h>

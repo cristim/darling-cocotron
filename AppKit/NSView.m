@@ -42,7 +42,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSWindow-Private.h>
 #import <AppKit/NSDocument.h>
 #import <AppKit/NSWindowController.h>
-#import <CoreGraphics/CGWindow.h>
+#import <CoreGraphics/CGWindowPrivate.h>
 #import <Foundation/NSKeyedArchiver.h>
 #import <Onyx2D/O2Context.h>
 #import <QuartzCore/CALayerContext.h>
@@ -468,6 +468,7 @@ typedef struct __VFlags {
     [_layerContext release];
 
     [_identifier release];
+    [_gestureRecognizers release];
 
     [super dealloc];
 }
@@ -1628,6 +1629,12 @@ static void alignAxis(CGFloat *origin, CGFloat *length, NSAlignmentOptions optio
 
 - (void) viewDidMoveToSuperview {
     // Intentionally empty.
+}
+
+- (void) viewDidChangeBackingProperties {
+}
+
+- (void) viewDidChangeEffectiveAppearance {
 }
 
 - (void) viewWillMoveToWindow: (NSWindow *) window {
@@ -3126,13 +3133,55 @@ static id anchorForView(NSView *view, NSString *className,
     return anchorForView(self, @"NSLayoutYAxisAnchor", NSLayoutAttributeCenterY);
 }
 
+- (NSSize) intrinsicContentSize {
+    return NSMakeSize(NSViewNoIntrinsicMetric, NSViewNoIntrinsicMetric);
+}
+
+- (void) invalidateIntrinsicContentSize {
+    _needsLayout = YES;
+}
+
 - (void) addConstraints: (NSArray *) constraints {
     [NSLayoutConstraint activateConstraints: constraints];
 }
 
-- (void) layoutSubtreeIfNeeded {
+- (void) updateConstraints {
+    _needsUpdateConstraints = NO;
+}
+
+- (void) layout {
     _needsLayout = NO;
+}
+
+- (void) layoutSubtreeIfNeeded {
+    if (_needsLayout)
+        [self layout];
     [_subviews makeObjectsPerformSelector: _cmd];
+}
+
+@end
+
+@implementation NSView (NSViewGestureRecognizers)
+
+- (NSArray *) gestureRecognizers {
+    return _gestureRecognizers != nil ? [[_gestureRecognizers copy] autorelease]
+                                      : [NSArray array];
+}
+
+- (void) setGestureRecognizers: (NSArray *) recognizers {
+    NSMutableArray *copied = [recognizers mutableCopy];
+    [_gestureRecognizers release];
+    _gestureRecognizers = copied;
+}
+
+- (void) addGestureRecognizer: (NSGestureRecognizer *) recognizer {
+    if (_gestureRecognizers == nil)
+        _gestureRecognizers = [[NSMutableArray alloc] init];
+    [_gestureRecognizers addObject: recognizer];
+}
+
+- (void) removeGestureRecognizer: (NSGestureRecognizer *) recognizer {
+    [_gestureRecognizers removeObjectIdenticalTo: recognizer];
 }
 
 @end

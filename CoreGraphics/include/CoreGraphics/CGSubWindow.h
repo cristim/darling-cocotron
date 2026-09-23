@@ -1,7 +1,12 @@
+#ifndef CGSUBWINDOW_H
+#define CGSUBWINDOW_H
+
 #ifdef __OBJC__
 
 #import <CoreGraphics/CGGeometry.h>
-#import <Foundation/Foundation.h>
+// Only the root class is needed here. Importing Foundation instead would put it
+// inside the CoreGraphics module and recreate the Foundation cycle.
+#import <objc/NSObject.h>
 
 @interface CGSubWindow : NSObject
 
@@ -24,5 +29,7 @@
 - (void) setFrame: (CGRect) frame;
 
 @end
+
+#endif
 
 #endif

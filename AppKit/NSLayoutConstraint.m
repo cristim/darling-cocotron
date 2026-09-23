@@ -24,8 +24,10 @@
 #import <Foundation/NSException.h>
 #import <Foundation/NSValue.h>
 
-const CGFloat NSViewNoInstrinsicMetric = 0xbff0000000000000;
-const CGFloat NSViewNoIntrinsicMetric = 0xbff0000000000000;
+// 0xbff0000000000000 is the bit pattern of -1.0, not the value; as a CGFloat
+// initialiser it yielded 1.38e19, so every "no intrinsic metric" test failed.
+const CGFloat NSViewNoInstrinsicMetric = -1.0;
+const CGFloat NSViewNoIntrinsicMetric = -1.0;
 
 // "-" between two views, and between a view and its superview's edge.
 static const CGFloat VFLStandardSiblingSpacing = 8;

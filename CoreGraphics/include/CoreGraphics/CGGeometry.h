@@ -1,3 +1,6 @@
+#ifndef CGGEOMETRY_H
+#define CGGEOMETRY_H
+
 /* Copyright (c) 2006-2007 Christopher J. W. Lloyd
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
@@ -132,3 +135,5 @@ bool CGSizetMakeWithDictionaryRepresentation(CFDictionaryRef dict,
 
 CFDictionaryRef CGRectCreateDictionaryRepresentation(CGRect rect);
 bool CGRectMakeWithDictionaryRepresentation(CFDictionaryRef dict, CGRect *rect);
+
+#endif /* CGGEOMETRY_H */

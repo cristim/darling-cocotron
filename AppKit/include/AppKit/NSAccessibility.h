@@ -10,6 +10,8 @@ APPKIT_EXPORT void NSAccessibilityPostNotification(id element,
 APPKIT_EXPORT NSString *NSAccessibilityRoleDescription(NSString *role,
                                                        NSString *subrole);
 APPKIT_EXPORT NSString *NSAccessibilityRoleDescriptionForUIElement(id element);
+APPKIT_EXPORT NSString *
+NSAccessibilityActionDescription(NSAccessibilityActionName action);
 APPKIT_EXPORT void NSAccessibilityRaiseBadArgumentException(id element,
                                                             NSString *attribute,
                                                             id value);

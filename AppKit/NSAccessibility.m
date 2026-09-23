@@ -599,6 +599,10 @@ NSString *NSAccessibilityRoleDescriptionForUIElement(id element) {
     return nil;
 }
 
+NSString *NSAccessibilityActionDescription(NSAccessibilityActionName action) {
+    return nil;
+}
+
 void NSAccessibilityRaiseBadArgumentException(id element, NSString *attribute,
                                               id value)
 {

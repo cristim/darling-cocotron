@@ -3,7 +3,7 @@
 
 CF_IMPLICIT_BRIDGING_ENABLED
 
-typedef NS_ENUM(uint32_t, CTFontManagerScope)
+typedef CF_ENUM(uint32_t, CTFontManagerScope)
 {
     kCTFontManagerScopeNone = 0,
     kCTFontManagerScopeProcess = 1,

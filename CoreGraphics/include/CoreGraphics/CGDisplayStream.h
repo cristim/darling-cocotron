@@ -1,3 +1,6 @@
+#ifndef CGDISPLAYSTREAM_H
+#define CGDISPLAYSTREAM_H
+
 /*
  This file is part of Darling.
 
@@ -20,3 +23,5 @@
 #import <CoreGraphics/CoreGraphicsExport.h>
 
 COREGRAPHICS_EXPORT const CFStringRef kCGDisplayStreamShowCursor;
+
+#endif /* CGDISPLAYSTREAM_H */
