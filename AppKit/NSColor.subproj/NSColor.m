@@ -76,6 +76,22 @@ NSNotificationName const NSSystemColorsDidChangeNotification = @"NSSystemColorsD
     return [NSColor_CGColor colorWithColorRef: color spaceName: spaceName];
 }
 
++ (NSColor *) colorWithColorSpace: (NSColorSpace *) space
+                        components: (const CGFloat *) components
+                             count: (NSInteger) count {
+    CGColorSpaceRef cgSpace = [space CGColorSpace];
+    if (cgSpace == NULL || components == NULL ||
+        count != (NSInteger) CGColorSpaceGetNumberOfComponents(cgSpace) + 1) {
+        [NSException raise: NSInvalidArgumentException
+                    format: @"Invalid color space or component count"];
+    }
+
+    CGColorRef cgColor = CGColorCreate(cgSpace, components);
+    NSColor *result = [self colorWithCGColor: cgColor];
+    CGColorRelease(cgColor);
+    return result;
+}
+
 - (void) encodeWithCoder: (NSCoder *) coder {
 
     if ([coder allowsKeyedCoding]) {

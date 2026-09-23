@@ -14,6 +14,23 @@ int main(void) {
         if (![color.colorSpaceName isEqualToString:NSDeviceRGBColorSpace])
             return 3;
 
+        NSColor *fromComponents = [NSColor
+                colorWithColorSpace:[NSColorSpace deviceRGBColorSpace]
+                        components:components count:4];
+        if (fromComponents == nil ||
+            !CGColorEqualToColor(fromComponents.CGColor, original))
+            return 4;
+
+        BOOL rejectedInvalidCount = NO;
+        @try {
+            [NSColor colorWithColorSpace:[NSColorSpace deviceRGBColorSpace]
+                            components:components count:3];
+        } @catch (NSException *exception) {
+            rejectedInvalidCount = [exception.name isEqualToString:NSInvalidArgumentException];
+        }
+        if (!rejectedInvalidCount)
+            return 5;
+
         CGColorRelease(original);
         CGColorSpaceRelease(space);
         return 0;
