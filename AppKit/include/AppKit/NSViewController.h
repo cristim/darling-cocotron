@@ -40,6 +40,9 @@
 
 
 - (void) loadView;
+// Called once -view has loaded the view with -loadView; does nothing by default.
+- (void) viewDidLoad;
+@property(readonly, getter=isViewLoaded) BOOL viewLoaded;
 
 - (void) discardEditing;
 
