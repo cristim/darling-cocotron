@@ -2,4 +2,4 @@
 
 CORETEXT_EXPORT const CFStringRef kCTLigatureAttributeName;
 CORETEXT_EXPORT const CFStringRef kCTUnderlineStyleAttributeName;
-
+CORETEXT_EXPORT const CFStringRef kCTRunDelegateAttributeName;
