@@ -314,8 +314,9 @@ CGPathRef CTFontCreatePathForGlyph(CTFontRef self, CGGlyph glyph,
 
 CGGlyph CTFontGetGlyphWithName(CTFontRef font, CFStringRef glyphName)
 {
-    printf("STUB %s\n", __PRETTY_FUNCTION__);
-    return CGNullGlyph;
+    if (!font || !glyphName) return CGNullGlyph;
+    CGFontRef cgFont = [(KTFont *)font cgFont];
+    return cgFont ? CGFontGetGlyphWithGlyphName(cgFont, glyphName) : CGNullGlyph;
 }
 
 CGRect CTFontGetBoundingRectsForGlyphs(CTFontRef font, CTFontOrientation orientation,
@@ -420,8 +421,10 @@ CFIndex CTFontGetLigatureCaretPositions(CTFontRef font, CGGlyph glyph, CGFloat *
 
 CGFontRef CTFontCopyGraphicsFont(CTFontRef font, CTFontDescriptorRef _Nullable *attributes)
 {
-    printf("STUB %s\n", __PRETTY_FUNCTION__);
-    return nil;
+    if (attributes) *attributes = NULL;
+    if (!font) return NULL;
+    CGFontRef cgFont = [(KTFont *)font cgFont];
+    return cgFont ? CGFontRetain(cgFont) : NULL;
 }
 
 CTFontRef
