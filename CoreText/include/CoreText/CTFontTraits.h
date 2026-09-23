@@ -1,8 +1,16 @@
+#import <CoreFoundation/CFString.h>
+#import <CoreText/CoreTextExport.h>
+
+CORETEXT_EXPORT const CFStringRef kCTFontSymbolicTrait;
+CORETEXT_EXPORT const CFStringRef kCTFontWeightTrait;
+CORETEXT_EXPORT const CFStringRef kCTFontWidthTrait;
+CORETEXT_EXPORT const CFStringRef kCTFontSlantTrait;
+
 enum {
   kCTFontClassMaskShift = 28,
 };
 
-typedef enum CTFontSymbolicTraits : uint32_t {
+typedef CF_OPTIONS(uint32_t, CTFontSymbolicTraits) {
   kCTFontTraitItalic = (1 << 0),
   kCTFontItalicTrait = (1 << 0), // Deprecated
   kCTFontTraitBold = (1 << 1),
@@ -21,4 +29,4 @@ typedef enum CTFontSymbolicTraits : uint32_t {
   kCTFontTraitComposite = (1 << 14),
   kCTFontTraitClassMask = (15U << kCTFontClassMaskShift),
   kCTFontClassMaskTrait = (15U << 28), // Deprecated
-} CTFontSymbolicTraits;
+};

@@ -91,3 +91,29 @@ CTFontDescriptorRef CTFontDescriptorCreateCopyWithAttributes(CTFontDescriptorRef
     [dict release];
     return result;
 }
+
+CTFontSymbolicTraits CTFontDescriptorGetSymbolicTraits(CTFontDescriptorRef descriptor)
+{
+    if (!descriptor) return 0;
+    NSDictionary *traits = [(NSDictionary *)descriptor objectForKey:(id)kCTFontTraitsAttribute];
+    NSNumber *symbolic = [traits objectForKey:(id)kCTFontSymbolicTrait];
+    return symbolic ? (CTFontSymbolicTraits)[symbolic unsignedIntValue] : 0;
+}
+
+CTFontDescriptorRef CTFontDescriptorCreateCopyWithSymbolicTraits(CTFontDescriptorRef descriptor,
+                                                                  CTFontSymbolicTraits value,
+                                                                  CTFontSymbolicTraits mask)
+{
+    if (!descriptor) return NULL;
+
+    NSDictionary *oldTraits = [(NSDictionary *)descriptor objectForKey:(id)kCTFontTraitsAttribute];
+    NSMutableDictionary *traits = oldTraits ? [oldTraits mutableCopy] : [[NSMutableDictionary alloc] init];
+    CTFontSymbolicTraits oldValue = CTFontDescriptorGetSymbolicTraits(descriptor);
+    CTFontSymbolicTraits newValue = (oldValue & ~mask) | (value & mask);
+    [traits setObject:[NSNumber numberWithUnsignedInt:newValue] forKey:(id)kCTFontSymbolicTrait];
+
+    NSDictionary *changes = [NSDictionary dictionaryWithObject:traits forKey:(id)kCTFontTraitsAttribute];
+    CTFontDescriptorRef result = CTFontDescriptorCreateCopyWithAttributes(descriptor, (CFDictionaryRef)changes);
+    [traits release];
+    return result;
+}
