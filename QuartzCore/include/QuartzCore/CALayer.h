@@ -5,6 +5,7 @@
 #import <QuartzCore/CATransform3D.h>
 
 @class CAAnimation, CALayerContext, CALayer;
+@protocol CALayoutManager;
 
 enum {
     kCALayerNotSizable = 0x00,
@@ -110,13 +111,18 @@ CA_EXPORT NSString *const kCAContentsFormatGray8Uint;
     BOOL _hidden;
     id _textureContents;
     BOOL _needsDisplayOnBoundsChange;
+    NSString *_name;
+    id _layoutManager;
+    NSArray *_constraints;
 }
 
 + layer;
 
+@property(copy) NSString *name;
 @property(readonly) CALayer *superlayer;
 @property(copy) NSArray *sublayers;
 @property(assign) id<CALayerDelegate> delegate;
+@property(retain) id<CALayoutManager> layoutManager;
 @property CGPoint anchorPoint;
 @property CGPoint position;
 @property CGRect bounds;
