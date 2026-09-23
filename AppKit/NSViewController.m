@@ -36,6 +36,16 @@
 }
 
 - (NSString *) nibName {
+    if (_nibName == nil) {
+        // LOCAL STAND-IN for darling#904 (owned by appkit-runtime); not for publishing.
+        NSString *name = NSStringFromClass([self class]);
+        NSRange dot = [name rangeOfString: @"." options: NSBackwardsSearch];
+        if (dot.location != NSNotFound)
+            name = [name substringFromIndex: NSMaxRange(dot)];
+        NSBundle *bundle = _nibBundle ? _nibBundle : [NSBundle mainBundle];
+        if ([bundle pathForResource: name ofType: @"nib"] != nil)
+            return name;
+    }
     return _nibName;
 }
 
