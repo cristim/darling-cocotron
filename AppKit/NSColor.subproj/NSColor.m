@@ -49,6 +49,33 @@ NSNotificationName const NSSystemColorsDidChangeNotification = @"NSSystemColorsD
 
 @implementation NSColor
 
++ (NSColor *) colorWithCGColor: (CGColorRef) color {
+    if (color == NULL)
+        return nil;
+
+    CGColorSpaceRef space = CGColorGetColorSpace(color);
+    NSString *spaceName = NSCustomColorSpace;
+    if (CGColorGetPattern(color) != NULL)
+        spaceName = NSPatternColorSpace;
+    else if (space != NULL) {
+        switch (CGColorSpaceGetModel(space)) {
+            case kCGColorSpaceModelMonochrome:
+                spaceName = NSDeviceWhiteColorSpace;
+                break;
+            case kCGColorSpaceModelRGB:
+                spaceName = NSDeviceRGBColorSpace;
+                break;
+            case kCGColorSpaceModelCMYK:
+                spaceName = NSDeviceCMYKColorSpace;
+                break;
+            default:
+                break;
+        }
+    }
+
+    return [NSColor_CGColor colorWithColorRef: color spaceName: spaceName];
+}
+
 - (void) encodeWithCoder: (NSCoder *) coder {
 
     if ([coder allowsKeyedCoding]) {

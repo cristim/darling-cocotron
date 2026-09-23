@@ -139,6 +139,8 @@ typedef NSString *NSColorSpaceName;
 
 @property(readonly) CGColorRef CGColor;
 
++ (nullable NSColor *) colorWithCGColor: (CGColorRef) color;
+
 @property(class) BOOL ignoresAlpha;
 @property(copy, readonly) NSColorSpaceName colorSpaceName;
 
