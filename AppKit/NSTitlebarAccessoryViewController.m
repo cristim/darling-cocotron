@@ -1,8 +1,10 @@
 #import <AppKit/NSTitlebarAccessoryViewController.h>
+#import <AppKit/NSScrollEdgeEffectStyle.h>
 
 @implementation NSTitlebarAccessoryViewController
 
 @synthesize layoutAttribute = _layoutAttribute;
+@synthesize preferredScrollEdgeEffectStyle = _preferredScrollEdgeEffectStyle;
 
 - (instancetype) init {
     return [self initWithNibName: nil bundle: nil];
@@ -19,6 +21,11 @@
     if ((self = [super initWithCoder: coder]))
         _layoutAttribute = NSLayoutAttributeBottom;
     return self;
+}
+
+- (void) dealloc {
+    [_preferredScrollEdgeEffectStyle release];
+    [super dealloc];
 }
 
 - (NSMethodSignature *)methodSignatureForSelector:(SEL)aSelector
