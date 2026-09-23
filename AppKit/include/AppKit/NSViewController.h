@@ -1,7 +1,7 @@
 #import <AppKit/NSResponder.h>
 #import <AppKit/NSUserInterfaceItemIdentification.h>
 
-@class NSView;
+@class NSView, NSStoryboard;
 
 @interface NSViewController : NSResponder <NSUserInterfaceItemIdentification> {
     NSString *_nibName;
@@ -10,6 +10,7 @@
     NSString *_title;
     NSView *_view;
     NSUserInterfaceItemIdentifier _identifier;
+    NSStoryboard *_storyboard;
 }
 
 - initWithNibName: (NSString *) name bundle: (NSBundle *) bundle;
@@ -18,6 +19,7 @@
 - (NSBundle *) nibBundle;
 
 @property (retain) NSView *view;
+@property(readonly, strong) NSStoryboard *storyboard;
 - (NSString *) title;
 - representedObject;
 
