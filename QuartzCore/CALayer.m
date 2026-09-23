@@ -265,6 +265,14 @@ NSString *const CAToneMapModeIfSupported = @"ifSupported";
     _allowsEdgeAntialiasing = value;
 }
 
+- (CAEdgeAntialiasingMask) edgeAntialiasingMask {
+    return _edgeAntialiasingMask;
+}
+
+- (void) setEdgeAntialiasingMask: (CAEdgeAntialiasingMask) value {
+    _edgeAntialiasingMask = value;
+}
+
 - (CATransform3D) transform {
     return _transform;
 }
@@ -336,6 +344,7 @@ NSString *const CAToneMapModeIfSupported = @"ifSupported";
     _shadowRadius = 3;
     _shadowOffset = CGSizeMake(0, -3);
     _allowsEdgeAntialiasing = NO;
+    _edgeAntialiasingMask = kCALayerLeftEdge | kCALayerRightEdge | kCALayerBottomEdge | kCALayerTopEdge;
     _transform = CATransform3DIdentity;
     _sublayerTransform = CATransform3DIdentity;
     _minificationFilter = kCAFilterLinear;
