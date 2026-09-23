@@ -21,6 +21,9 @@ COREGRAPHICS_EXPORT const CFStringRef kCGColorSpaceGenericGray;
 COREGRAPHICS_EXPORT const CFStringRef kCGColorSpaceGenericRGB;
 COREGRAPHICS_EXPORT const CFStringRef kCGColorSpaceGenericCMYK;
 COREGRAPHICS_EXPORT const CFStringRef kCGColorSpaceDisplayP3;
+COREGRAPHICS_EXPORT const CFStringRef kCGColorSpaceExtendedDisplayP3;
+COREGRAPHICS_EXPORT const CFStringRef kCGColorSpaceLinearDisplayP3;
+COREGRAPHICS_EXPORT const CFStringRef kCGColorSpaceExtendedLinearDisplayP3;
 COREGRAPHICS_EXPORT const CFStringRef kCGColorSpaceGenericRGBLinear;
 COREGRAPHICS_EXPORT const CFStringRef kCGColorSpaceAdobeRGB1998;
 COREGRAPHICS_EXPORT const CFStringRef kCGColorSpaceSRGB;
@@ -30,6 +33,7 @@ COREGRAPHICS_EXPORT const CFStringRef kCGColorSpaceGenericLab;
 COREGRAPHICS_EXPORT const CFStringRef kCGColorSpaceACESCGLinear;
 COREGRAPHICS_EXPORT const CFStringRef kCGColorSpaceITUR_709;
 COREGRAPHICS_EXPORT const CFStringRef kCGColorSpaceITUR_2020;
+COREGRAPHICS_EXPORT const CFStringRef kCGColorSpaceITUR_2100_PQ;
 COREGRAPHICS_EXPORT const CFStringRef kCGColorSpaceROMMRGB;
 COREGRAPHICS_EXPORT const CFStringRef kCGColorSpaceDCIP3;
 COREGRAPHICS_EXPORT const CFStringRef kCGColorSpaceExtendedSRGB;
@@ -71,6 +75,8 @@ COREGRAPHICS_EXPORT size_t CGColorSpaceGetNumberOfComponents(CGColorSpaceRef sel
 
 COREGRAPHICS_EXPORT CGColorSpaceRef CGColorSpaceCreateWithName(CFStringRef name)
     CF_SWIFT_NAME(CGColorSpace.init(name:));
+COREGRAPHICS_EXPORT CFStringRef CGColorSpaceGetName(CGColorSpaceRef colorSpace);
+COREGRAPHICS_EXPORT CFStringRef CGColorSpaceCopyName(CGColorSpaceRef colorSpace);
 
 CF_IMPLICIT_BRIDGING_DISABLED
 
