@@ -179,6 +179,8 @@ typedef enum {
 - (NSImageSymbolConfiguration *) symbolConfiguration;
 // Private AppKit spelling of imageWithSystemSymbolName:accessibilityDescription:.
 + (instancetype) _imageWithSystemSymbolName: (NSString *) name;
+// Private: the receiver adjusted by image hints (NSImageHintSymbolScale for symbol images).
+- (NSImage *) _imageWithConfiguration: (NSDictionary<NSString *, id> *) hints;
 
 @end
 
