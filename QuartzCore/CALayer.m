@@ -227,6 +227,16 @@ NSString *const kCAContentsFormatGray8Uint = @"Gray8";
     _transform = value;
 }
 
+- (CGAffineTransform) affineTransform {
+    return CGAffineTransformMake(_transform.m11, _transform.m12,
+                                 _transform.m21, _transform.m22,
+                                 _transform.m41, _transform.m42);
+}
+
+- (void) setAffineTransform: (CGAffineTransform) value {
+    [self setTransform: CATransform3DMakeAffineTransform(value)];
+}
+
 - (CATransform3D) sublayerTransform {
     return _sublayerTransform;
 }
