@@ -30,3 +30,28 @@ typedef CF_OPTIONS(uint32_t, CTFontSymbolicTraits) {
   kCTFontTraitClassMask = (15U << kCTFontClassMaskShift),
   kCTFontClassMaskTrait = (15U << 28), // Deprecated
 };
+
+typedef CF_OPTIONS(uint32_t, CTFontStylisticClass) {
+  kCTFontClassUnknown = (0u << kCTFontClassMaskShift),
+  kCTFontUnknownClass = kCTFontClassUnknown,
+  kCTFontClassOldStyleSerifs = (1u << kCTFontClassMaskShift),
+  kCTFontOldStyleSerifsClass = kCTFontClassOldStyleSerifs,
+  kCTFontClassTransitionalSerifs = (2u << kCTFontClassMaskShift),
+  kCTFontTransitionalSerifsClass = kCTFontClassTransitionalSerifs,
+  kCTFontClassModernSerifs = (3u << kCTFontClassMaskShift),
+  kCTFontModernSerifsClass = kCTFontClassModernSerifs,
+  kCTFontClassClarendonSerifs = (4u << kCTFontClassMaskShift),
+  kCTFontClarendonSerifsClass = kCTFontClassClarendonSerifs,
+  kCTFontClassSlabSerifs = (5u << kCTFontClassMaskShift),
+  kCTFontSlabSerifsClass = kCTFontClassSlabSerifs,
+  kCTFontClassFreeformSerifs = (7u << kCTFontClassMaskShift),
+  kCTFontFreeformSerifsClass = kCTFontClassFreeformSerifs,
+  kCTFontClassSansSerif = (8u << kCTFontClassMaskShift),
+  kCTFontSansSerifClass = kCTFontClassSansSerif,
+  kCTFontClassOrnamentals = (9u << kCTFontClassMaskShift),
+  kCTFontOrnamentalsClass = kCTFontClassOrnamentals,
+  kCTFontClassScripts = (10u << kCTFontClassMaskShift),
+  kCTFontScriptsClass = kCTFontClassScripts,
+  kCTFontClassSymbolic = (12u << kCTFontClassMaskShift),
+  kCTFontSymbolicClass = kCTFontClassSymbolic,
+};
