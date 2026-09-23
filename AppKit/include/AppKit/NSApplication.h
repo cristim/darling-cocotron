@@ -288,6 +288,9 @@ typedef NS_OPTIONS(NSInteger, NSWindowListOptions) {
 
 - (NSDockTile *) dockTile;
 
+- (void) disableRelaunchOnLogin;
+- (void) enableRelaunchOnLogin;
+
 // private
 - (void) _addWindow: (NSWindow *) window;
 
