@@ -77,8 +77,8 @@
     NSString *name = [self nibName];
     NSBundle *bundle = [self nibBundle];
 
+    if (name == nil) { name = NSStringFromClass([self class]); fprintf(stderr, "PROBE loadView nil nibName -> %s\n", [name UTF8String]); }
     if (name == nil) {
-        // should pathForResource assert name for non-nil?
         [NSException raise: NSInvalidArgumentException
                     format: @"-[%@ %s] nibName is nil", [self class], _cmd];
         return;
