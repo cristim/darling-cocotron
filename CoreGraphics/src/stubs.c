@@ -109,9 +109,6 @@ size_t CGColorSpaceGetColorTableCount(void* space) {
 void CGPathAddRelativeArc(void* path, const void *m, CGFloat x, CGFloat y, CGFloat radius, CGFloat startAngle, CGFloat delta) {
 }
 
-void CGPathAddRoundedRect(void* path, const void *m, CGRect rect, CGFloat cornerWidth, CGFloat cornerHeight) {
-}
-
 void* CGPathCreateCopyByDashingPath(void* path, const void *m, CGFloat phase, const CGFloat *lengths, size_t count) {
     return NULL;
 }
