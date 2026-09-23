@@ -374,6 +374,10 @@ static NSData *makeWindowIcon() {
     }
 }
 
+- (BOOL) isMapped {
+    return _mapped;
+}
+
 - (void) showWindowWithoutActivation {
     [self ensureMapped];
 }
