@@ -45,10 +45,10 @@ COREGRAPHICS_EXPORT const CFStringRef kCGColorSpaceExtendedLinearGray;
 
 typedef CF_ENUM(int32_t, CGColorRenderingIntent) {
     kCGRenderingIntentDefault CF_SWIFT_NAME(defaultIntent),
-    kCGRenderingIntentAbsoluteColorimetric,
-    kCGRenderingIntentRelativeColorimetric,
-    kCGRenderingIntentSaturation,
-    kCGRenderingIntentPerceptual,
+    kCGRenderingIntentAbsoluteColorimetric CF_SWIFT_NAME(absoluteColorimetric),
+    kCGRenderingIntentRelativeColorimetric CF_SWIFT_NAME(relativeColorimetric),
+    kCGRenderingIntentSaturation CF_SWIFT_NAME(saturation),
+    kCGRenderingIntentPerceptual CF_SWIFT_NAME(perceptual),
 };
 
 typedef enum {

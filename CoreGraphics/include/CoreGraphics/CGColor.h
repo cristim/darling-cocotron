@@ -53,7 +53,7 @@ COREGRAPHICS_EXPORT CGColorRef CGColorCreateCopyWithAlpha(CGColorRef self,
 COREGRAPHICS_EXPORT CGColorRef CGColorCreateCopyByMatchingToColorSpace(
         CGColorSpaceRef space, CGColorRenderingIntent intent, CGColorRef color,
         CFDictionaryRef options)
-    CF_SWIFT_NAME(CGColor.converted(self:to:intent:options:));
+    CF_SWIFT_NAME(CGColor.converted(to:intent:self:options:));
 
 COREGRAPHICS_EXPORT bool CGColorEqualToColor(CGColorRef self, CGColorRef other);
 
