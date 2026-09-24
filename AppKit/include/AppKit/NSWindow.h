@@ -28,7 +28,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSUserInterfaceItemIdentification.h>
 #import <AppKit/NSAccessibilityProtocols.h>
 
-@class NSView, NSEvent, NSColor, NSColorSpace, NSCursor, NSImage, NSScreen,
+@class NSView, NSViewController, NSEvent, NSColor, NSColorSpace, NSCursor, NSImage, NSScreen,
         NSText, NSTextView, CGWindow, NSPasteboard, NSSheetContext,
         NSTitlebarAccessoryViewController,
         NSUndoManager, NSButton, NSButtonCell, NSDrawer, NSDockTile, NSToolbar,
@@ -288,6 +288,7 @@ APPKIT_EXPORT const NSNotificationName NSWindowDidExposeNotification
     BOOL _restorable;
 
     NSMutableArray *_titlebarAccessoryViewControllers;
+    NSViewController *_contentViewController;
     NSWindowToolbarStyle _toolbarStyle;
     BOOL _titlebarAppearsTransparent;
 }
@@ -334,6 +335,7 @@ APPKIT_EXPORT const NSNotificationName NSWindowDidExposeNotification
 - (void) setAllowsConcurrentViewDrawing: (BOOL) allows;
 
 @property (retain) NSView *contentView;
+@property (retain) NSViewController *contentViewController;
 @property (weak) id<NSWindowDelegate> delegate;
 
 - (NSString *) title;
