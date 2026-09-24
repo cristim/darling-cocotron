@@ -12,7 +12,8 @@ guest. It needs no display connection.
 The test loads the storyboard from a bundle, instantiates the initial window controller and a view
 controller by identifier, checks their `storyboard`, loads the view controller's view from the
 storyboard, checks that a scene's external object placeholder is replaced by the storyboard, and
-checks the exceptions for a missing storyboard, an unknown identifier, a scene whose
-nib is missing and a scene with two top-level controllers. The expected result is
-`storyboard loading checks=15 failures=0`. The pre-fix library has no `+storyboardWithName:bundle:`,
+checks that a scene returns its root controller when its child or window content
+controller is also top level, and checks the exceptions for a missing storyboard,
+an unknown identifier, a missing nib and two independent controllers. The expected result is
+`storyboard loading checks=19 failures=0`. The pre-fix library has no `+storyboardWithName:bundle:`,
 so the first call raises.

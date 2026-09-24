@@ -8,6 +8,25 @@
 @implementation FixtureViewController
 @end
 
+@interface FixtureWindowController : NSWindowController {
+    NSViewController *_fixtureContentViewController;
+}
+@end
+@implementation FixtureWindowController
+- (NSViewController *)contentViewController {
+    return _fixtureContentViewController;
+}
+- (void)setContentViewController:(NSViewController *)controller {
+    [controller retain];
+    [_fixtureContentViewController release];
+    _fixtureContentViewController = controller;
+}
+- (void)dealloc {
+    [_fixtureContentViewController release];
+    [super dealloc];
+}
+@end
+
 static int checks, failures;
 
 static void expect(BOOL ok, const char *what) {
@@ -67,6 +86,20 @@ int main(int argc, char **argv) {
         expect([raisedName(^{ [storyboard instantiateControllerWithIdentifier: @"Ambiguous"]; })
                        isEqual: NSInternalInconsistencyException],
                "a scene with two top-level controllers raises");
+
+        NSViewController *parent = [storyboard instantiateControllerWithIdentifier: @"Contained"];
+        expect([parent isKindOfClass: [FixtureViewController class]],
+               "a scene returns its parent view controller");
+        expect([[parent childViewControllers] count] == 1 &&
+               [[[parent childViewControllers] objectAtIndex: 0] parentViewController] == parent,
+               "a top-level child is attached to its scene controller");
+
+        FixtureWindowController *windowScene =
+                [storyboard instantiateControllerWithIdentifier: @"WindowWithContent"];
+        expect([windowScene isKindOfClass: [FixtureWindowController class]],
+               "a scene returns its window controller");
+        expect([[windowScene contentViewController] isKindOfClass: [FixtureViewController class]],
+               "a top-level content view controller belongs to its window controller");
 
         printf("storyboard loading checks=%d failures=%d\n", checks, failures);
         return failures != 0;

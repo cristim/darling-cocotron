@@ -136,15 +136,42 @@ static __thread NSStoryboard *instantiatingStoryboard;
         [NSException raise: NSInvalidArgumentException
                     format: @"Storyboard %@ doesn't contain a controller with identifier '%@'", _path, identifier];
 
-    id controller = nil;
+    NSMutableArray *controllers = [NSMutableArray array];
     for (id object in [self _instantiateNibNamed: nibName owner: nil]) {
-        if (![object isKindOfClass: [NSViewController class]] &&
-            ![object isKindOfClass: [NSWindowController class]])
+        if ([object isKindOfClass: [NSViewController class]] ||
+            [object isKindOfClass: [NSWindowController class]])
+            [controllers addObject: object];
+    }
+
+    id controller = nil;
+    for (id candidate in controllers) {
+        BOOL contained = NO;
+        if ([candidate isKindOfClass: [NSViewController class]]) {
+            NSMutableArray *ancestors = [NSMutableArray array];
+            NSViewController *ancestor = candidate;
+            while (ancestor != nil && [ancestors indexOfObjectIdenticalTo: ancestor] == NSNotFound) {
+                [ancestors addObject: ancestor];
+                for (id other in controllers) {
+                    if (other == candidate)
+                        continue;
+                    if (other == ancestor ||
+                        ([other isKindOfClass: [NSWindowController class]] &&
+                         [other contentViewController] == ancestor)) {
+                        contained = YES;
+                        break;
+                    }
+                }
+                if (contained)
+                    break;
+                ancestor = [ancestor parentViewController];
+            }
+        }
+        if (contained)
             continue;
         if (controller != nil)
             [NSException raise: NSInternalInconsistencyException
                         format: @"Storyboard scene %@ has more than one top-level controller", nibName];
-        controller = object;
+        controller = candidate;
     }
     if (controller == nil)
         [NSException raise: NSInternalInconsistencyException
