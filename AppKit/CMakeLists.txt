@@ -505,6 +505,12 @@ set(AppKit_resources
 	NSTrashEmpty.png SystemImages/NSTrashEmpty.png
 	NSTrashFull.png SystemImages/NSTrashFull.png
 	NSUser.png SystemImages/NSUser.png
+	application-x-executable.png SystemImages/application-x-executable.png
+	application-x-generic.png SystemImages/application-x-generic.png
+	audio-x-generic.png SystemImages/audio-x-generic.png
+	image-x-generic.png SystemImages/image-x-generic.png
+	text-x-generic.png SystemImages/text-x-generic.png
+	video-x-generic.png SystemImages/video-x-generic.png
 	COPYING.Adwaita SystemImages/COPYING.Adwaita
 
 	NSMenuArrow.tiff NSMenu.subproj/NSMenuArrow.tiff
@@ -572,6 +578,7 @@ add_framework(AppKit
 		fontconfig
 		jpeg png tiff
 		CoreServices
+		UniformTypeIdentifiers
 )
 
 reexport(AppKit Foundation ${CMAKE_BINARY_DIR}/src/external/foundation/Foundation)
