@@ -42,6 +42,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSView.h>
 #import <AppKit/NSWindow-Private.h>
 #import <AppKit/NSWindow.h>
+#import <AppKit/NSViewController.h>
 #import <AppKit/NSWindowAnimationContext.h>
 #import <ApplicationServices/ApplicationServices.h>
 #import <CoreGraphics/CGWindowPrivate.h>
@@ -463,6 +464,7 @@ static BOOL _allowsAutomaticWindowTabbing;
     [_undoManager release];
     [_identifier release];
     [_titlebarAccessoryViewControllers release];
+    [_contentViewController release];
     [super dealloc];
 }
 
@@ -1143,7 +1145,11 @@ static BOOL _allowsAutomaticWindowTabbing;
         [NSApp changeWindowsItem: self title: filename filename: YES];
 }
 
+// Apple: setting a content view directly clears the content view controller.
 - (void) setContentView: (NSView *) view {
+    [_contentViewController release];
+    _contentViewController = nil;
+
     view = [view retain];
     [view setFrame: [_contentView frame]];
 
@@ -1153,6 +1159,30 @@ static BOOL _allowsAutomaticWindowTabbing;
     _contentView = view;
 
     [_backgroundView addSubview: _contentView];
+}
+
+- (NSViewController *) contentViewController {
+    return _contentViewController;
+}
+
+// The window takes the size of the controller's view, as Apple documents. Setting nil
+// only drops the controller; the content view stays.
+- (void) setContentViewController: (NSViewController *) controller {
+    if (controller != nil) {
+        NSView *view = [controller view];
+        NSSize size;
+
+        if (view == nil)
+            [NSException raise: NSInternalInconsistencyException
+                        format: @"Content view controller %@ has no view", controller];
+        size = [view frame].size;
+        [controller retain];
+        [self setContentSize: size];
+        [self setContentView: view];
+        [view setFrameSize: size];
+    }
+    [_contentViewController release];
+    _contentViewController = controller;
 }
 
 - (void) setInitialFirstResponder: (NSView *) view {

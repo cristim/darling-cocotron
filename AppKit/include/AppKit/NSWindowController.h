@@ -20,7 +20,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSNib.h>
 #import <AppKit/NSResponder.h>
 
-@class NSWindow, NSDocument;
+@class NSWindow, NSDocument, NSViewController;
 
 @interface NSWindowController : NSResponder {
     NSWindow *_window;
@@ -41,6 +41,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 - (NSWindow *) window;
 - (void) setWindow: (NSWindow *) window;
+
+@property(retain) NSViewController *contentViewController;
 
 - (BOOL) isWindowLoaded;
 - (void) loadWindow;
