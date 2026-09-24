@@ -104,6 +104,7 @@ typedef enum {
     BOOL _alternatingRowBackground;
     unsigned int _gridStyleMask;
     NSTableViewSelectionHighlightStyle _selectionHighlightStyle;
+    BOOL _floatsGroupRows;
 
     // temp ivars
     NSMutableArray *_selectedColumns;
@@ -147,6 +148,8 @@ typedef enum {
 - (BOOL) usesAlternatingRowBackgroundColors;
 - (unsigned int) gridStyleMask;
 - (NSTableViewSelectionHighlightStyle) selectionHighlightStyle;
+// Floating applies to view-based tables only; Cocotron's tables are cell-based.
+- (BOOL) floatsGroupRows;
 
 - (NSInteger) numberOfRows;
 - (NSUInteger) numberOfColumns;
@@ -192,6 +195,7 @@ typedef enum {
 - (void) setUsesAlternatingRowBackgroundColors: (BOOL) flag;
 - (void) setGridStyleMask: (unsigned int) gridStyle;
 - (void) setSelectionHighlightStyle: (NSTableViewSelectionHighlightStyle) value;
+- (void) setFloatsGroupRows: (BOOL) flag;
 
 - (void) addTableColumn: (NSTableColumn *) column;
 - (void) removeTableColumn: (NSTableColumn *) column;
