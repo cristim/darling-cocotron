@@ -151,6 +151,7 @@ static NSImage *ImageFromIcnsFile(NSString *file) {
 }
 
 - (NSImage *) iconForFileType: (NSString *) type {
+    fprintf(stderr, "[akc] iconForFileType: %s\n", [type UTF8String]);
     // TODO: call GetIconRefFromTypeInfo()
     NSUnimplementedMethod();
     return NULL;

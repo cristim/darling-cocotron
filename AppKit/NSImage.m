@@ -362,6 +362,7 @@ NSImageName const NSImageNameTouchBarVolumeUpTemplate =
 + imageNamed: (NSString *) name {
     if (name == nil)
         return nil;
+    fprintf(stderr, "[akc] imageNamed: %s\n", [name UTF8String]);
 
     NSImage *image = [[self allImages] objectForKey: name];
     if (image == nil) {
