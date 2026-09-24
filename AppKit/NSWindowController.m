@@ -111,6 +111,19 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
     return _window;
 }
 
+- (NSViewController *) contentViewController {
+    return [[self window] contentViewController];
+}
+
+- (void) setContentViewController: (NSViewController *) controller {
+    NSWindow *window = [self window];
+
+    if (window == nil)
+        [NSException raise: NSInternalInconsistencyException
+                    format: @"%@ has no window to show content view controller %@", self, controller];
+    [window setContentViewController: controller];
+}
+
 - (void) setWindow: (NSWindow *) window {
     NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
 
