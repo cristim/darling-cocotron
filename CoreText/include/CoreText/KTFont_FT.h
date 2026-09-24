@@ -32,6 +32,7 @@ typedef int ptrdiff_t;
 #endif
 #import FT_FREETYPE_H
 #import FT_RENDER_H
+#import FT_OUTLINE_H
 
 #ifdef DARLING
 #undef __linux__
