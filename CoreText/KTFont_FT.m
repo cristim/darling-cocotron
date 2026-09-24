@@ -20,6 +20,7 @@
 
 #import <CoreText/KTFont_FT.h>
 #import <Onyx2D/O2Font_freetype.h>
+#import <Onyx2D/O2MutablePath.h>
 
 @implementation KTFont (KTFont_FT)
 + (id) allocWithZone: (NSZone *) zone {
@@ -27,7 +28,82 @@
 }
 @end
 
+typedef struct {
+    O2MutablePathRef path;
+    const O2AffineTransform *matrix;
+    BOOL contourOpen;
+} KTGlyphPathBuilder;
+
+static int glyphPathMoveTo(const FT_Vector *to, void *user) {
+    KTGlyphPathBuilder *builder = user;
+
+    if (builder->contourOpen)
+        O2PathCloseSubpath(builder->path);
+    O2PathMoveToPoint(builder->path, builder->matrix, to->x, to->y);
+    builder->contourOpen = YES;
+    return 0;
+}
+
+static int glyphPathLineTo(const FT_Vector *to, void *user) {
+    KTGlyphPathBuilder *builder = user;
+
+    O2PathAddLineToPoint(builder->path, builder->matrix, to->x, to->y);
+    return 0;
+}
+
+static int glyphPathConicTo(const FT_Vector *control, const FT_Vector *to,
+                            void *user)
+{
+    KTGlyphPathBuilder *builder = user;
+
+    O2PathAddQuadCurveToPoint(builder->path, builder->matrix, control->x,
+                              control->y, to->x, to->y);
+    return 0;
+}
+
+static int glyphPathCubicTo(const FT_Vector *control1,
+                            const FT_Vector *control2, const FT_Vector *to,
+                            void *user)
+{
+    KTGlyphPathBuilder *builder = user;
+
+    O2PathAddCurveToPoint(builder->path, builder->matrix, control1->x,
+                          control1->y, control2->x, control2->y, to->x, to->y);
+    return 0;
+}
+
 @implementation KTFont_FT
+
+- (CGPathRef) createPathForGlyph: (CGGlyph) glyph
+                       transform: (CGAffineTransform *) xform
+{
+    FT_Face face = [(O2Font_freetype *) _font face];
+
+    // Unscaled outlines are in font units, so the shared face's size is left alone.
+    if (FT_Load_Glyph(face, glyph, FT_LOAD_NO_SCALE) != 0 ||
+        face->glyph->format != FT_GLYPH_FORMAT_OUTLINE)
+        return NULL;
+
+    O2Float scale = _size / face->units_per_EM;
+    O2AffineTransform matrix = O2AffineTransformMakeScale(scale, scale);
+    if (xform != NULL) {
+        O2AffineTransform append = {xform->a,  xform->b,  xform->c,
+                                    xform->d,  xform->tx, xform->ty};
+        matrix = O2AffineTransformConcat(matrix, append);
+    }
+
+    KTGlyphPathBuilder builder = {O2PathCreateMutable(), &matrix, NO};
+    const FT_Outline_Funcs funcs = {glyphPathMoveTo, glyphPathLineTo,
+                                    glyphPathConicTo, glyphPathCubicTo, 0, 0};
+
+    if (FT_Outline_Decompose(&face->glyph->outline, &funcs, &builder) != 0) {
+        O2PathRelease(builder.path);
+        return NULL;
+    }
+    if (builder.contourOpen)
+        O2PathCloseSubpath(builder.path);
+    return (CGPathRef) builder.path;
+}
 
 - initWithUIFontType: (CTFontUIFontType) uiFontType
                 size: (CGFloat) size
