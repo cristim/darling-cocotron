@@ -86,7 +86,7 @@ CA_EXPORT CADynamicRange const CADynamicRangeHigh;
 CA_EXPORT CAToneMapMode const CAToneMapModeAutomatic;
 CA_EXPORT CAToneMapMode const CAToneMapModeNever;
 CA_EXPORT CAToneMapMode const CAToneMapModeIfSupported;
-@interface CALayer : NSObject {
+@interface CALayer : NSObject <NSSecureCoding> {
     CALayerContext *_context;
     CALayer *_superlayer;
     NSArray *_sublayers;
@@ -202,6 +202,10 @@ CA_EXPORT CAToneMapMode const CAToneMapModeIfSupported;
 // Copies the layer's properties but not its place in the layer tree or its
 // animations, as for a presentation copy; subclasses copy their own state.
 - (nonnull instancetype)initWithLayer: (nonnull id)layer;
+// Archives the layer tree below this layer. Raises NSInvalidArchiveOperationException
+// for state that cannot be archived: animations, filter objects, and contents or
+// colors other than CGImages and colors in named or device color spaces.
+- (nullable instancetype)initWithCoder: (nonnull NSCoder *)coder;
 
 - (void) addSublayer: (CALayer *) layer;
 - (void) insertSublayer: (CALayer *) layer atIndex: (unsigned int) index;
