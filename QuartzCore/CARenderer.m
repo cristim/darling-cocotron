@@ -542,7 +542,7 @@ static void displayLayerTreeIfNeeded(CALayer *layer) {
     [self _renderLayer: _rootLayer
             currentTime: CACurrentMediaTime()
           parentOpacity: 1.0
-          parentFlipped: NO];
+          parentFlipped: [_rootLayer.superlayer contentsAreFlipped]];
 
     glFlush();
 }

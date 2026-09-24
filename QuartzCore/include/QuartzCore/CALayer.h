@@ -179,14 +179,10 @@ CA_EXPORT NSString *const kCAContentsFormatGray8Uint;
 // When YES, a change of the bounds size marks the layer as needing display.
 @property BOOL needsDisplayOnBoundsChange;
 
-// When YES, the layer's own coordinate space has its origin at the top of the
-// bounds, y growing downwards: sublayers are positioned from the top and
-// -drawInContext: gets a flipped context. Images set as contents display the
-// same either way.
+// YES puts the origin at the top of the bounds for sublayers and drawing;
+// images set as contents display the same either way.
 @property(getter=isGeometryFlipped) BOOL geometryFlipped;
-
-// YES when an odd number of layers from this one up to the root have
-// geometryFlipped set, i.e. when this layer's content is drawn y-flipped.
+// YES when an odd number of layers from this one up to the root are flipped.
 - (BOOL) contentsAreFlipped;
 
 - (nonnull instancetype)init;
