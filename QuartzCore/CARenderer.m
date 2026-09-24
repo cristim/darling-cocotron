@@ -4,7 +4,12 @@
 #import <QuartzCore/CAAnimation.h>
 #import <QuartzCore/CAMediaTimingFunction.h>
 #import <QuartzCore/CARenderer.h>
+#import <QuartzCore/CASpringAnimation.h>
 #import "CALayerInternal.h"
+
+@interface CASpringAnimation (Private)
+- (CGFloat) _springProgressAtTime: (CFTimeInterval) t;
+@end
 
 NSString *const kCARendererColorSpace = @"kCARendererColorSpace";
 
@@ -98,6 +103,10 @@ static CGFloat mediaTimingScale(CAAnimation *animation,
         return 1;
 
     CFTimeInterval delta = currentTime - begin;
+    if ([animation isKindOfClass: [CASpringAnimation class]])
+        return [(CASpringAnimation *) animation
+                _springProgressAtTime: MIN(MAX(delta, 0.0), duration)];
+
     double zeroToOne = MIN(MAX(delta / duration, 0.0), 1.0);
     CAMediaTimingFunction *function = [animation timingFunction];
 
