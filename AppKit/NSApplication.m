@@ -1690,6 +1690,12 @@ NSApplication *NSApp = nil;
     _presentationOptions = options;
 }
 
+- (BOOL)validateMenuItem:(NSMenuItem *)item {
+    // NSMenu has already resolved the action target before it asks the
+    // application to validate the item. Subclasses may refine this decision.
+    return YES;
+}
+
 @end
 
 int NSApplicationMain(int argc, const char *argv[]) {

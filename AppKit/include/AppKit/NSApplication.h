@@ -26,7 +26,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <Foundation/NSNotification.h>
 #import <Foundation/NSRunLoop.h>
 
-@class NSWindow, NSImage, NSMenu, NSPasteboard, NSDisplay, NSDockTile;
+@class NSWindow, NSImage, NSMenu, NSMenuItem, NSPasteboard, NSDisplay, NSDockTile;
 
 APPKIT_EXPORT const NSRunLoopMode NSModalPanelRunLoopMode;
 APPKIT_EXPORT const NSRunLoopMode NSEventTrackingRunLoopMode;
@@ -221,6 +221,7 @@ typedef NS_OPTIONS(NSInteger, NSWindowListOptions) {
 
 - targetForAction: (SEL) action;
 - targetForAction: (SEL) action to: target from: sender;
+- (BOOL)validateMenuItem:(NSMenuItem *)item;
 - (BOOL) sendAction: (SEL) action to: target from: sender;
 - (BOOL) tryToPerform: (SEL) selector with: object;
 
