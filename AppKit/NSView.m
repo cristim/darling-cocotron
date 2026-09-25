@@ -739,6 +739,14 @@ static inline void buildTransformsIfNeeded(NSView *self) {
     [self setNeedsDisplay: YES];
 }
 
+- (BOOL) ignoreHitTest {
+    return _ignoreHitTest;
+}
+
+- (void) setIgnoreHitTest: (BOOL) ignoreHitTest {
+    _ignoreHitTest = ignoreHitTest ? YES : NO;
+}
+
 - (BOOL) isOpaque {
     return NO;
 }
