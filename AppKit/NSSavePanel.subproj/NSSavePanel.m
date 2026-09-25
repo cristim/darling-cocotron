@@ -238,6 +238,10 @@ static NSSavePanel *_newPanel = nil;
     [self _endWithCode: NSCancelButton];
 }
 
+- (IBAction) cancel: (id) sender {
+    [self _cancel: sender];
+}
+
 - (void) _endWithCode: (NSModalResponse) code {
     if (_runsAsSheet)
         [NSApp endSheet: self returnCode: code];
