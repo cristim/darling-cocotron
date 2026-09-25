@@ -76,6 +76,7 @@ static NSMutableDictionary *viewProviderClasses;
     if ((self = [self initWithData: nil ofType: nil])) {
         _fileWrapper = [fileWrapper retain];
         _cell = [[NSTextAttachmentCell alloc] init];
+        [_cell setAttachment: self];
     }
     return self;
 }
@@ -111,6 +112,7 @@ static NSMutableDictionary *viewProviderClasses;
     [_fileType release];
     [_image release];
     [_fileWrapper release];
+    [_cell setAttachment: nil];
     [_cell release];
     [super dealloc];
 }
@@ -171,9 +173,13 @@ static NSMutableDictionary *viewProviderClasses;
 }
 
 - (void) setAttachmentCell: (id<NSTextAttachmentCell>) cell {
+    if (_cell == cell)
+        return;
+    [_cell setAttachment: nil];
     cell = [cell retain];
     [_cell release];
     _cell = cell;
+    [_cell setAttachment: self];
 }
 
 - (CGFloat) lineLayoutPadding {

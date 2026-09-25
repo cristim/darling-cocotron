@@ -17,7 +17,33 @@ COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSRaise.h>
+#import <AppKit/NSGraphics.h>
+#import <AppKit/NSImage.h>
+#import <AppKit/NSTextAttachment.h>
 #import <AppKit/NSTextAttachmentCell.h>
+#include <string.h>
+
+static NSImage *imageForAttachment(NSTextAttachment *attachment) {
+    NSImage *image = [attachment image];
+    if (image != nil)
+        return image;
+    NSData *contents = [attachment contents];
+    const unsigned char *bytes = [contents bytes];
+    NSUInteger length = [contents length];
+    // NSImage's decoders assume image data; file-wrapper attachments can hold
+    // arbitrary files. Check the formats AppKit can display before decoding.
+    BOOL tiff = length >= 4 &&
+        ((bytes[0] == 'I' && bytes[1] == 'I' && bytes[2] == 42 && bytes[3] == 0) ||
+         (bytes[0] == 'M' && bytes[1] == 'M' && bytes[2] == 0 && bytes[3] == 42));
+    BOOL png = length >= 8 &&
+        memcmp(bytes, "\x89PNG\r\n\x1a\n", 8) == 0;
+    BOOL jpeg = length >= 3 && bytes[0] == 0xff && bytes[1] == 0xd8 && bytes[2] == 0xff;
+    BOOL gif = length >= 6 &&
+        (memcmp(bytes, "GIF87a", 6) == 0 || memcmp(bytes, "GIF89a", 6) == 0);
+    if (!tiff && !png && !jpeg && !gif)
+        return nil;
+    return [[[NSImage alloc] initWithData: contents] autorelease];
+}
 
 @implementation NSTextAttachmentCell
 
@@ -30,8 +56,11 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 }
 
 - (NSSize) cellSize {
-    NSUnimplementedMethod();
-    return NSMakeSize(0, 0);
+    CGRect bounds = [_attachment bounds];
+    if (!CGRectIsEmpty(bounds))
+        return bounds.size;
+    NSImage *image = imageForAttachment(_attachment);
+    return image == nil ? NSZeroSize : [image size];
 }
 
 - (NSPoint) cellBaselineOffset {
@@ -44,8 +73,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
                        glyphPosition: (NSPoint) glyphPoint
                       characterIndex: (unsigned) characterIndex
 {
-    NSUnimplementedMethod();
-    return NSMakeRect(0, 0, 0, 0);
+    return NSMakeRect(glyphPoint.x, glyphPoint.y,
+                      [self cellSize].width, [self cellSize].height);
 }
 
 - (BOOL) wantsToTrackMouse {
@@ -91,18 +120,23 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
         characterIndex: (unsigned) characterIndex
          layoutManager: (NSLayoutManager *) layoutManager
 {
-    NSUnimplementedMethod();
+    [self drawWithFrame: frame inView: view];
 }
 
 - (void) drawWithFrame: (NSRect) frame
                 inView: (NSView *) view
         characterIndex: (unsigned) characterIndex
 {
-    NSUnimplementedMethod();
+    [self drawWithFrame: frame inView: view];
 }
 
 - (void) drawWithFrame: (NSRect) frame inView: (NSView *) view {
-    NSUnimplementedMethod();
+    NSImage *image = imageForAttachment(_attachment);
+    if (image != nil)
+        [image drawInRect: frame
+                fromRect: NSZeroRect
+               operation: NSCompositeSourceOver
+                fraction: 1.0];
 }
 
 @end
