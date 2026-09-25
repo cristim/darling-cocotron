@@ -8,6 +8,14 @@
 
 @end
 
-@interface NSTextFinder : NSObject
+@interface NSTextFinder : NSObject {
+    id<NSTextFinderClient> _client;
+    id<NSTextFinderBarContainer> _findBarContainer;
+    BOOL _incrementalSearchingShouldDimContentView;
+}
+
+@property(assign) id<NSTextFinderClient> client;
+@property(assign) id<NSTextFinderBarContainer> findBarContainer;
+@property BOOL incrementalSearchingShouldDimContentView;
 
 @end
