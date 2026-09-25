@@ -454,6 +454,7 @@ typedef struct __VFlags {
                                withObject: nil];
 
     [_subviews release];
+    [_constraints release];
     [_draggedTypes release];
     [_trackingAreas release];
     [_contentFilters release];
@@ -1125,6 +1126,8 @@ static void alignAxis(CGFloat *origin, CGFloat *length, NSAlignmentOptions optio
     if (_autoresizesSubviews) {
         [self resizeSubviewsWithOldSize: oldSize];
     }
+    if ([_constraints count] != 0)
+        [self layout];
 
     NSRect layerFrame = _frame;
 
@@ -3151,15 +3154,95 @@ static id anchorForView(NSView *view, NSString *className,
 }
 
 - (void) addConstraints: (NSArray *) constraints {
+    if (_constraints == nil)
+        _constraints = [[NSMutableArray alloc] init];
+    [_constraints addObjectsFromArray: constraints];
     [NSLayoutConstraint activateConstraints: constraints];
+    [self layout];
 }
 
 - (void) updateConstraints {
     _needsUpdateConstraints = NO;
 }
 
+static BOOL layoutEdgeInParent(NSView *parent, id item, NSLayoutAttribute attr,
+                               CGFloat *value)
+{
+    if (item != parent &&
+        (![item isKindOfClass: [NSView class]] || [item superview] != parent))
+        return NO;
+    NSRect rect = item == parent ? [parent bounds] : [item frame];
+    BOOL flipped = [parent isFlipped];
+    switch (attr) {
+    case NSLayoutAttributeLeft:
+    case NSLayoutAttributeLeading: *value = NSMinX(rect); return YES;
+    case NSLayoutAttributeRight:
+    case NSLayoutAttributeTrailing: *value = NSMaxX(rect); return YES;
+    case NSLayoutAttributeTop: *value = flipped ? NSMinY(rect) : NSMaxY(rect); return YES;
+    case NSLayoutAttributeBottom: *value = flipped ? NSMaxY(rect) : NSMinY(rect); return YES;
+    default: return NO;
+    }
+}
+
 - (void) layout {
     _needsLayout = NO;
+    // A small, deterministic subset of Auto Layout: required equalities that
+    // pin a direct subview's left/right or top/bottom edges to its parent or a
+    // sibling. Leave all other constraints to the view's existing frame.
+    for (NSView *child in _subviews) {
+        CGFloat edges[4] = {0};
+        BOOL hasEdge[4] = {NO};
+        for (NSLayoutConstraint *constraint in _constraints) {
+            if (![constraint isActive] ||
+                [constraint relation] != NSLayoutRelationEqual ||
+                [constraint priority] < NSLayoutPriorityRequired)
+                continue;
+            id first = [constraint firstItem], second = [constraint secondItem];
+            BOOL childFirst = first == child, childSecond = second == child;
+            if (!childFirst && !childSecond)
+                continue;
+            NSLayoutAttribute attribute = childFirst ? [constraint firstAttribute]
+                                                     : [constraint secondAttribute];
+            NSLayoutAttribute referenceAttribute = childFirst ? [constraint secondAttribute]
+                                                              : [constraint firstAttribute];
+            id reference = childFirst ? second : first;
+            CGFloat referenceValue = 0;
+            if (!layoutEdgeInParent(self, reference, referenceAttribute,
+                                    &referenceValue))
+                continue;
+            CGFloat multiplier = [constraint multiplier];
+            if (!childFirst && multiplier == 0)
+                continue;
+            CGFloat value = childFirst
+                ? referenceValue * multiplier + [constraint constant]
+                : (referenceValue - [constraint constant]) / multiplier;
+            int edge = -1;
+            switch (attribute) {
+            case NSLayoutAttributeLeft:
+            case NSLayoutAttributeLeading: edge = 0; break;
+            case NSLayoutAttributeRight:
+            case NSLayoutAttributeTrailing: edge = 1; break;
+            case NSLayoutAttributeTop: edge = [self isFlipped] ? 2 : 3; break;
+            case NSLayoutAttributeBottom: edge = [self isFlipped] ? 3 : 2; break;
+            default: break;
+            }
+            if (edge >= 0) {
+                edges[edge] = value;
+                hasEdge[edge] = YES;
+            }
+        }
+        NSRect frame = [child frame];
+        if (hasEdge[0] && hasEdge[1] && edges[1] >= edges[0]) {
+            frame.origin.x = edges[0];
+            frame.size.width = edges[1] - edges[0];
+        }
+        if (hasEdge[2] && hasEdge[3] && edges[3] >= edges[2]) {
+            frame.origin.y = edges[2];
+            frame.size.height = edges[3] - edges[2];
+        }
+        if (!NSEqualRects(frame, [child frame]))
+            [child setFrame: frame];
+    }
 }
 
 - (void) layoutSubtreeIfNeeded {

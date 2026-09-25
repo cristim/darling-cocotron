@@ -95,6 +95,7 @@ APPKIT_EXPORT const NSViewFullScreenModeOptionKey NSFullScreenModeApplicationPre
     NSMenu *_menu;
     NSView *_superview;
     NSMutableArray *_subviews;
+    NSMutableArray *_constraints;
     NSView *_nextKeyView;
     NSView *_previousKeyView;
     BOOL _isHidden;
