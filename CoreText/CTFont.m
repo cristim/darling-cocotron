@@ -20,6 +20,23 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <CoreText/CTFont.h>
 #import <CoreText/CoreText.h>
 #import <CoreText/KTFont.h>
+#import <objc/runtime.h>
+#include <stdlib.h>
+
+// NSFont uses NSUInteger-sized NSGlyph values, while CoreText uses 16-bit
+// CGGlyph values.  CoreText cannot link AppKit directly, so bridge by class
+// lookup and a buffer with the receiver's actual element width.
+@interface NSObject (CTFontNSFontGlyphBridge)
+- (NSUInteger)getGlyphs:(NSUInteger *)glyphs forCharacters:(const UniChar *)characters
+                  length:(NSUInteger)length;
+- (void)getAdvancements:(CGSize *)advances forGlyphs:(const NSUInteger *)glyphs
+                  count:(NSUInteger)count;
+@end
+
+static BOOL CTFontIsNSFont(CTFontRef font) {
+    Class nsFontClass = objc_getClass("NSFont");
+    return nsFontClass && [(id)font isKindOfClass:nsFontClass];
+}
 
 const CFStringRef kCTFontCopyrightNameKey = CFSTR("CTFontCopyrightName");
 const CFStringRef kCTFontFamilyNameKey = CFSTR("CTFontFamilyName");
@@ -331,7 +348,16 @@ double CTFontGetAdvancesForGlyphs(CTFontRef font, CTFontOrientation orientation,
                                 const CGGlyph *glyphs, CGSize *advances,
                                 CFIndex count)
 {
-    [font getAdvancements: advances forGlyphs: glyphs count: count];
+    if (count <= 0 || !font || !glyphs || !advances) return 0;
+    if (CTFontIsNSFont(font)) {
+        NSUInteger *wideGlyphs = malloc((size_t)count * sizeof(*wideGlyphs));
+        if (!wideGlyphs) return 0;
+        for (CFIndex i = 0; i < count; ++i) wideGlyphs[i] = glyphs[i];
+        [(id)font getAdvancements:advances forGlyphs:wideGlyphs count:count];
+        free(wideGlyphs);
+    } else {
+        [font getAdvancements:advances forGlyphs:glyphs count:count];
+    }
 
     double sum = 0;
 
@@ -383,7 +409,17 @@ CFArrayRef CTFontCopyFeatureSettings(CTFontRef font)
 bool CTFontGetGlyphsForCharacters(CTFontRef font, const UniChar *characters,
                                   CGGlyph *glyphs, CFIndex count)
 {
-    [font getGlyphs: glyphs forCharacters: characters length: count];
+    if (count < 0 || !font || !characters || !glyphs) return false;
+    if (count == 0) return true;
+    if (CTFontIsNSFont(font)) {
+        NSUInteger *wideGlyphs = malloc((size_t)count * sizeof(*wideGlyphs));
+        if (!wideGlyphs) return false;
+        [(id)font getGlyphs:wideGlyphs forCharacters:characters length:count];
+        for (CFIndex i = 0; i < count; ++i) glyphs[i] = (CGGlyph)wideGlyphs[i];
+        free(wideGlyphs);
+    } else {
+        [font getGlyphs:glyphs forCharacters:characters length:count];
+    }
     // FIXME: change getGlyphs: to return a BOOL
     return YES;
 }
