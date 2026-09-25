@@ -30,7 +30,16 @@ typedef NS_ENUM(NSInteger, NSGestureRecognizerState) {
     NSGestureRecognizerStateRecognized = NSGestureRecognizerStateEnded,
 };
 
-@interface NSGestureRecognizer : NSObject <NSCoding>
+@interface NSGestureRecognizer : NSObject <NSCoding> {
+    id _target;
+    SEL _action;
+    id _delegate;
+}
+
+- (instancetype)initWithTarget:(id)target action:(SEL)action;
+@property(assign) id target;
+@property(assign) SEL action;
+@property(assign) id delegate;
 
 // Always NSGestureRecognizerStatePossible. AppKit never sends events to a
 // recognizer, so no recognizer advances past it.

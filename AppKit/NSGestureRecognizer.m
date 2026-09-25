@@ -26,7 +26,7 @@
 @implementation NSImmediateActionGestureRecognizer
 
 - (instancetype) initWithTarget: (id) target action: (SEL) action {
-    return [super init];
+    return [super initWithTarget:target action:action];
 }
 
 @end
@@ -38,6 +38,22 @@
 @end
 
 @implementation NSGestureRecognizer
+
+- (instancetype)initWithTarget:(id)target action:(SEL)action {
+    self = [super init];
+    if (self) {
+        _target = target;
+        _action = action;
+    }
+    return self;
+}
+
+- (id)target { return _target; }
+- (void)setTarget:(id)target { _target = target; }
+- (SEL)action { return _action; }
+- (void)setAction:(SEL)action { _action = action; }
+- (id)delegate { return _delegate; }
+- (void)setDelegate:(id)delegate { _delegate = delegate; }
 
 // Answered directly rather than through forwardInvocation:, whose "v@:"
 // signature would have returned an uninitialised integer to every caller.
