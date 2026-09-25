@@ -275,6 +275,20 @@ const CGFloat NSTableViewDefaultRowHeight = 16.0f;
     return _selectionHighlightStyle;
 }
 
+- (NSTableViewStyle) style {
+    return _style;
+}
+
+- (NSTableViewStyle) effectiveStyle {
+    if (_style != NSTableViewStyleAutomatic) return _style;
+    if (_selectionHighlightStyle == NSTableViewSelectionHighlightStyleSourceList)
+        return NSTableViewStyleSourceList;
+    NSScrollView *scrollView = [self enclosingScrollView];
+    if (scrollView && [scrollView borderType] != NSNoBorder)
+        return NSTableViewStyleFullWidth;
+    return NSTableViewStyleInset;
+}
+
 - (BOOL) allowsColumnReordering {
     return _allowsColumnReordering;
 }
@@ -703,6 +717,14 @@ static CGFloat rowHeightAtIndex(NSTableView *self, NSInteger index) {
 - (void) setSelectionHighlightStyle: (NSTableViewSelectionHighlightStyle) value
 {
     _selectionHighlightStyle = value;
+    [self setNeedsDisplay: YES];
+}
+
+- (void) setStyle: (NSTableViewStyle) style {
+    if (style < NSTableViewStyleAutomatic || style > NSTableViewStylePlain)
+        [NSException raise: NSInvalidArgumentException format: @"Invalid table view style: %ld", (long)style];
+    if (_style == style) return;
+    _style = style;
     [self setNeedsDisplay: YES];
 }
 
