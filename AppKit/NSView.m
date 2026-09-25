@@ -577,14 +577,29 @@ static inline void configureLayerGeometry(NSView *self) {
 
     [layer setAnchorPoint: CGPointMake(0, 0)];
 
-    if ([layer superlayer] == nil)
+    if ([layer superlayer] == nil) {
         [layer setPosition: CGPointMake(0, 0)];
-    else
-        [layer setPosition: self->_frame.origin];
+    } else {
+        NSPoint position = self->_frame.origin;
+        NSView *parent = self->_superview;
+        if (parent != nil && [parent isFlipped]) {
+            // NSView frames use the parent's top edge as the vertical origin
+            // when it is flipped. CALayer positions use the bottom edge.
+            NSRect parentBounds = [parent bounds];
+            position.y = NSMinY(parentBounds) + NSMaxY(parentBounds)
+                - NSMaxY(self->_frame);
+        }
+        [layer setPosition: position];
+    }
 
     [layer setBounds: self->_bounds];
     [layer setAffineTransform: self->_frameTransform];
     [CATransaction commit];
+}
+
+static inline void configureChildLayerGeometry(NSView *self) {
+    for (NSView *child in self->_subviews)
+        configureLayerGeometry(child);
 }
 
 static inline void buildTransformsIfNeeded(NSView *self) {
@@ -775,6 +790,7 @@ static inline void buildTransformsIfNeeded(NSView *self) {
 
     _isFlipped = flipped;
     invalidateTransform(self);
+    configureChildLayerGeometry(self);
     [self setNeedsDisplay: YES];
 }
 
@@ -1190,6 +1206,8 @@ static void alignAxis(CGFloat *origin, CGFloat *length, NSAlignmentOptions optio
 
     invalidateTransform(self);
     configureLayerGeometry(self);
+    if (!NSEqualSizes(oldSize, _bounds.size))
+        configureChildLayerGeometry(self);
 
     if (_postsNotificationOnFrameChange)
         [[NSNotificationCenter defaultCenter]
@@ -1224,6 +1242,7 @@ static void alignAxis(CGFloat *origin, CGFloat *length, NSAlignmentOptions optio
         _bounds = bounds;
         invalidateTransform(self);
         configureLayerGeometry(self);
+        configureChildLayerGeometry(self);
 
         [_window invalidateCursorRectsForView: self]; // this also invalidates
                                                       // tracking areas
