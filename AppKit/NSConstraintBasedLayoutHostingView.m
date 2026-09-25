@@ -15,6 +15,9 @@ typedef struct {
 - (NSSize)sizeThatFits:(NSSize)fits;
 - (NSSize)_layoutSizeThatFits:(NSSize)fits fixedAxes:(NSUInteger)axes;
 - (NSHostingBaselineOffset)_baselineOffsetsAtSize:(NSSize)size;
+- (void)measureMin:(NSSize *)min max:(NSSize *)max ideal:(NSSize *)ideal;
+- (void)measureMin:(NSSize *)min max:(NSSize *)max ideal:(NSSize *)ideal
+stretchingPriority:(float)priority;
 
 @end
 
@@ -32,7 +35,9 @@ typedef struct {
 }
 
 - (void)dealloc {
-    [_hostedView release];
+    NSView *hostedView = _hostedView;
+    _hostedView = nil;
+    [hostedView release];
     [super dealloc];
 }
 
@@ -81,6 +86,28 @@ typedef struct {
 - (NSHostingBaselineOffset)_baselineOffsetsAtSize:(NSSize)size {
     NSHostingBaselineOffset offsets = {0, 0};
     return offsets;
+}
+
+- (void)measureMin:(NSSize *)min max:(NSSize *)max ideal:(NSSize *)ideal {
+    NSSize intrinsic = self.intrinsicContentSize;
+    NSSize frameSize = self.frame.size;
+    NSSize preferred = NSZeroSize;
+    preferred.width = isfinite(intrinsic.width) && intrinsic.width >= 0
+        ? intrinsic.width : MAX(frameSize.width, 0);
+    preferred.height = isfinite(intrinsic.height) && intrinsic.height >= 0
+        ? intrinsic.height : MAX(frameSize.height, 0);
+
+    if (min != NULL)
+        *min = NSZeroSize;
+    if (max != NULL)
+        *max = NSMakeSize(CGFLOAT_MAX, CGFLOAT_MAX);
+    if (ideal != NULL)
+        *ideal = preferred;
+}
+
+- (void)measureMin:(NSSize *)min max:(NSSize *)max ideal:(NSSize *)ideal
+stretchingPriority:(float)priority {
+    [self measureMin:min max:max ideal:ideal];
 }
 
 - (BOOL)_layoutHeightDependsOnWidth {
