@@ -436,6 +436,14 @@ NSApplication *NSApp = nil;
     }
 }
 
+- (BOOL) isAutomaticCustomizeTouchBarMenuItemEnabled {
+    return _automaticCustomizeTouchBarMenuItemEnabled;
+}
+
+- (void) setAutomaticCustomizeTouchBarMenuItemEnabled: (BOOL) enabled {
+    _automaticCustomizeTouchBarMenuItemEnabled = enabled;
+}
+
 - (void) setMenu: (NSMenu *) menu {
     [self setMainMenu: menu];
 }
