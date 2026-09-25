@@ -166,6 +166,9 @@ APPKIT_EXPORT const NSViewFullScreenModeOptionKey NSFullScreenModeApplicationPre
 - (instancetype) initWithFrame: (NSRect) frame;
 
 @property NSRect frame;
+- (NSEdgeInsets) alignmentRectInsets;
+- (NSRect) alignmentRectForFrame: (NSRect) frame;
+- (NSRect) frameForAlignmentRect: (NSRect) alignmentRect;
 - (CGAffineTransform) frameTransform;
 - (void) setFrameTransform: (CGAffineTransform) transform;
 - (CGFloat) frameRotation;

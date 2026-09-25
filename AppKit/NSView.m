@@ -622,6 +622,26 @@ static inline void buildTransformsIfNeeded(NSView *self) {
     return _frame;
 }
 
+- (NSEdgeInsets) alignmentRectInsets {
+    return NSEdgeInsetsMake(0, 0, 0, 0);
+}
+
+- (NSRect) alignmentRectForFrame: (NSRect) frame {
+    NSEdgeInsets insets = [self alignmentRectInsets];
+    return NSMakeRect(frame.origin.x + insets.left,
+                      frame.origin.y + insets.bottom,
+                      frame.size.width - insets.left - insets.right,
+                      frame.size.height - insets.top - insets.bottom);
+}
+
+- (NSRect) frameForAlignmentRect: (NSRect) alignmentRect {
+    NSEdgeInsets insets = [self alignmentRectInsets];
+    return NSMakeRect(alignmentRect.origin.x - insets.left,
+                      alignmentRect.origin.y - insets.bottom,
+                      alignmentRect.size.width + insets.left + insets.right,
+                      alignmentRect.size.height + insets.top + insets.bottom);
+}
+
 - (CGAffineTransform) frameTransform {
     return _frameTransform;
 }
