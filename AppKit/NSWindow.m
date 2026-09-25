@@ -1311,6 +1311,11 @@ static BOOL _allowsAutomaticWindowTabbing;
     return nil;
 }
 
+- (id) tab {
+    // A window without a tab group has no tab object.
+    return nil;
+}
+
 - (void) setBottomCornerRounded: (BOOL) rounded {
     _bottomCornerRounded = rounded;
 }
