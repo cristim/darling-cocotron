@@ -1396,8 +1396,12 @@ static int ignoreBadWindowWhileOrdering(Display *display, XErrorEvent *errorEven
                 [window frame].size.height - rect.origin.y - rect.size.height;
         // rect=NSInsetRect(rect, -10, -10);
         // [_backingContext addToDirtyRect:rect];
-        if (ev->xexpose.count == 0)
-            [window flushBuffer];
+        if (ev->xexpose.count == 0) {
+            // A resize can replace the window's backing surface with an empty
+            // one. Redraw the view tree before presenting that new surface.
+            [[[delegate contentView] superview] setNeedsDisplay: YES];
+            [delegate displayIfNeeded];
+        }
 
         [delegate platformWindowExposed: window inRect: rect];
         break;
