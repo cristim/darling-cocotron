@@ -25,6 +25,12 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 @implementation NSImageView
 
++ (instancetype) imageViewWithImage: (NSImage *) image {
+    NSImageView *view = [[[self alloc] initWithFrame: NSMakeRect(0, 0, [image size].width, [image size].height)] autorelease];
+    [view setImage: image];
+    return view;
+}
+
 + (Class) cellClass {
     return [NSImageCell class];
 }
