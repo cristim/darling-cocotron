@@ -2345,7 +2345,8 @@ static NSView *viewBeingPrinted = nil;
     NSGraphicsContext *graphicsContext = [NSGraphicsContext currentContext];
     CGContextRef context = [graphicsContext graphicsPort];
 
-    if (viewBeingPrinted == nil && _layer != nil) {
+    if (viewBeingPrinted == nil &&
+        [_layer isKindOfClass: [NSViewBackingLayer class]]) {
         CGImageRef image = CGBitmapContextCreateImage(context);
         [_layer setContents:(id)image];
         CGImageRelease(image);
