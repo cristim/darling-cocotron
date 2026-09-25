@@ -48,6 +48,9 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <QuartzCore/CALayerContext.h>
 #import <QuartzCore/CATransaction.h>
 #import <AppKit/NSLayoutConstraint.h>
+#import <Foundation/NSInvocation.h>
+#import <Foundation/NSProxy.h>
+#import <objc/runtime.h>
 
 @class IBMetricsTable;
 
@@ -70,7 +73,32 @@ const NSViewFullScreenModeOptionKey NSFullScreenModeApplicationPresentationOptio
 - (void) _trackingAreasChanged;
 @end
 
+@interface DarlingViewAnimatorProxy : NSProxy {
+    NSView *_view;
+}
+- (instancetype)initWithView:(NSView *)view;
+@end
+
+@implementation DarlingViewAnimatorProxy
+- (instancetype)initWithView:(NSView *)view {
+    _view = [view retain];
+    return self;
+}
+- (void)dealloc {
+    [_view release];
+    [super dealloc];
+}
+- (NSMethodSignature *)methodSignatureForSelector:(SEL)selector {
+    return [_view methodSignatureForSelector:selector];
+}
+- (void)forwardInvocation:(NSInvocation *)invocation {
+    [invocation invokeWithTarget:_view];
+}
+@end
+
 @implementation NSView
+
+static char NSViewAlphaKey;
 
 @synthesize identifier = _identifier;
 @synthesize translatesAutoresizingMaskIntoConstraints = _translatesAutoresizingMaskIntoConstraints;
@@ -734,12 +762,16 @@ static inline void buildTransformsIfNeeded(NSView *self) {
 }
 
 - (CGFloat) alphaValue {
-    NSUnimplementedMethod();
-    return 0.;
+    NSNumber *stored = objc_getAssociatedObject(self, &NSViewAlphaKey);
+    return stored ? [stored doubleValue] : 1.;
 }
 
 - (void) setAlphaValue: (CGFloat) alpha {
-    NSUnimplementedMethod();
+    if (alpha < 0.) alpha = 0.;
+    if (alpha > 1.) alpha = 1.;
+    objc_setAssociatedObject(self, &NSViewAlphaKey, [NSNumber numberWithDouble: alpha], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    if (_layer) [_layer setOpacity: (float) alpha];
+    [self setNeedsDisplay: YES];
 }
 
 - (int) gState {
@@ -2955,9 +2987,7 @@ static CGFloat backingScaleFactor(NSView *view) {
 }
 
 - animator {
-    NSUnimplementedMethod();
-    // should return animating proxy. returning self does not animate.
-    return self;
+    return (id)[[[DarlingViewAnimatorProxy alloc] initWithView: self] autorelease];
 }
 
 - (NSDictionary *) animations {
