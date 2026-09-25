@@ -1189,6 +1189,7 @@ static void alignAxis(CGFloat *origin, CGFloat *length, NSAlignmentOptions optio
     [_layerContext setFrame: layerFrame];
 
     invalidateTransform(self);
+    configureLayerGeometry(self);
 
     if (_postsNotificationOnFrameChange)
         [[NSNotificationCenter defaultCenter]
@@ -1222,6 +1223,7 @@ static void alignAxis(CGFloat *origin, CGFloat *length, NSAlignmentOptions optio
     if (!NSEqualRects(bounds, _bounds)) {
         _bounds = bounds;
         invalidateTransform(self);
+        configureLayerGeometry(self);
 
         [_window invalidateCursorRectsForView: self]; // this also invalidates
                                                       // tracking areas
@@ -1289,7 +1291,15 @@ static void alignAxis(CGFloat *origin, CGFloat *length, NSAlignmentOptions optio
 }
 
 - (void) _setSuperview: superview {
+    if (_superview != superview && _layer != nil)
+        [self _removeLayerFromSuperlayer];
+
     _superview = superview;
+
+    if (_layer != nil && superview != nil) {
+        [self _addLayerToSuperlayer];
+        configureLayerGeometry(self);
+    }
 
     [_window invalidateCursorRectsForView: self]; // this also invalidates
                                                   // tracking areas
@@ -1946,7 +1956,7 @@ static void alignAxis(CGFloat *origin, CGFloat *length, NSAlignmentOptions optio
 }
 
 - (void) _createLayerContextIfNeeded {
-    if ([_superview layer] == nil) {
+    if ([_superview layer] == nil && _layerContext == nil) {
         _layerContext = [[CALayerContext alloc] initWithFrame: [self frame]];
         [_layerContext setLayer: _layer];
         if (_window) {
@@ -2033,8 +2043,12 @@ static void alignAxis(CGFloat *origin, CGFloat *length, NSAlignmentOptions optio
             [[_superview layer] replaceSublayer: _layer with: value];
             [_layer release];
             _layer = value;
+            // A standalone layer context owns its renderer's root layer. When
+            // a view replaces its backing layer, keep that renderer in sync.
+            [_layerContext setLayer: _layer];
         }
 
+        configureLayerGeometry(self);
         [_subviews
                 makeObjectsPerformSelector: @selector(_addLayerToSuperlayer)];
     }
