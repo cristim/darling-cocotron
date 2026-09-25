@@ -32,13 +32,23 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 // delegate and ask for the scroller layout direction.
 @interface NSScrollerImpPair : NSObject {
     id _delegate;
+    NSScrollerStyle _scrollerStyle;
 }
 @property (assign) id delegate;
+@property NSScrollerStyle scrollerStyle;
 @end
 
 @implementation NSScrollerImpPair
 
 @synthesize delegate = _delegate;
+@synthesize scrollerStyle = _scrollerStyle;
+
+- (instancetype) init {
+    self = [super init];
+    if (self != nil)
+        _scrollerStyle = [NSScroller preferredScrollerStyle];
+    return self;
+}
 
 + (NSUserInterfaceLayoutDirection) scrollerLayoutDirection {
     return NSUserInterfaceLayoutDirectionLeftToRight;
