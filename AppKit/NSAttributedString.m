@@ -28,6 +28,12 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSStringDrawer.h>
 #import <AppKit/NSTextAttachment.h>
 #import <AppKit/NSFileWrapper.h>
+#include <math.h>
+
+@protocol NSStringDrawingContextBounds
+- (void)setTotalBounds:(NSRect)bounds;
+- (void)setActualScaleFactor:(CGFloat)scale;
+@end
 
 // Font, paragraph style and superscript use the key strings archived attributed strings carry, as CoreText's
 // kCTFontAttributeName and kCTParagraphStyleAttributeName do.
@@ -672,8 +678,27 @@ NSUInteger NSUnderlineByWordMask = 0x8000;
 - (NSRect) boundingRectWithSize: (NSSize) size
                         options: (NSStringDrawingOptions) options
 {
-    NSUnimplementedMethod();
-    return NSMakeRect(0, 0, 0, 0);
+    // SwiftUI passes CGFloat.greatestFiniteMagnitude for an unconstrained
+    // dimension. NSTextContainer needs a practical finite extent instead.
+    if (!isfinite(size.width) || size.width > 1000000.0)
+        size.width = 1000000.0;
+    if (!isfinite(size.height) || size.height > 1000000.0)
+        size.height = 1000000.0;
+    NSSize measured = [[NSStringDrawer sharedStringDrawer]
+            sizeOfAttributedString: self inSize: size];
+    return NSMakeRect(0, 0, measured.width, measured.height);
+}
+
+- (NSRect) boundingRectWithSize: (NSSize) size
+                        options: (NSStringDrawingOptions) options
+                        context: (id) context
+{
+    NSRect bounds = [self boundingRectWithSize: size options: options];
+    if ([context respondsToSelector: @selector(setTotalBounds:)])
+        [(id<NSStringDrawingContextBounds>)context setTotalBounds: bounds];
+    if ([context respondsToSelector: @selector(setActualScaleFactor:)])
+        [(id<NSStringDrawingContextBounds>)context setActualScaleFactor: 1.0];
+    return bounds;
 }
 
 #pragma mark -

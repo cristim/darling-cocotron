@@ -259,6 +259,9 @@ enum {
 
 - (NSRect) boundingRectWithSize: (NSSize) size
                         options: (NSStringDrawingOptions) options;
+- (NSRect) boundingRectWithSize: (NSSize) size
+                        options: (NSStringDrawingOptions) options
+                        context: (id) context;
 
 #pragma mark -
 #pragma mark Getting Attribute Data

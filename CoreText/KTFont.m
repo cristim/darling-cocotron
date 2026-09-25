@@ -19,6 +19,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <CoreText/KTFont.h>
 #import <Foundation/NSArray.h>
 #import <Onyx2D/O2Exceptions.h>
+#import <Onyx2D/O2Font.h>
+#include <math.h>
 
 @implementation KTFont
 
@@ -56,6 +58,20 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 - (CGFloat) fontSize {
     return _size;
+}
+
+- (NSCharacterSet *) coveredCharacterSet {
+    return O2FontGetCoveredCharacterSet((O2FontRef)_font);
+}
+
+- (CGFloat) defaultLineHeightForFont {
+    return round([self ascender] + [self descender] + [self leading]);
+}
+
+- (NSSize) advancementForGlyph: (CGGlyph) glyph {
+    CGSize advancement = CGSizeZero;
+    [self getAdvancements: &advancement forGlyphs: &glyph count: 1];
+    return NSMakeSize(advancement.width, advancement.height);
 }
 
 - (CGRect) boundingRect {
