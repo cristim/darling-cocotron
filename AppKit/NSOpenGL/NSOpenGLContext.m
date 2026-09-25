@@ -188,8 +188,14 @@ static inline void _clearCurrentContext() {
         NSLog(@"This window backend requires OpenGL rendering on the main thread");
         return;
     }
-    if ((error = CGLContextMakeCurrentAndAttachToWindow(
-                 _glContext, _cglWindow)) != kCGLNoError) {
+    // A context can be made current before its view belongs to a window.
+    // There is no drawable to attach yet, but callers may initialize GL
+    // objects and the context must become the thread's current context.
+    if (_cglWindow == NULL)
+        error = CGLSetCurrentContext(_glContext);
+    else
+        error = CGLContextMakeCurrentAndAttachToWindow(_glContext, _cglWindow);
+    if (error != kCGLNoError) {
         NSLog(@"CGLSetCurrentContext failed with %d in %s %d", error, __FILE__,
               __LINE__);
         // A swap-interval error may occur after EGL successfully switched.
@@ -198,7 +204,9 @@ static inline void _clearCurrentContext() {
     }
 
     _setCurrentContext(self);
-    _drawableAttachmentSucceeded = YES;
+    _drawableAttachmentSucceeded = _cglWindow != NULL;
+
+    if (!_drawableAttachmentSucceeded) return;
 
     if (!_hasPrepared) {
         _hasPrepared = YES;
