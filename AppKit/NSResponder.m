@@ -29,6 +29,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <objc/message.h>
 #import <objc/runtime.h>
 
+@interface NSResponder (NSTextInputClientInsertion)
+- (void) insertText: (id) string replacementRange: (NSRange) range;
+@end
+
 @implementation NSResponder
 
 - (void) encodeWithCoder: (NSCoder *) coder {
@@ -130,7 +134,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
                 [self doCommandBySelector: NSSelectorFromString([selectorNames
                                                    objectAtIndex: j])];
             }
-        } else if ([self respondsToSelector: @selector(insertText:)]) {
+        } else if ([self respondsToSelector: @selector(insertText:)] ||
+                   [self respondsToSelector: @selector(insertText:replacementRange:)]) {
             string = [event characters];
 
             if ([string length] >
@@ -154,7 +159,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
                     buffer[j] = check;
                 }
                 string = [NSString stringWithCharacters: buffer length: length];
-                [self insertText: string];
+                if ([self respondsToSelector: @selector(insertText:)])
+                    [self insertText: string];
+                else
+                    [self insertText: string replacementRange: NSMakeRange(NSNotFound, 0)];
             }
         }
     }
