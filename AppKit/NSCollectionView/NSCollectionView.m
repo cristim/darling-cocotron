@@ -17,8 +17,40 @@ COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSCollectionView.h>
+#import <AppKit/NSCollectionViewLayout.h>
+#import <AppKit/NSColor.h>
 #import <AppKit/NSRaise.h>
 #import <AppKit/NSWindow.h>
+
+// Modern collection-view nibs keep the layout in this archived helper.
+@interface _NSCollectionViewCore : NSObject <NSCoding> {
+    NSCollectionViewLayout *_layout;
+}
+@property(readonly) NSCollectionViewLayout *layout;
+@end
+
+@implementation _NSCollectionViewCore
+
+- (instancetype) initWithCoder: (NSCoder *) coder {
+    if ((self = [super init]) != nil)
+        _layout = [[coder decodeObjectForKey: @"UICollectionLayout"] retain];
+    return self;
+}
+
+- (void) encodeWithCoder: (NSCoder *) coder {
+    [coder encodeObject: _layout forKey: @"UICollectionLayout"];
+}
+
+- (NSCollectionViewLayout *) layout {
+    return _layout;
+}
+
+- (void) dealloc {
+    [_layout release];
+    [super dealloc];
+}
+
+@end
 
 @implementation NSCollectionView
 @synthesize collectionViewLayout = _collectionViewLayout;
@@ -28,13 +60,24 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
     [super initWithCoder: coder];
 
     if ([coder allowsKeyedCoding]) {
-        NSKeyedUnarchiver *keyed = (NSKeyedUnarchiver *) coder;
+        _NSCollectionViewCore *core = [coder decodeObjectForKey: @"NSCollectionViewCore"];
+        self.collectionViewLayout = [core layout];
+        [self setBackgroundColors: [coder decodeObjectForKey: @"NSBackgroundColors"]];
+        [self setSelectable: [coder decodeBoolForKey: @"NSSelectable"]];
     } else
         [NSException raise: NSInvalidArgumentException
                     format: @"-[%@ %s] is not implemented for coder %@",
                             [self class], sel_getName(_cmd), coder];
 
     return self;
+}
+
+- (void) drawRect: (NSRect) rect {
+    NSColor *background = [_backgroundColors firstObject];
+    if (background != nil) {
+        [background setFill];
+        NSRectFill(rect);
+    }
 }
 
 - (NSArray *) content {
