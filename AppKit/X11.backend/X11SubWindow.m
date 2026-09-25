@@ -18,6 +18,11 @@
     _parent = parent;
     frame = [self convertFrame: frame];
 
+    // X11 rejects zero-sized windows. Layer-backed views can initially have
+    // empty frames before layout assigns their final size.
+    frame.size.width = fmax(frame.size.width, 1.0);
+    frame.size.height = fmax(frame.size.height, 1.0);
+
     _display = [(X11Display *) [NSDisplay currentDisplay] display];
 
     _window = XCreateSimpleWindow(_display, [parent windowHandle],
@@ -49,6 +54,8 @@
 
 - (void) setFrame: (CGRect) frame {
     frame = [self convertFrame: frame];
+    frame.size.width = fmax(frame.size.width, 1.0);
+    frame.size.height = fmax(frame.size.height, 1.0);
 
     XMoveResizeWindow(_display, _window, frame.origin.x, frame.origin.y,
                       frame.size.width, frame.size.height);
