@@ -198,6 +198,7 @@ typedef struct __VFlags {
 
 - initWithCoder: (NSCoder *) coder {
     [super initWithCoder: coder];
+    _frameTransform = CGAffineTransformIdentity;
 
     // TODO: decode this
     _translatesAutoresizingMaskIntoConstraints = YES;
@@ -427,6 +428,7 @@ typedef struct __VFlags {
     _transformFromWindow = CGAffineTransformIdentity;
     _transformToWindow = CGAffineTransformIdentity;
     _transformToLayer = CGAffineTransformIdentity;
+    _frameTransform = CGAffineTransformIdentity;
 
     // according to some Apple sample code ("Creating a Custom Metal View"),
     // it's valid for a subclass of NSView to set `wantsLayer` before invoking the superclass `initWithFrame:`.
@@ -491,6 +493,8 @@ static CGAffineTransform concatViewTransform(CGAffineTransform result,
     if (doFrame)
         result = CGAffineTransformTranslate(result, frame.origin.x,
                                             frame.origin.y);
+
+    result = CGAffineTransformConcat(view->_frameTransform, result);
 
     // Apply bounds scaling to fit in the frame
     CGAffineTransform scale =
@@ -579,6 +583,7 @@ static inline void configureLayerGeometry(NSView *self) {
         [layer setPosition: self->_frame.origin];
 
     [layer setBounds: self->_bounds];
+    [layer setAffineTransform: self->_frameTransform];
     [CATransaction commit];
 }
 
@@ -615,6 +620,20 @@ static inline void buildTransformsIfNeeded(NSView *self) {
 
 - (NSRect) frame {
     return _frame;
+}
+
+- (CGAffineTransform) frameTransform {
+    return _frameTransform;
+}
+
+- (void) setFrameTransform: (CGAffineTransform) transform {
+    if (CGAffineTransformEqualToTransform(_frameTransform, transform))
+        return;
+
+    _frameTransform = transform;
+    invalidateTransform(self);
+    configureLayerGeometry(self);
+    [self setNeedsDisplay: YES];
 }
 
 - (CGFloat) frameRotation {

@@ -122,6 +122,7 @@ APPKIT_EXPORT const NSViewFullScreenModeOptionKey NSFullScreenModeApplicationPre
     CGAffineTransform _transformFromWindow;
     CGAffineTransform _transformToWindow;
     CGAffineTransform _transformToLayer;
+    CGAffineTransform _frameTransform;
     NSRect _visibleRect;
     NSFocusRingType _focusRingType;
 
@@ -165,6 +166,8 @@ APPKIT_EXPORT const NSViewFullScreenModeOptionKey NSFullScreenModeApplicationPre
 - (instancetype) initWithFrame: (NSRect) frame;
 
 @property NSRect frame;
+- (CGAffineTransform) frameTransform;
+- (void) setFrameTransform: (CGAffineTransform) transform;
 - (CGFloat) frameRotation;
 - (CGFloat) frameCenterRotation;
 @property NSRect bounds;
