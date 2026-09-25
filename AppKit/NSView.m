@@ -3052,6 +3052,8 @@ static CGFloat backingScaleFactor(NSView *view) {
 
 - (void) setNeedsLayout: (BOOL) flag {
     _needsLayout = flag;
+    if (flag && _window != nil)
+        [_window setViewsNeedDisplay: YES];
 }
 
 - (BOOL) needsUpdateConstraints {
@@ -3154,8 +3156,10 @@ static id anchorForView(NSView *view, NSString *className,
 }
 
 - (void) layoutSubtreeIfNeeded {
-    if (_needsLayout)
+    if (_needsLayout) {
+        _needsLayout = NO;
         [self layout];
+    }
     [_subviews makeObjectsPerformSelector: _cmd];
 }
 

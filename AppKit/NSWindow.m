@@ -2003,12 +2003,14 @@ static BOOL _allowsAutomaticWindowTabbing;
 }
 
 - (void) displayIfNeeded {
-    if (![self isVisible] || [self isMiniaturized] ||
-        ![self viewsNeedDisplay]) {
+    if (![self isVisible] || [self isMiniaturized]) {
         return;
     }
 
     @autoreleasepool {
+        [_backgroundView layoutSubtreeIfNeeded];
+        if (![self viewsNeedDisplay])
+            return;
         if ([NSGraphicsContext quartzDebuggingIsEnabled]) {
             // Show all the views getting redrawn.
             [NSGraphicsContext setQuartzDebugMode: YES];
