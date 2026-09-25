@@ -18,6 +18,9 @@
 */
 
 #import <AppKit/NSCollectionViewFlowLayout.h>
+#import <Foundation/NSCoder.h>
+#import <Foundation/NSGeometry.h>
+#import <Foundation/NSValue.h>
 
 NSString *const NSCollectionElementKindSectionHeader =
         @"UICollectionElementKindSectionHeader";
@@ -41,6 +44,26 @@ NSString *const NSCollectionElementKindSectionFooter =
     if ((self = [super init]) != nil)
         _itemSize = NSMakeSize(50, 50);
     return self;
+}
+
+- (instancetype) initWithCoder: (NSCoder *) coder {
+    if ((self = [self init]) == nil)
+        return nil;
+    if ([coder allowsKeyedCoding] &&
+        [coder containsValueForKey: @"NSItemSize"]) {
+        id itemSize = [coder decodeObjectForKey: @"NSItemSize"];
+        if ([itemSize isKindOfClass: [NSValue class]])
+            _itemSize = [itemSize sizeValue];
+        else if ([itemSize isKindOfClass: [NSString class]])
+            _itemSize = NSSizeFromString(itemSize);
+    }
+    return self;
+}
+
+- (void) encodeWithCoder: (NSCoder *) coder {
+    if ([coder allowsKeyedCoding])
+        [coder encodeObject: [NSValue valueWithSize: _itemSize]
+                    forKey: @"NSItemSize"];
 }
 
 @end
