@@ -1985,8 +1985,18 @@ static void alignAxis(CGFloat *origin, CGFloat *length, NSAlignmentOptions optio
 }
 
 - (void) _addLayerToSuperlayer {
-    [[_superview layer] addSublayer: _layer];
-    [self _createLayerContextIfNeeded];
+    CALayer *parentLayer = [_superview layer];
+    if (parentLayer != nil) {
+        // A child may have acquired a standalone layer context before its
+        // parent became layer-backed. Its new parent now owns rendering.
+        [_layerContext invalidate];
+        [_layerContext release];
+        _layerContext = nil;
+        [parentLayer addSublayer: _layer];
+        configureLayerGeometry(self);
+    } else {
+        [self _createLayerContextIfNeeded];
+    }
 }
 
 /*

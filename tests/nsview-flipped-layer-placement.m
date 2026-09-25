@@ -33,6 +33,19 @@ int main(void) {
         [parent setFrameSize:NSMakeSize(200, 120)];
         if (!layerIsAt(child, 15, 70)) return 4;
 
+        FlippedView *lateParent = [[FlippedView alloc]
+                initWithFrame:NSMakeRect(0, 0, 200, 100)];
+        NSView *lateChild = [[NSView alloc]
+                initWithFrame:NSMakeRect(10, 20, 30, 10)];
+        [lateChild setWantsLayer:YES];
+        [lateParent addSubview:lateChild];
+        [lateParent setWantsLayer:YES];
+        if (!layerIsAt(lateChild, 10, 70)) return 5;
+        if ([[lateChild layer] superlayer] != [lateParent layer]) return 6;
+
+        [lateChild release];
+        [lateParent release];
+
         [child release];
         [parent release];
         return 0;
