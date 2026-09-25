@@ -66,6 +66,9 @@ typedef enum {
 + (BOOL) canInitWithPasteboard: (NSPasteboard *) pasteboard;
 
 + (nullable instancetype) imageNamed: (NSString *) name;
++ (instancetype) imageWithSize: (NSSize) size
+                        flipped: (BOOL) flipped
+                 drawingHandler: (BOOL (^)(NSRect dstRect)) handler;
 
 - initWithSize: (NSSize) size;
 - initWithData: (NSData *) data;

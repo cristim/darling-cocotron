@@ -289,7 +289,50 @@ NSImageName const NSImageNameTouchBarVolumeUpTemplate =
 }
 @end
 
+@interface DarlingDrawingHandlerImageRep : NSCustomImageRep {
+    BOOL (^_drawingHandler)(NSRect);
+}
+- (instancetype) initWithSize: (NSSize) size
+                      handler: (BOOL (^)(NSRect)) handler;
+@end
+
+@implementation DarlingDrawingHandlerImageRep
+- (instancetype) initWithSize: (NSSize) size
+                      handler: (BOOL (^)(NSRect)) handler
+{
+    if ((self = [super init])) {
+        [self setSize: size];
+        _drawingHandler = [handler copy];
+    }
+    return self;
+}
+- (void) dealloc {
+    [_drawingHandler release];
+    [super dealloc];
+}
+- (BOOL) draw {
+    return _drawingHandler != nil &&
+           _drawingHandler(NSMakeRect(0, 0, [self size].width, [self size].height));
+}
+@end
+
 @implementation NSImage
+
++ (instancetype) imageWithSize: (NSSize) size
+                        flipped: (BOOL) flipped
+                 drawingHandler: (BOOL (^)(NSRect dstRect)) handler
+{
+    NSImage *image = [[[self alloc] initWithSize: size] autorelease];
+    [image setFlipped: flipped];
+    if (handler != nil && size.width > 0 && size.height > 0) {
+        DarlingDrawingHandlerImageRep *representation =
+                [[DarlingDrawingHandlerImageRep alloc] initWithSize: size
+                                                         handler: handler];
+        [image addRepresentation: representation];
+        [representation release];
+    }
+    return image;
+}
 
 + (NSArray *) imageFileTypes {
     return [self imageUnfilteredFileTypes];
