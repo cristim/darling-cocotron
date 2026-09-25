@@ -666,6 +666,19 @@ NSUInteger NSUnderlineByWordMask = 0x8000;
     [drawer drawAttributedString: self inRect: rect];
 }
 
+- (void) drawWithRect: (NSRect) rect
+              options: (NSStringDrawingOptions) options
+              context: (id) context
+{
+    NSRect bounds = [self boundingRectWithSize: rect.size
+                                      options: options
+                                      context: context];
+    if ([context respondsToSelector: @selector(setTotalBounds:)])
+        [(id<NSStringDrawingContextBounds>)context setTotalBounds:
+                NSOffsetRect(bounds, rect.origin.x, rect.origin.y)];
+    [self drawWithRect: rect options: options];
+}
+
 - (NSSize) size {
     NSStringDrawer *drawer = [NSStringDrawer sharedStringDrawer];
     NSSize size = [drawer sizeOfAttributedString: self inSize: NSZeroSize];

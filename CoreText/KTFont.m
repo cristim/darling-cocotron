@@ -22,6 +22,13 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <Onyx2D/O2Font.h>
 #include <math.h>
 
+// NSFont and CTFont are both accepted as font attributes by AppKit's text
+// layout. Keep the context access dynamic so CoreText need not link to AppKit.
+@protocol KTFontGraphicsContext
+- (CGContextRef)graphicsPort;
+- (BOOL)isFlipped;
+@end
+
 @implementation KTFont
 
 - initWithFont: (CGFontRef) font size: (CGFloat) size {
@@ -72,6 +79,16 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
     CGSize advancement = CGSizeZero;
     [self getAdvancements: &advancement forGlyphs: &glyph count: 1];
     return NSMakeSize(advancement.width, advancement.height);
+}
+
+- (void)setInContext:(id)context {
+    id<KTFontGraphicsContext> graphicsContext = context;
+    CGContextRef port = [graphicsContext graphicsPort];
+    CGContextSetFont(port, _font);
+    CGContextSetFontSize(port, _size);
+    CGContextSetTextMatrix(port, [graphicsContext isFlipped]
+            ? CGAffineTransformMakeScale(1, -1)
+            : CGAffineTransformIdentity);
 }
 
 - (CGRect) boundingRect {

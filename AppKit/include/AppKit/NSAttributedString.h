@@ -252,6 +252,9 @@ enum {
 - (void) drawAtPoint: (NSPoint) point;
 - (void) drawInRect: (NSRect) rect;
 - (void) drawWithRect: (NSRect) rect options: (NSStringDrawingOptions) options;
+- (void) drawWithRect: (NSRect) rect
+              options: (NSStringDrawingOptions) options
+              context: (id) context;
 - (NSSize) size;
 
 #pragma mark -
