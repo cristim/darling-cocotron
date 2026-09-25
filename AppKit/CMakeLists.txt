@@ -281,6 +281,7 @@ set(AppKit_sources
 	NSWindowController.m
 	NSColorSpace.m
 	NSView.m
+	NSConstraintBasedLayoutHostingView.m
 
 	NSAnimation/NSAnimation.m
 	NSAnimation/NSViewAnimation.m
