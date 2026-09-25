@@ -98,6 +98,7 @@ APPKIT_EXPORT const NSViewFullScreenModeOptionKey NSFullScreenModeApplicationPre
     NSView *_nextKeyView;
     NSView *_previousKeyView;
     BOOL _isHidden;
+    BOOL _isFlipped;
     BOOL _postsNotificationOnFrameChange;
     BOOL _postsNotificationOnBoundsChange;
     BOOL _autoresizesSubviews;
@@ -190,6 +191,7 @@ APPKIT_EXPORT const NSViewFullScreenModeOptionKey NSFullScreenModeApplicationPre
 
 - (NSInteger) tag;
 @property (readonly) BOOL isFlipped;
+- (void) setFlipped: (BOOL) flipped;
 @property (readonly) BOOL isOpaque;
 - (CGFloat) alphaValue;
 - (void) setAlphaValue: (CGFloat) alpha;
