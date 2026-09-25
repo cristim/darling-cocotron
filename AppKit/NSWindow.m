@@ -1297,7 +1297,7 @@ static BOOL _allowsAutomaticWindowTabbing;
 }
 
 - (void) setCollectionBehavior: (NSWindowCollectionBehavior) behavior {
-    NSUnimplementedMethod();
+    _collectionBehavior = behavior;
 }
 
 - (void) setLevel: (NSInteger) value {
@@ -1590,8 +1590,7 @@ static BOOL _allowsAutomaticWindowTabbing;
 }
 
 - (NSWindowCollectionBehavior) collectionBehavior {
-    NSUnimplementedMethod();
-    return 0;
+    return _collectionBehavior;
 }
 
 - (NSPoint) convertBaseToScreen: (NSPoint) point {

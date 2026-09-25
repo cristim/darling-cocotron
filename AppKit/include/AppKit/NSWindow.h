@@ -289,6 +289,7 @@ APPKIT_EXPORT const NSNotificationName NSWindowDidExposeNotification
     NSMutableArray *_titlebarAccessoryViewControllers;
     NSWindowToolbarStyle _toolbarStyle;
     BOOL _titlebarAppearsTransparent;
+    NSWindowCollectionBehavior _collectionBehavior;
 }
 
 @property(class) BOOL allowsAutomaticWindowTabbing;
