@@ -19,6 +19,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 // Original - Christopher Lloyd <cjwl@objc.net>
 #import <AppKit/NSAttributedString.h>
+#import <AppKit/NSFont.h>
 #import <AppKit/NSSecureLayoutManager.h>
 #import <AppKit/NSTextStorage.h>
 
@@ -40,9 +41,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
     for (NSUInteger i = 0; i < characterRange.length; i++)
         buffer[i] = _echosBullets ? 0x2022 : ' '; // unicode bullet
 
-    return [font getGlyphs: glyphs
-             forCharacters: buffer
-                    length: characterRange.length];
+    return _NSFontGetGlyphsForCharacters(font, glyphs, buffer,
+                                         characterRange.length);
 }
 
 @end

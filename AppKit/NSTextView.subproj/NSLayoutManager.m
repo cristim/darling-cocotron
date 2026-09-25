@@ -19,6 +19,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 #import <AppKit/NSBezierPath.h>
 #import <AppKit/NSGlyphGenerator.h>
+#import <AppKit/NSFont.h>
 #import <AppKit/NSGraphicsContextFunctions.h>
 #import <AppKit/NSImage.h>
 #import <AppKit/NSLayoutManager.h>
@@ -377,9 +378,8 @@ static inline NSGlyphFragment *fragmentAtGlyphIndex(NSLayoutManager *self,
     unichar buffer[characterRange.length];
 
     [[_textStorage string] getCharacters: buffer range: characterRange];
-    [font getGlyphs: glyphs
-            forCharacters: buffer
-                   length: characterRange.length];
+    _NSFontGetGlyphsForCharacters(font, glyphs, buffer,
+                                  characterRange.length);
 
 #if DEBUG_getGlyphs_range
     NSLog(@"returning %u", glyphRange.length);
@@ -434,9 +434,8 @@ static inline NSGlyphFragment *fragmentAtGlyphIndex(NSLayoutManager *self,
                                 characterRange.length);
 
         NSFont *font = [self _fontForGlyphRange: glyphRange];
-        result = [font getGlyphs: glyphs
-                   forCharacters: buffer
-                          length: characterRange.length];
+        result = _NSFontGetGlyphsForCharacters(font, glyphs, buffer,
+                                               characterRange.length);
         // Reorder the glyph
         NSBidiHelperProcessLine(baseLevel, glyphs, NULL, bidiLevels, false,
                                 characterRange.length);
@@ -1687,7 +1686,8 @@ static inline void _appendRectToCache(NSLayoutManager *self, NSRect rect) {
     for (NSInteger i = 0; i < cgGlyphsLength; ++i) {
         nsglyphs[i] = cgGlyphs[i];
     }
-    [font getAdvancements: advances forGlyphs: nsglyphs count: cgGlyphsLength];
+    _NSFontGetAdvancementsForGlyphs(font, advances, nsglyphs,
+                                   cgGlyphsLength);
 
 #if DEBUG_LM_SHOWPACKEDGLYPHS
     for (NSInteger i = 0; i < cgGlyphsLength; i++) {

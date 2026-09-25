@@ -18,6 +18,7 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 #import <AppKit/NSAttributedString.h>
+#import <AppKit/NSFont.h>
 #import <AppKit/NSGlyphGenerator.h>
 
 @implementation NSGlyphGenerator
@@ -61,9 +62,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
         [string getCharacters: characterChunk
                         range: NSMakeRange(characterIndex, chunkSize)];
-        [font getGlyphs: glyphChunk
-                forCharacters: characterChunk
-                       length: chunkSize];
+        _NSFontGetGlyphsForCharacters(font, glyphChunk, characterChunk,
+                                      chunkSize);
 
         [glyphStorage insertGlyphs: glyphChunk
                                  length: chunkSize

@@ -21,6 +21,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import "NSTypesetter_concrete.h"
 #import <AppKit/NSAttributedString.h>
 #import <AppKit/NSColor.h>
+#import <AppKit/NSFont.h>
 #import <AppKit/NSImage.h>
 #import <AppKit/NSLayoutManager.h>
 #import <AppKit/NSParagraphStyle.h>
@@ -948,7 +949,7 @@ static void loadGlyphAndCharacterCacheForLocation(NSTypesetter_concrete *self,
                 methodForSelector: @selector(positionOfGlyph:
                                              precededByGlyph:isNominal:)];
 
-        [_font getGlyphs: &spaceGlyph forCharacters: &space length: 1];
+        _NSFontGetGlyphsForCharacters(_font, &spaceGlyph, &space, 1);
         _whitespaceAdvancement = [_font advancementForGlyph: spaceGlyph].width;
     }
 

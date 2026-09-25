@@ -40,6 +40,49 @@ FOUNDATION_EXPORT char *NSUnicodeToSymbol(const unichar *characters,
                                           NSUInteger *resultLength,
                                           NSZone *zone);
 
+NSUInteger _NSFontGetGlyphsForCharacters(NSFont *font, NSGlyph *glyphs,
+                                        const unichar *characters,
+                                        NSUInteger length)
+{
+    if (length == 0)
+        return 0;
+
+    if ([font isKindOfClass: [NSFont class]])
+        return [font getGlyphs: glyphs
+                forCharacters: (unichar *)characters
+                       length: length];
+
+    CGGlyph narrow[length];
+    CTFontGetGlyphsForCharacters((CTFontRef)font, characters, narrow, length);
+    for (NSUInteger i = 0; i < length; ++i) {
+        unichar character = characters[i];
+        if (character < ' ' || (character >= 0x7F && character <= 0x9F) ||
+            character == 0x200B || character == 0x2028 || character == 0x2029)
+            glyphs[i] = NSControlGlyph;
+        else
+            glyphs[i] = narrow[i];
+    }
+    return length;
+}
+
+void _NSFontGetAdvancementsForGlyphs(NSFont *font, NSSize *advancements,
+                                    const NSGlyph *glyphs, NSUInteger count)
+{
+    if (count == 0)
+        return;
+
+    if ([font isKindOfClass: [NSFont class]]) {
+        [font getAdvancements: advancements forGlyphs: glyphs count: count];
+        return;
+    }
+
+    CGGlyph narrow[count];
+    for (NSUInteger i = 0; i < count; ++i)
+        narrow[i] = (CGGlyph)glyphs[i];
+    CTFontGetAdvancesForGlyphs((CTFontRef)font, kCTFontOrientationDefault,
+                               narrow, advancements, count);
+}
+
 #ifndef DARLING
 @implementation NSNibFontNameTranslator
 // It seems the default mapping should really go to some platform specific place

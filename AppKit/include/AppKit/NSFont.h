@@ -22,6 +22,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <Foundation/Foundation.h>
 
 @class NSFontDescriptor;
+@class NSFont;
 
 #ifndef DARLING
 // Provides an extendable translation scheme for apps that use non-standard
@@ -37,6 +38,15 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #endif
 
 typedef NSUInteger NSGlyph;
+
+// AppKit stores glyphs as NSGlyph while CoreText stores them as CGGlyph.
+// Convert at the boundary when an attributed string carries a CTFont.
+FOUNDATION_EXPORT NSUInteger _NSFontGetGlyphsForCharacters(
+        NSFont *font, NSGlyph *glyphs, const unichar *characters,
+        NSUInteger length);
+FOUNDATION_EXPORT void _NSFontGetAdvancementsForGlyphs(
+        NSFont *font, NSSize *advancements, const NSGlyph *glyphs,
+        NSUInteger count);
 
 enum {
     NSNullGlyph = 0,
