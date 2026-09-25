@@ -31,6 +31,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 @property(getter=isAutomaticTextCompletionEnabled) BOOL automaticTextCompletionEnabled;
 @property NSTextFieldBezelStyle bezelStyle;
 
++ (instancetype)labelWithString:(NSString *)stringValue;
+
 - delegate;
 - (void) setDelegate: delegate;
 

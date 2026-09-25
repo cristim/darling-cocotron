@@ -41,6 +41,19 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 @synthesize preferredMaxLayoutWidth = _preferredMaxLayoutWidth;
 
++ (instancetype)labelWithString:(NSString *)stringValue {
+    NSTextField *field = [[[self alloc] initWithFrame:NSZeroRect] autorelease];
+    [field setStringValue:stringValue];
+    [field setEditable:NO];
+    [field setSelectable:NO];
+    [field setBezeled:NO];
+    [field setBordered:NO];
+    [field setDrawsBackground:NO];
+    [field setLineBreakMode:NSLineBreakByClipping];
+    [field sizeToFit];
+    return field;
+}
+
 + (Class) cellClass {
     return [NSTextFieldCell class];
 }
