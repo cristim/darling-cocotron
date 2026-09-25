@@ -11,6 +11,7 @@
     NSView *_view;
     NSUserInterfaceItemIdentifier _identifier;
     NSStoryboard *_storyboard;
+    NSDictionary *_externalObjectsTableForViewLoading;
     NSMutableArray *_childViewControllers;
     NSViewController *_parentViewController;
 }

@@ -4,6 +4,7 @@
 `ibtool` lays one out: an `Info.plist` with `NSStoryboardDesignatedEntryPointIdentifier` and
 `NSViewControllerIdentifiersToNibNames`, and one keyed-archive nib per scene, written by `nibfixture.py`. The Detail scene keeps
 its view in a separate nib inside the storyboard, named by the controller's `NSNibName`.
+The scene supplies an external-object table so the view nib can resolve an upstream controller placeholder.
 
 Build `storyboard-loading.m` as a standalone Objective-C executable linked with AppKit and Foundation
 using the Darling SDK, copy the fixture into the prefix, and run `storyboard-loading DIR` in a Darling
@@ -16,5 +17,5 @@ checks that a scene returns its root controller when its child or window content
 controller is also top level, selects the sole window controller before its content is attached,
 and checks the exceptions for a missing storyboard,
 an unknown identifier, a missing nib and two independent controllers. The expected result is
-`storyboard loading checks=21 failures=0`. The pre-fix library has no `+storyboardWithName:bundle:`,
+`storyboard loading checks=22 failures=0`. The pre-fix library has no `+storyboardWithName:bundle:`,
 so the first call raises.

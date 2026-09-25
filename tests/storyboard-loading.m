@@ -8,6 +8,19 @@
 @implementation FixtureViewController
 @end
 
+@interface FixtureView : NSView {
+    id _upstream;
+}
+@property (retain) id upstream;
+@end
+@implementation FixtureView
+@synthesize upstream = _upstream;
+- (void)dealloc {
+    [_upstream release];
+    [super dealloc];
+}
+@end
+
 @interface FixtureWindowController : NSWindowController {
     NSViewController *_fixtureContentViewController;
 }
@@ -70,6 +83,8 @@ int main(int argc, char **argv) {
         expect([detail storyboard] == storyboard, "view controller records its storyboard");
         expect([detail view] != nil && NSEqualSizes([[detail view] frame].size, NSMakeSize(240, 120)),
                "Detail loads its view from the nib inside the storyboard");
+        expect([(FixtureView *)[detail view] upstream] == detail,
+               "a separate storyboard view nib resolves an upstream scene placeholder");
         expect([storyboard instantiateControllerWithIdentifier: @"Detail"] != detail,
                "each instantiation creates a new controller");
 

@@ -23,6 +23,8 @@
         if (bundleIdentifier != nil)
             _nibBundle = [NSBundle bundleWithIdentifier: bundleIdentifier];
         _storyboard = [[NSStoryboard _instantiatingStoryboard] retain];
+        _externalObjectsTableForViewLoading =
+                [[coder decodeObjectForKey: @"NSExternalObjectsTableForViewLoading"] retain];
     }
 
     return self;
@@ -31,6 +33,7 @@
 - (void) dealloc {
     [_identifier release];
     [_storyboard release];
+    [_externalObjectsTableForViewLoading release];
     for (NSViewController *child in _childViewControllers)
         child->_parentViewController = nil;
     [_childViewControllers release];
@@ -163,8 +166,9 @@
         bundle = [NSBundle mainBundle];
     if (path == nil)
         path = [bundle pathForResource: name ofType: @"nib"];
-    NSDictionary *nameTable = [NSDictionary dictionaryWithObject: self
-                                                          forKey: NSNibOwner];
+    NSMutableDictionary *nameTable = [NSMutableDictionary dictionaryWithDictionary:
+            _externalObjectsTableForViewLoading ?: @{}];
+    [nameTable setObject: self forKey: NSNibOwner];
 
     if (path == nil)
         NSLog(@"NSViewController unable to find nib named %@, bundle=%@", name,

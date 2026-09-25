@@ -18,12 +18,21 @@ def window_scene(a, owner):
 def detail_scene(a, owner):
     controller = a.obj("FixtureViewController", ["NSViewController"] + RESPONDER,
                        NSNibName=a.add("Detail-view"), NSTitle=a.add("Detail"))
+    a.objects[controller.data]["NSExternalObjectsTableForViewLoading"] = a.obj(
+        "NSDictionary", ["NSObject"], **{
+            "NS.keys": [a.add("UpstreamPlaceholder-1")],
+            "NS.objects": [controller],
+        })
     return [controller], []
 
 
 def detail_view(a, owner):
-    view = a.view(240, 120)
-    return [view], [a.outlet(owner, view, "view")]
+    view = a.obj("FixtureView", ["NSView"] + RESPONDER,
+                 NSFrame=a.add("{{0, 0}, {240, 120}}"))
+    placeholder = a.obj("NSNibExternalObjectPlaceholder", ["NSObject"],
+                        NSExternalObjectPlaceholderIdentifier=a.add("UpstreamPlaceholder-1"))
+    return [view, placeholder], [a.outlet(owner, view, "view"),
+                                a.outlet(view, placeholder, "upstream")]
 
 
 def placeholder_scene(a, owner):
