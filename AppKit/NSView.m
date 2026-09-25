@@ -726,7 +726,17 @@ static inline void buildTransformsIfNeeded(NSView *self) {
 }
 
 - (BOOL) isFlipped {
-    return NO;
+    return _isFlipped;
+}
+
+- (void) setFlipped: (BOOL) flipped {
+    flipped = flipped ? YES : NO;
+    if (_isFlipped == flipped)
+        return;
+
+    _isFlipped = flipped;
+    invalidateTransform(self);
+    [self setNeedsDisplay: YES];
 }
 
 - (BOOL) isOpaque {
