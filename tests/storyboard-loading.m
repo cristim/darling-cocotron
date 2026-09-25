@@ -101,6 +101,13 @@ int main(int argc, char **argv) {
         expect([[windowScene contentViewController] isKindOfClass: [FixtureViewController class]],
                "a top-level content view controller belongs to its window controller");
 
+        id unattached = [storyboard instantiateControllerWithIdentifier: @"WindowWithUnattached"];
+        expect([unattached isKindOfClass: [FixtureWindowController class]],
+               "the sole window controller is the scene entry point before its content is attached");
+        expect([raisedName(^{ [storyboard instantiateControllerWithIdentifier: @"TwoWindows"]; })
+                       isEqual: NSInternalInconsistencyException],
+               "a scene with two window controllers raises");
+
         printf("storyboard loading checks=%d failures=%d\n", checks, failures);
         return failures != 0;
     }

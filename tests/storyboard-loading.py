@@ -49,6 +49,17 @@ def window_with_content_controller(a, owner):
     return [window, content], [a.outlet(window, content, "contentViewController")]
 
 
+def window_with_unattached_controller(a, owner):
+    window = a.obj("FixtureWindowController", ["NSWindowController"] + RESPONDER)
+    content = a.obj("FixtureViewController", ["NSViewController"] + RESPONDER)
+    return [window, content], []
+
+
+def two_window_controllers(a, owner):
+    return [a.obj("NSWindowController", RESPONDER),
+            a.obj("NSWindowController", RESPONDER)], []
+
+
 out = os.path.join(sys.argv[1], "Fixture.storyboardc")
 os.makedirs(out, exist_ok=True)
 write_nib(os.path.join(out, "Window.nib"), window_scene)
@@ -57,6 +68,8 @@ write_nib(os.path.join(out, "Detail-view.nib"), detail_view)
 write_nib(os.path.join(out, "Ambiguous.nib"), two_controllers)
 write_nib(os.path.join(out, "Contained.nib"), contained_view_controllers)
 write_nib(os.path.join(out, "WindowWithContent.nib"), window_with_content_controller)
+write_nib(os.path.join(out, "WindowWithUnattached.nib"), window_with_unattached_controller)
+write_nib(os.path.join(out, "TwoWindows.nib"), two_window_controllers)
 write_nib(os.path.join(out, "PlaceholderController.nib"), placeholder_scene)
 with open(os.path.join(out, "Info.plist"), "wb") as f:
     plistlib.dump({"NSStoryboardDesignatedEntryPointIdentifier": "Window",
@@ -65,4 +78,6 @@ with open(os.path.join(out, "Info.plist"), "wb") as f:
                        "Window": "Window", "Detail": "DetailController",
                        "Ambiguous": "Ambiguous", "Contained": "Contained",
                        "WindowWithContent": "WindowWithContent", "Unbuilt": "Unbuilt",
+                       "WindowWithUnattached": "WindowWithUnattached",
+                       "TwoWindows": "TwoWindows",
                        "Placeholder": "PlaceholderController"}}, f)

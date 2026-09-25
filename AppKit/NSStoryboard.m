@@ -143,7 +143,21 @@ static __thread NSStoryboard *instantiatingStoryboard;
             [controllers addObject: object];
     }
 
+    // The scene's window controller is its entry point even when the nib has not
+    // attached its content controller yet. Other top-level view controllers may
+    // be children of a controller that the nib did not list as top-level.
     id controller = nil;
+    for (id candidate in controllers) {
+        if (![candidate isKindOfClass: [NSWindowController class]])
+            continue;
+        if (controller != nil)
+            [NSException raise: NSInternalInconsistencyException
+                        format: @"Storyboard scene %@ has more than one window controller", nibName];
+        controller = candidate;
+    }
+    if (controller != nil)
+        return controller;
+
     for (id candidate in controllers) {
         BOOL contained = NO;
         if ([candidate isKindOfClass: [NSViewController class]]) {
