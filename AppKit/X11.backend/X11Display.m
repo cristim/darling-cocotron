@@ -1128,8 +1128,11 @@ static int compareFontPatterns(const void *a, const void *b) {
     NSEventModifierFlags ret = 0;
     if (state & ShiftMask)
         ret |= NSShiftKeyMask;
+    // X11's aggregate ControlMask does not identify a side. Use the primary
+    // control mapping, which also supplies AppKit's menu shortcut labels.
     if (state & ControlMask)
-        ret |= NSControlKeyMask;
+        ret |= [self modifierForDefault: @"LeftControl"
+                                standard: NSControlKeyMask];
     if (state & LockMask)
         ret |= NSAlphaShiftKeyMask;
     if (state & Mod4Mask)
