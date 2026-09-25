@@ -23,6 +23,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSRunningApplication.h>
 #import <AppKit/NSAlert.h>
 #import <AppKit/NSAppearance.h>
+#import <AppKit/NSUserInterfaceLayoutDirection.h>
 #import <Foundation/NSNotification.h>
 #import <Foundation/NSRunLoop.h>
 
@@ -95,11 +96,6 @@ typedef enum {
     NSPrintingReplyLater,
     NSPrintingFailure,
 } NSApplicationPrintReply;
-
-typedef NS_ENUM(NSInteger, NSUserInterfaceLayoutDirection) {
-    NSUserInterfaceLayoutDirectionLeftToRight = 0,
-    NSUserInterfaceLayoutDirectionRightToLeft = 1,
-};
 
 typedef NS_OPTIONS(NSUInteger, NSApplicationPresentationOptions) {
     NSApplicationPresentationDefault = 0,
