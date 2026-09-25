@@ -296,6 +296,10 @@ static NSString *const NSPopUpButtonBindingObservationContext =
 @implementation NSPopUpButton (BindingSupport)
 
 - (void) _setItemValues: (NSArray *) values forKey: (NSString *) key {
+    // Bindings may supply a scalar no-selection or null placeholder in place
+    // of an array. In that state the popup has no items to display.
+    if (![values isKindOfClass: [NSArray class]])
+        values = nil;
 
     [_cell removeAllItems];
     [_cell addItemsWithTitles: values];
