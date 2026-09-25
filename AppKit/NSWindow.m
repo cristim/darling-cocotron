@@ -377,6 +377,7 @@ static BOOL _allowsAutomaticWindowTabbing;
     _releaseWhenClosed = YES;
     _viewsNeedDisplay = YES;
     _restorable = YES;
+    _bottomCornerRounded = YES;
     _flushNeeded = YES;
     _resizeIncrements = NSMakeSize(1, 1);
     _contentResizeIncrements = NSMakeSize(1, 1);
@@ -1298,6 +1299,14 @@ static BOOL _allowsAutomaticWindowTabbing;
 
 - (void) setCollectionBehavior: (NSWindowCollectionBehavior) behavior {
     NSUnimplementedMethod();
+}
+
+- (BOOL) bottomCornerRounded {
+    return _bottomCornerRounded;
+}
+
+- (void) setBottomCornerRounded: (BOOL) rounded {
+    _bottomCornerRounded = rounded;
 }
 
 - (void) setLevel: (NSInteger) value {
