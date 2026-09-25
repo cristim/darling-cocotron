@@ -905,6 +905,12 @@ NSString *const NSAllRomanInputSourcesLocaleIdentifier =
     result.origin.x += origin.x;
     result.origin.y += origin.y;
 
+    if (getenv("DARLING_GLYPH_LOG") != NULL) {
+        NSLog(@"PROBE-CARET range=%@ rect={%.4f,%.4f,%.4f,%.4f}",
+              NSStringFromRange(range), result.origin.x, result.origin.y,
+              result.size.width, result.size.height);
+    }
+
     return result;
 }
 

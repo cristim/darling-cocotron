@@ -111,6 +111,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 - (void) interpretKeyEvents: (NSArray *) events {
     int i, icount = [events count];
+    BOOL log = getenv("DARLING_KEY_LOG") != NULL;
 
     for (i = 0; i < icount; i++) {
         NSEvent *event = [events objectAtIndex: i];
@@ -121,6 +122,22 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
                                modifierFlags: [event modifierFlags]];
         NSArray *selectorNames = [keyBinding selectorNames];
 
+        if (log) {
+            NSRange sel = NSMakeRange(0, 0);
+            NSValue *selected = nil;
+            if ([self respondsToSelector: @selector(selectedRange)])
+                selected = [self selectedRange];
+            if (selected != nil)
+                [selected getValue: &sel];
+            NSLog(@"PROBE-INTERPRET responder=%@ chars=%@ charsIgnoring=%@ "
+                  @"flags=0x%08lx keyCode=0x%02x binding=%@ selectors=%@ "
+                  @"selectedRange=%@",
+                  NSStringFromClass([self class]), [event characters], string,
+                  (unsigned long) [event modifierFlags], [event keyCode],
+                  keyBinding ? @"yes" : @"no", selectorNames,
+                  NSStringFromRange(sel));
+        }
+
         if (selectorNames != nil) {
             int j = 0, jcount = [selectorNames count];
 
@@ -129,6 +146,15 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
                 //  keyBinding);
                 [self doCommandBySelector: NSSelectorFromString([selectorNames
                                                    objectAtIndex: j])];
+            }
+            if (log && [self respondsToSelector: @selector(selectedRange)]) {
+                NSValue *selected = [self selectedRange];
+                if (selected != nil) {
+                    NSRange after = NSMakeRange(0, 0);
+                    [selected getValue: &after];
+                    NSLog(@"PROBE-AFTER selectedRange=%@",
+                          NSStringFromRange(after));
+                }
             }
         } else if ([self respondsToSelector: @selector(insertText:)]) {
             string = [event characters];

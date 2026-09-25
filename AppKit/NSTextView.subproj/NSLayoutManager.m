@@ -1697,6 +1697,21 @@ static inline void _appendRectToCache(NSLayoutManager *self, NSRect rect) {
 #endif
 
     CGContextSetTextPosition(context, point.x, point.y);
+    if (getenv("DARLING_GLYPH_LOG") != NULL) {
+        NSMutableString *line =
+                [NSMutableString stringWithFormat:
+                                 @"PROBE-DRAW start=%.4f,%.4f advances=",
+                                 point.x, point.y];
+        for (NSInteger i = 0; i < cgGlyphsLength; i++) {
+            [line appendFormat: @"%.4f ", advances[i].width];
+        }
+        [line appendFormat: @"| glyphs="];
+        for (NSInteger i = 0; i < cgGlyphsLength; i++) {
+            [line appendFormat: @"%u ", nsglyphs[i]];
+        }
+        [line appendFormat: @"| range=%@", NSStringFromRange(glyphRange)];
+        NSLog(@"%@", line);
+    }
     CGContextShowGlyphsWithAdvances(context, cgGlyphs, advances,
                                     cgGlyphsLength);
 }

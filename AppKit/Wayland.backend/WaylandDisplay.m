@@ -1197,6 +1197,8 @@ static NSUInteger modifierDeviceMask(int code) {
         break;
 
     case WP_KEYBOARD_EV_ENTER: {
+        if (getenv("DARLING_KEY_LOG") != NULL)
+            NSLog(@"PROBE-WLENTER serial=%u", args[0].u);
         [self resetKeyboardModifiers];
         _keyboardWindow = [self windowForSurface: (struct wl_proxy *) args[1].o];
         if (_heldKeyIdentities == nil)
@@ -1214,12 +1216,18 @@ static NSUInteger modifierDeviceMask(int code) {
     }
 
     case WP_KEYBOARD_EV_LEAVE:
+        if (getenv("DARLING_KEY_LOG") != NULL)
+            NSLog(@"PROBE-WLLEAVE");
         _keyboardWindow = nil;
         [self stopKeyRepeat];
         [self resetKeyboardModifiers];
         break;
 
     case WP_KEYBOARD_EV_KEY: {
+        BOOL logKey = getenv("DARLING_KEY_LOG") != NULL;
+        if (logKey)
+            NSLog(@"PROBE-WLKEY keycode=%u pressed=%u xkb=%p window=%@",
+                  args[2].u + 8, args[3].u, _xkbState, _keyboardWindow);
         if (_xkbState == NULL || _keyboardWindow == nil)
             break;
         [self flushPendingModifier];
@@ -1436,6 +1444,14 @@ static NSUInteger modifierDeviceMask(int code) {
      charactersIgnoringModifiers: charactersIgnoringModifiers
                        isARepeat: repeat
                          keyCode: keycode < 256 ? x11ToCarbon[keycode] : 0];
+    if (getenv("DARLING_KEY_LOG") != NULL) {
+        NSLog(@"PROBE-KEY xkbkeycode=%u keysym=0x%04x special=0x%04x "
+              @"carbon=0x%02x pressed=%d repeat=%d flags=0x%08lx "
+              @"chars=%@ charsIgnoring=%@",
+              keycode, keysym, special, [event keyCode], pressed, repeat,
+              (unsigned long) [event modifierFlags], [event characters],
+              [event charactersIgnoringModifiers]);
+    }
     if (pressed && !repeat) {
         _inputEvent = [event retain];
         _inputWindow = window;
