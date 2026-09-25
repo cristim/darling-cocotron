@@ -1720,6 +1720,11 @@ static NSUInteger scaledRepCacheBytes(NSArray *cache) {
                           ofType: [name pathExtension]];
 }
 
+- (NSURL *) URLForImageResource: (NSString *) name {
+    NSString *path = [self pathForImageResource: name];
+    return path != nil ? [NSURL fileURLWithPath: path] : nil;
+}
+
 - (NSImage *) imageForResource: (NSString *) name {
     NSString *path = [self pathForImageResource: name];
     if (path == nil)

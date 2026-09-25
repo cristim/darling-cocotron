@@ -207,6 +207,7 @@ typedef NS_ENUM(NSInteger, NSImageSymbolScale) {
 
 @interface NSBundle (NSImage)
 - (NSString *) pathForImageResource: (NSString *) name;
+- (NSURL *) URLForImageResource: (NSString *) name;
 // A new image from pathForImageResource:, or nil.
 - (NSImage *) imageForResource: (NSString *) name;
 @end
