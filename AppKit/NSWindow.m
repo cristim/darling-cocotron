@@ -1305,6 +1305,12 @@ static BOOL _allowsAutomaticWindowTabbing;
     return _bottomCornerRounded;
 }
 
+- (NSArray<NSWindow *> *) tabbedWindows {
+    // Windows without a tab bar have no tab group. Cocotron does not yet
+    // provide native window tabbing.
+    return nil;
+}
+
 - (void) setBottomCornerRounded: (BOOL) rounded {
     _bottomCornerRounded = rounded;
 }
