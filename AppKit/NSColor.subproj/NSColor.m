@@ -165,9 +165,45 @@ NSNotificationName const NSSystemColorsDidChangeNotification = @"NSSystemColorsD
         }
 
     } else {
-        [NSException raise: NSInvalidArgumentException
-                    format: @"%@ can not encodeWithCoder:%@", [self class],
-                            [coder class]];
+        NSColorSpaceName spaceName = [self colorSpaceName];
+        char colorSpace = 0;
+
+        if ([spaceName isEqualToString: NSCalibratedRGBColorSpace] ||
+            [spaceName isEqualToString: NSDeviceRGBColorSpace]) {
+            CGFloat red, green, blue, alpha;
+            [self getRed: &red green: &green blue: &blue alpha: &alpha];
+            colorSpace = [spaceName isEqualToString: NSCalibratedRGBColorSpace] ? 1 : 2;
+            float r = red, g = green, b = blue, a = alpha;
+            [coder encodeValuesOfObjCTypes: "c", &colorSpace];
+            [coder encodeValuesOfObjCTypes: "ffff", &r, &g, &b, &a];
+        } else if ([spaceName isEqualToString: NSCalibratedWhiteColorSpace] ||
+                   [spaceName isEqualToString: NSDeviceWhiteColorSpace]) {
+            CGFloat white, alpha;
+            [self getWhite: &white alpha: &alpha];
+            colorSpace = [spaceName isEqualToString: NSCalibratedWhiteColorSpace] ? 3 : 4;
+            float w = white, a = alpha;
+            [coder encodeValuesOfObjCTypes: "c", &colorSpace];
+            [coder encodeValuesOfObjCTypes: "ff", &w, &a];
+        } else if ([spaceName isEqualToString: NSDeviceCMYKColorSpace]) {
+            CGFloat cyan, magenta, yellow, black, alpha;
+            [self getCyan: &cyan magenta: &magenta yellow: &yellow black: &black alpha: &alpha];
+            colorSpace = 5;
+            float c = cyan, m = magenta, y = yellow, k = black, a = alpha;
+            [coder encodeValuesOfObjCTypes: "c", &colorSpace];
+            [coder encodeValuesOfObjCTypes: "fffff", &c, &m, &y, &k, &a];
+        } else if ([spaceName isEqualToString: NSNamedColorSpace]) {
+            colorSpace = 6;
+            NSColorListName catalogName = [self catalogNameComponent];
+            NSColorName colorName = [self colorNameComponent];
+            NSColor *color = [self colorUsingColorSpaceName: NSDeviceRGBColorSpace];
+            [coder encodeValuesOfObjCTypes: "c", &colorSpace];
+            [coder encodeValuesOfObjCTypes: "@@@", &catalogName, &colorName,
+                                            &color];
+        } else {
+            [NSException raise: NSInvalidArgumentException
+                        format: @"%@ cannot encode color space %@ with %@",
+                                [self class], spaceName, [coder class]];
+        }
     }
 }
 

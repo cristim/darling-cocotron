@@ -45,7 +45,7 @@ typedef enum {
     NSEvenOddWindingRule,
 } NSWindingRule;
 
-@interface NSBezierPath : NSObject <NSCopying> {
+@interface NSBezierPath : NSObject <NSCopying, NSCoding> {
     NSUInteger _capacityOfElements;
     NSUInteger _numberOfElements;
     NSUInteger _capacityOfPoints;

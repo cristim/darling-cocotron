@@ -25,6 +25,11 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 @implementation NSBezierPath
 
++ (void) initialize {
+    if (self == [NSBezierPath class])
+        [self setVersion: 524];
+}
+
 static CGFloat _defaultLineWidth = 1.0;
 static CGFloat _defaultMiterLimit = 10.0;
 static CGFloat _defaultFlatness = 0.6;
@@ -184,6 +189,39 @@ static void CGPathConverter(void *info, const CGPathElement *element) {
     [self setMiterLimit: miterLimit];
     [self setFlatness: flatness];
     return self;
+}
+
+- (void) encodeWithCoder: (NSCoder *) coder {
+    if ([coder allowsKeyedCoding]) {
+        [NSException raise: NSInvalidArgumentException
+                    format: @"NSBezierPath: keyed coding is not supported"];
+    }
+    if (_dashCount != 0) {
+        [NSException raise: NSInvalidArgumentException
+                    format: @"NSBezierPath: archiving line dashes is not supported"];
+    }
+
+    int count = 0;
+    for (int i = 0; i < _numberOfElements; i++)
+        count += _elements[i] == NSCurveToBezierPathElement ? 3 : 1;
+    [coder encodeValueOfObjCType: @encode(int) at: &count];
+
+    for (int i = 0; i < _numberOfElements; i++) {
+        NSPoint points[3] = {NSZeroPoint, NSZeroPoint, NSZeroPoint};
+        NSBezierPathElement element = [self elementAtIndex: i associatedPoints: points];
+        int pointCount = element == NSCurveToBezierPathElement ? 3 : 1;
+        for (int j = 0; j < pointCount; j++) {
+            char type = element;
+            float x = points[j].x, y = points[j].y;
+            [coder encodeValuesOfObjCTypes: "cff", &type, &x, &y];
+        }
+    }
+
+    int windingRule = _windingRule, lineCap = _lineCapStyle,
+        lineJoin = _lineJoinStyle, dashCount = 0;
+    float lineWidth = _lineWidth, miterLimit = _miterLimit, flatness = _flatness;
+    [coder encodeValuesOfObjCTypes: "iiifffi", &windingRule, &lineCap, &lineJoin,
+                                    &lineWidth, &miterLimit, &flatness, &dashCount];
 }
 
 - (void) dealloc {

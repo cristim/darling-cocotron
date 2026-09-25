@@ -341,9 +341,13 @@ static NSLock *_cacheLock = nil;
 #endif
         [coder encodeFloat: _pointSize forKey: @"NSSize"];
     } else {
-        [NSException raise: NSInvalidArgumentException
-                    format: @"%@ can not encodeWithCoder:%@", [self class],
-                            [coder class]];
+        // Match the legacy *fss form accepted by initWithCoder: for archives
+        // whose NSFont class version predates 21. Bit 2 says that no matrix
+        // follows the font name and size.
+        char *name = (char *) [_name UTF8String];
+        float size = _pointSize;
+        unsigned short flags1 = 0, flags2 = 4;
+        [coder encodeValuesOfObjCTypes: "*fss", &name, &size, &flags1, &flags2];
     }
 }
 
