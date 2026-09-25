@@ -333,7 +333,7 @@ double CTFontGetAdvancesForGlyphs(CTFontRef font, CTFontOrientation orientation,
 {
     [font getAdvancements: advances forGlyphs: glyphs count: count];
 
-    double sum;
+    double sum = 0;
 
     for (int i = 0; i < count; i++) {
         sum += advances[i].width;
