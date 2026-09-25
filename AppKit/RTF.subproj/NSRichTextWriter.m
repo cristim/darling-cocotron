@@ -44,15 +44,26 @@
     [_attributedString release];
     [_string release];
     [_data release];
+    [_attachmentFileNames release];
     [super dealloc];
 }
 
 + (NSData *) dataWithAttributedString: (NSAttributedString *) attributedString
                                 range: (NSRange) range
 {
+    return [self dataWithAttributedString: attributedString
+                                   range: range
+                     attachmentFileNames: nil];
+}
+
++ (NSData *) dataWithAttributedString: (NSAttributedString *) attributedString
+                                range: (NSRange) range
+                  attachmentFileNames: (NSDictionary *) attachmentFileNames
+{
     NSRichTextWriter *writer =
             [[self alloc] initWithAttributedString: attributedString
                                              range: range];
+    writer->_attachmentFileNames = [attachmentFileNames copy];
     NSData *result = [[[writer generateData] retain] autorelease];
 
     [writer release];
@@ -65,41 +76,26 @@
 }
 
 - (void) appendStringFromRange: (NSRange) range {
-    unichar buffer[range.length];
-    unsigned char *ansi;
-    int i, ansiLength = 0;
-
-    [_string getCharacters: buffer range: range];
-    for (i = 0; i < range.length; i++) {
-        if (buffer[i] == '\n' || buffer[i] == '\\')
-            ansiLength += 2;
-        else if (buffer[i] > 127)
-            ansiLength += 9; // unicode is encoded as '\uXXXXXX?'
-    }
-
-    ansi = alloca(sizeof(unsigned char) * ansiLength);
-    ansiLength = 0;
-    for (i = 0; i < range.length; i++) {
-        unichar code = buffer[i];
-
+    for (NSUInteger i = range.location; i < NSMaxRange(range); i++) {
+        unichar code = [_string characterAtIndex: i];
+        char escaped[32];
+        NSUInteger length;
         if (code == '\n') {
-            ansi[ansiLength++] = '\\';
-            ansi[ansiLength++] = '\n';
-        } else if (code == '\\') {
-            ansi[ansiLength++] = '\\';
-            ansi[ansiLength++] = '\\';
+            escaped[0] = '\\';
+            escaped[1] = 'n';
+            length = 2;
+        } else if (code == '\\' || code == '{' || code == '}') {
+            escaped[0] = '\\';
+            escaped[1] = code;
+            length = 2;
         } else if (code > 127) {
-            // "= \u<code>?" where "?" is a substitution char for readers not
-            // supporting
-
-            int len = sprintf((char *) ansi + ansiLength, "\\u%d?", code);
-            ansiLength += len;
+            length = snprintf(escaped, sizeof(escaped), "\\u%d?", (short)code);
         } else {
-            ansi[ansiLength++] = code;
+            escaped[0] = code;
+            length = 1;
         }
+        [_data appendBytes: escaped length: length];
     }
-
-    [_data appendBytes: ansi length: ansiLength];
 }
 
 - (void) writeRichText {
@@ -312,7 +308,23 @@
             [self appendCString: [fontSize UTF8String]];
         }
 
-        [self appendStringFromRange: effectiveRange];
+        NSUInteger textStart = effectiveRange.location;
+        NSUInteger textEnd = NSMaxRange(effectiveRange);
+        for (NSUInteger index = textStart; index < textEnd; index++) {
+            NSString *fileName = [_attachmentFileNames objectForKey:
+                    [NSNumber numberWithUnsignedInteger: index]];
+            if (fileName == nil)
+                continue;
+            [self appendStringFromRange: NSMakeRange(textStart, index - textStart)];
+            NSString *graphic = [NSString stringWithFormat:
+                    @"{{\\NeXTGraphic %@ \\width0 \\height0 }", fileName];
+            [self appendCString: [graphic UTF8String]];
+            unsigned char placeholder = 0xAC;
+            [_data appendBytes: &placeholder length: 1];
+            [self appendCString: "}"];
+            textStart = index + 1;
+        }
+        [self appendStringFromRange: NSMakeRange(textStart, textEnd - textStart)];
 
         location = NSMaxRange(effectiveRange);
     }

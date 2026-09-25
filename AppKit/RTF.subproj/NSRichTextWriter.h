@@ -25,6 +25,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
     NSRange _range;
 
     NSMutableData *_data;
+    NSDictionary *_attachmentFileNames;
 }
 
 - initWithAttributedString: (NSAttributedString *) attributedString
@@ -32,6 +33,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 + (NSData *) dataWithAttributedString: (NSAttributedString *) attributedString
                                 range: (NSRange) range;
+
++ (NSData *) dataWithAttributedString: (NSAttributedString *) attributedString
+                                range: (NSRange) range
+                  attachmentFileNames: (NSDictionary *) attachmentFileNames;
 
 - (NSData *) generateData;
 

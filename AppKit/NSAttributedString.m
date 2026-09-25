@@ -27,6 +27,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSRichTextWriter.h>
 #import <AppKit/NSStringDrawer.h>
 #import <AppKit/NSTextAttachment.h>
+#import <AppKit/NSFileWrapper.h>
 
 // Font, paragraph style and superscript use the key strings archived attributed strings carry, as CoreText's
 // kCTFontAttributeName and kCTParagraphStyleAttributeName do.
@@ -537,7 +538,9 @@ NSUInteger NSUnderlineByWordMask = 0x8000;
 - (NSData *) RTFDFromRange: (NSRange) range
         documentAttributes: (NSDictionary *) attributes
 {
-    return [NSRichTextWriter dataWithAttributedString: self range: range];
+    NSFileWrapper *directory = [self RTFDFileWrapperFromRange: range
+                                           documentAttributes: attributes];
+    return [[[directory fileWrappers] objectForKey: @"TXT.rtf"] regularFileContents];
 }
 
 - (NSData *) RTFFromRange: (NSRange) range
@@ -580,14 +583,50 @@ NSUInteger NSUnderlineByWordMask = 0x8000;
     return 0;
 }
 
-// RTFD is a directory holding the rich text as TXT.rtf (attachments aren't
-// written); other types are a regular file with dataFromRange:'s contents.
+// RTFD is a directory containing TXT.rtf and each referenced attachment.
 - (NSFileWrapper *) fileWrapperFromRange: (NSRange) range
                       documentAttributes: (NSDictionary *) attributes
                                    error: (NSError **) error
 {
     if ([[attributes objectForKey: NSDocumentTypeDocumentAttribute] isEqualToString: NSRTFDTextDocumentType]) {
-        NSData *rtf = [self RTFFromRange: range documentAttributes: attributes];
+        NSMutableDictionary *files = [NSMutableDictionary dictionary];
+        NSMutableDictionary *attachmentNames = [NSMutableDictionary dictionary];
+        NSUInteger limit = NSMaxRange(range);
+        for (NSUInteger index = range.location; index < limit; index++) {
+            NSTextAttachment *attachment = [self attribute: NSAttachmentAttributeName
+                                                   atIndex: index effectiveRange: NULL];
+            if (attachment == nil)
+                continue;
+            NSData *contents = [attachment contents];
+            if (contents == nil) {
+                if (error)
+                    *error = [NSError errorWithDomain: NSCocoaErrorDomain code: NSFileWriteUnknownError userInfo: nil];
+                return nil;
+            }
+            NSFileWrapper *original = [attachment fileWrapper];
+            NSString *fileName = [[original preferredFilename] length] ?
+                    [original preferredFilename] : [original filename];
+            fileName = [fileName lastPathComponent];
+            if ([fileName length] == 0 || [fileName isEqualToString: @"."])
+                fileName = [NSString stringWithFormat: @"Attachment-%lu", (unsigned long)index];
+            NSString *candidate = fileName;
+            NSString *stem = [fileName stringByDeletingPathExtension];
+            NSString *extension = [fileName pathExtension];
+            for (NSUInteger suffix = 2;
+                 [candidate isEqualToString: @"TXT.rtf"] || [files objectForKey: candidate] != nil;
+                 suffix++) {
+                candidate = [NSString stringWithFormat: @"%@-%lu%@%@", stem,
+                             (unsigned long)suffix,
+                             [extension length] ? @"." : @"", extension];
+            }
+            NSFileWrapper *file = [[[NSFileWrapper alloc] initRegularFileWithContents: contents] autorelease];
+            [file setPreferredFilename: candidate];
+            [files setObject: file forKey: candidate];
+            [attachmentNames setObject: candidate forKey:
+                    [NSNumber numberWithUnsignedInteger: index]];
+        }
+        NSData *rtf = [NSRichTextWriter dataWithAttributedString: self range: range
+                                            attachmentFileNames: attachmentNames];
         if (rtf == nil) {
             if (error)
                 *error = [NSError errorWithDomain: NSCocoaErrorDomain code: NSFileWriteUnknownError userInfo: nil];
@@ -595,8 +634,8 @@ NSUInteger NSUnderlineByWordMask = 0x8000;
         }
         NSFileWrapper *text = [[[NSFileWrapper alloc] initRegularFileWithContents: rtf] autorelease];
         [text setPreferredFilename: @"TXT.rtf"];
-        return [[[NSFileWrapper alloc] initDirectoryWithFileWrappers:
-                        [NSDictionary dictionaryWithObject: text forKey: @"TXT.rtf"]] autorelease];
+        [files setObject: text forKey: @"TXT.rtf"];
+        return [[[NSFileWrapper alloc] initDirectoryWithFileWrappers: files] autorelease];
     }
 
     NSData *data = [self dataFromRange: range documentAttributes: attributes error: error];
