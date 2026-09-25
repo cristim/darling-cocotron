@@ -276,6 +276,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
     [result setReleasedWhenClosed: self.releasedWhenClosed];
     [result setHidesOnDeactivate: self.hidesOnDeactivate];
     [result setCollectionBehavior: _collectionBehavior];
+    [result setTitleVisibility: _titleVisibility];
     [result setTitle: _windowTitle];
     [result setIdentifier: _identifier];
     [result setToolbar: _toolbar];

@@ -97,6 +97,11 @@ typedef NS_ENUM(NSInteger, NSWindowToolbarStyle) {
     NSWindowToolbarStyleUnifiedCompact,
 };
 
+typedef NS_ENUM(NSInteger, NSWindowTitleVisibility) {
+    NSWindowTitleVisible = 0,
+    NSWindowTitleHidden = 1,
+};
+
 enum {
     NSNormalWindowLevel = kCGNormalWindowLevel,
     NSFloatingWindowLevel = kCGFloatingWindowLevel,
@@ -290,6 +295,7 @@ APPKIT_EXPORT const NSNotificationName NSWindowDidExposeNotification
     NSWindowToolbarStyle _toolbarStyle;
     BOOL _titlebarAppearsTransparent;
     NSWindowCollectionBehavior _collectionBehavior;
+    NSWindowTitleVisibility _titleVisibility;
 }
 
 @property(class) BOOL allowsAutomaticWindowTabbing;
@@ -678,13 +684,14 @@ APPKIT_EXPORT const NSNotificationName NSWindowDidExposeNotification
 @end
 
 @interface NSWindow (NSWindowTitlebarAccessories)
-// Stored only: accessories aren't shown and the toolbar style doesn't change
-// drawing.
+// Stored only: accessories and hidden titles aren't drawn differently yet,
+// and the toolbar style doesn't change drawing.
 @property(readonly, copy) NSArray *titlebarAccessoryViewControllers;
 - (void) addTitlebarAccessoryViewController:
         (NSTitlebarAccessoryViewController *) controller;
 @property NSWindowToolbarStyle toolbarStyle;
 @property BOOL titlebarAppearsTransparent;
+@property NSWindowTitleVisibility titleVisibility;
 @end
 
 @interface NSWindow (Darling)

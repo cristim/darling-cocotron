@@ -3633,4 +3633,12 @@ static BOOL _allowsAutomaticWindowTabbing;
     _titlebarAppearsTransparent = transparent;
 }
 
+- (NSWindowTitleVisibility) titleVisibility {
+    return _titleVisibility;
+}
+
+- (void) setTitleVisibility: (NSWindowTitleVisibility) visibility {
+    _titleVisibility = visibility;
+}
+
 @end
