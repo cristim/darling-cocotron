@@ -7,6 +7,7 @@
     X11Window *_parent;
     Display *_display;
     Window _window;
+    Colormap _colormap;
 }
 
 - initWithParentWindow: (X11Window *) parent frame: (CGRect) frame;

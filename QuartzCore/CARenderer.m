@@ -505,7 +505,9 @@ static void displayLayerTreeIfNeeded(CALayer *layer) {
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
 
-    glClearColor(0, 0, 0, 1);
+    // Layer contexts composite over the window's AppKit backing. Empty areas
+    // must preserve that backing rather than become an opaque black rectangle.
+    glClearColor(0, 0, 0, 0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     // Painter's order instead of depth testing: every layer used to get z+1,
