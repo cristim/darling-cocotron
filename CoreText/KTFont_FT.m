@@ -94,12 +94,13 @@
 
     *isNominalp = YES;
 
-    if (!current)
+    if (!previous)
         return NSZeroPoint;
 
     FT_Set_Pixel_Sizes(face, _size, _size);
 
-    FT_Load_Glyph(face, current, FT_LOAD_DEFAULT);
+    if (FT_Load_Glyph(face, previous, FT_LOAD_DEFAULT) != 0)
+        return NSZeroPoint;
     return NSMakePoint(face->glyph->advance.x / (O2Float)(2 << 5),
                        face->glyph->advance.y / (O2Float)(2 << 5));
 }
