@@ -69,6 +69,8 @@ typedef enum {
 + (instancetype) imageWithSize: (NSSize) size
                         flipped: (BOOL) flipped
                  drawingHandler: (BOOL (^)(NSRect dstRect)) handler;
++ (instancetype) imageWithSize: (NSSize) size
+                    drawHandler: (BOOL (^)(NSRect dstRect)) handler;
 
 - initWithSize: (NSSize) size;
 - initWithData: (NSData *) data;
