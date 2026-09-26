@@ -39,6 +39,28 @@
 #import <X11/Xatom.h>
 #import <X11/Xutil.h>
 
+// NSView replaces the user CTM whenever it locks focus, so the backing scale
+// has to live in the device transform, exactly as WaylandDrawingContext does
+// (see AppKit/Wayland.backend/WaylandWindow.m). O2ContextSetCTM rebuilds the
+// device transform from _userToDeviceTransform on every call, so a scale held
+// anywhere else is discarded on the first lock.
+@interface X11DrawingContext : O2Context_builtin_FT
+- (id) initWithSurface: (O2Surface *) surface logicalSize: (NSSize) logicalSize;
+@end
+
+@implementation X11DrawingContext
+- (id) initWithSurface: (O2Surface *) surface logicalSize: (NSSize) logicalSize {
+    if ((self = [super initWithSurface: surface flipped: NO]) != nil) {
+        CGFloat sx = O2SurfaceGetWidth(surface) / logicalSize.width;
+        CGFloat sy = O2SurfaceGetHeight(surface) / logicalSize.height;
+        _userToDeviceTransform = O2AffineTransformMake(sx, 0, 0, -sy, 0,
+                O2SurfaceGetHeight(surface));
+        O2ContextSetCTM(self, O2AffineTransformIdentity);
+    }
+    return self;
+}
+@end
+
 @implementation X11Window
 
 + (Visual *) visual {
@@ -198,9 +220,12 @@ static NSData *makeWindowIcon() {
     xattr_mask = CWOverrideRedirect | CWColormap;
     xattr.colormap = cmap;
 
+    // _frame is in logical points; X wants device pixels.
+    O2Rect deviceFrame = [self deviceRect: _frame];
     _window = XCreateWindow(
-            _display, DefaultRootWindow(_display), _frame.origin.x,
-            _frame.origin.y, _frame.size.width, _frame.size.height, 0,
+            _display, DefaultRootWindow(_display), deviceFrame.origin.x,
+            deviceFrame.origin.y, deviceFrame.size.width,
+            deviceFrame.size.height, 0,
             (_visualInfo == NULL) ? CopyFromParent : _visualInfo->depth,
             InputOutput,
             (_visualInfo == NULL) ? CopyFromParent : _visualInfo->visual,
@@ -299,10 +324,11 @@ static NSData *makeWindowIcon() {
             // Make resizable
             sh->flags = 0;
         } else {
-            // Make non-resizable
+            // Make non-resizable. WM size hints are in device pixels too.
+            NSSize device = [self deviceSize: _frame.size];
             sh->flags = PMinSize | PMaxSize;
-            sh->min_width = sh->max_width = _frame.size.width;
-            sh->min_height = sh->max_height = _frame.size.height;
+            sh->min_width = sh->max_width = device.width;
+            sh->min_height = sh->max_height = device.height;
         }
 
         XSetWMSizeHints(_display, _window, sh, XA_WM_NORMAL_HINTS);
@@ -465,19 +491,29 @@ static NSData *makeWindowIcon() {
 
 - (O2Context *) createCGContextIfNeeded {
     if (_context == nil) {
+        // The only device-surface allocation site: -[O2Context
+        // resizeWithNewSize:] always fails, so the context is rebuilt here
+        // rather than resized.
+        NSSize device = [self deviceSize: _frame.size];
+        // The drawing context divides by the logical size, so a degenerate one
+        // would put inf/NaN in the device transform.
+        if (!isfinite(_frame.size.width) || !isfinite(_frame.size.height) ||
+            _frame.size.width < 1 || _frame.size.height < 1 ||
+            device.width > INT32_MAX || device.height > INT32_MAX)
+            return nil;
         O2ColorSpaceRef colorSpace = O2ColorSpaceCreateDeviceRGB();
         O2Surface *surface = [[O2Surface alloc]
                    initWithBytes: NULL
-                           width: _frame.size.width
-                          height: _frame.size.height
+                           width: device.width
+                          height: device.height
                 bitsPerComponent: 8
                      bytesPerRow: 0
                       colorSpace: colorSpace
                       bitmapInfo: kO2ImageAlphaPremultipliedFirst |
                                   kO2BitmapByteOrder32Little];
         O2ColorSpaceRelease(colorSpace);
-        _context = [[O2Context_builtin_FT alloc] initWithSurface: surface
-                                                         flipped: NO];
+        _context = [[X11DrawingContext alloc] initWithSurface: surface
+                                                  logicalSize: _frame.size];
         [surface release];
     }
     return _context;
@@ -487,12 +523,15 @@ static NSData *makeWindowIcon() {
     return [self createCGContextIfNeeded];
 }
 
+// `size` is in logical points, like the rest of AppKit-level geometry. The
+// device surface is not resized here: -[O2Context resizeWithNewSize:] always
+// returns NO, so the context is dropped and rebuilt at the new device size.
 - (void) invalidateContextWithNewSize: (NSSize) size
                          forceRebuild: (BOOL) forceRebuild
 {
     if (!NSEqualSizes(_frame.size, size) || forceRebuild) {
         _frame.size = size;
-        if (![_context resizeWithNewSize: size]) {
+        if (_context != nil) {
             [_context release];
             _context = nil;
             [_delegate platformWindowDidInvalidateCGContext: self];
@@ -512,11 +551,15 @@ static NSData *makeWindowIcon() {
 }
 
 - (void) setFrame: (O2Rect) frame {
-    frame = [self transformFrame: frame];
-    XMoveResizeWindow(_display, _window, frame.origin.x, frame.origin.y,
-                      frame.size.width, frame.size.height);
-    [self invalidateContextWithNewSize: frame.size];
+    // _frame stays in logical points; only the X call and the surface use device
+    // pixels. Assign _frame before invalidating so the rebuilt context is
+    // allocated at the new size.
+    O2Rect deviceFrame = [self deviceRect: [self transformFrame: frame]];
+    XMoveResizeWindow(_display, _window, deviceFrame.origin.x,
+                      deviceFrame.origin.y, deviceFrame.size.width,
+                      deviceFrame.size.height);
     _frame = frame;
+    [self invalidateContextWithNewSize: frame.size];
 }
 
 - (void) setHasShadow: (BOOL) value {
@@ -773,12 +816,24 @@ static BOOL windowManagerIsRunning(Display *display) {
     [self openGLFlushBuffer];
 }
 
+// _lastMotionPos holds a RAW device-space point. -transformPoint: flips Y and
+// -logicalPoint: un-scales, so doing both here would transform twice, and the
+// cancellation only held while the transform was an exact involution.
 - (void) setLastKnownCursorPosition: (CGPoint) point {
-    _lastMotionPos = [self transformPoint: point];
+    _lastMotionPos = point;
 }
 
 - (NSPoint) mouseLocationOutsideOfEventStream {
-    return [self transformPoint: _lastMotionPos];
+    return [self logicalPoint: _lastMotionPos];
+}
+
+// Device pixels (as X delivers them) -> logical points. Input is reported to
+// AppKit in points, and a 2x backing surface means X coordinates are twice the
+// logical ones.
+- (NSPoint) logicalPoint: (NSPoint) devicePoint {
+    NSPoint flipped = [self transformPoint: devicePoint];
+    CGFloat scale = [self backingScaleFactor];
+    return NSMakePoint(flipped.x / scale, flipped.y / scale);
 }
 
 - (O2Rect) frame {
@@ -821,8 +876,13 @@ static int ignoreBadWindow(Display *display, XErrorEvent *errorEvent) {
             window = parent;
         };
 
-        [self invalidateContextWithNewSize: rect.size];
-        _frame = rect;
+        // XGetGeometry reports device pixels; _frame is in logical points, so
+        // un-scale once here rather than at every reader.
+        CGFloat scale = [self backingScaleFactor];
+        [self invalidateContextWithNewSize:
+                 NSMakeSize(rect.size.width / scale, rect.size.height / scale)];
+        _frame = NSMakeRect(rect.origin.x / scale, rect.origin.y / scale,
+                            rect.size.width / scale, rect.size.height / scale);
     } @finally {
         XSetErrorHandler(previousHandler);
     }
@@ -850,6 +910,28 @@ static int ignoreBadWindow(Display *display, XErrorEvent *errorEvent) {
 
 - (NSPoint) transformPoint: (NSPoint) pos; {
     return NSMakePoint(pos.x, _frame.size.height - pos.y);
+}
+
+- (CGFloat) backingScaleFactor {
+    return [(X11Display *) [NSDisplay currentDisplay] backingScale];
+}
+
+static CGFloat X11ScaledExtent(CGFloat logical, CGFloat scale) {
+    return fmax(floor(logical * scale + 0.5), 1.0);
+}
+
+- (NSSize) deviceSize: (NSSize) size {
+    CGFloat scale = [self backingScaleFactor];
+    return NSMakeSize(X11ScaledExtent(size.width, scale),
+                      X11ScaledExtent(size.height, scale));
+}
+
+- (O2Rect) deviceRect: (O2Rect) rect {
+    CGFloat scale = [self backingScaleFactor];
+    NSSize size = [self deviceSize: rect.size];
+    return NSMakeRect(X11ScaledExtent(rect.origin.x, scale),
+                      X11ScaledExtent(rect.origin.y, scale), size.width,
+                      size.height);
 }
 
 - (X11SubWindow *) createSubWindowWithFrame: (CGRect) frame {

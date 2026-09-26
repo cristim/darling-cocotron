@@ -11,4 +11,10 @@
 
 - initWithParentWindow: (X11Window *) parent frame: (CGRect) frame;
 
+// CALayerContext sizes the GL viewport from -drawablePixelSize, falling back to
+// -backingScaleFactor. CGSubWindow's defaults are 1.0 and CGSizeZero, which
+// would give a 2x-sized subwindow a 1x viewport and show a quarter of it.
+- (CGFloat) backingScaleFactor;
+- (CGSize) drawablePixelSize;
+
 @end

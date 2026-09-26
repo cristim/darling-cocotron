@@ -68,7 +68,8 @@ NSNotificationName const NSScreenColorSpaceDidChangeNotification = @"NSScreenCol
     return 1.0;
 }
 
-// The X11 backend has no high-resolution displays.
+// Backends with high-resolution displays override this (WaylandScreen,
+// X11Screen). A backend that has no way to know its scale stays at 1.
 - (CGFloat) backingScaleFactor {
     return 1.0;
 }

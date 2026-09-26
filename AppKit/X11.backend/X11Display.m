@@ -54,8 +54,22 @@
 #import <fcntl.h>
 #import <fontconfig/fontconfig.h>
 #import <stddef.h>
+#include <stdlib.h>
 
 void NSColorSetCatalogColor(NSColorListName catalogName, NSColorName colorName, NSColor *color);
+
+// NSScreen.frame is in logical points while X reports device pixels, so the
+// screen carries the scale rather than NSScreen hardcoding 1.0. Kept private to
+// this file, like the Wayland backend's WaylandScreen.
+@interface X11Screen : NSScreen {
+@public
+    CGFloat _x11Scale;
+}
+@end
+
+@implementation X11Screen
+- (CGFloat) backingScaleFactor { return _x11Scale; }
+@end
 
 @implementation X11Display
 
@@ -175,6 +189,35 @@ static void socketCallback(CFSocketRef s, CFSocketCallBackType type,
     return _display;
 }
 
+// X11 has no scale protocol. Read an explicit value instead of inferring one
+// from the panel's physical size: a 4K panel reports ~140 DPI and a 13" 1x
+// panel ~190 DPI, so DPI says nothing about whether the compositor upscales.
+// An unparsable or sub-1 value is ignored rather than trusted, and 1.0 is the
+// overwhelmingly common case, so it must stay reachable.
+- (CGFloat) backingScale {
+    if (_backingScale > 0)
+        return _backingScale;
+
+    _backingScale = 1;
+    const char *names[] = { "DARLING_X11_SCALE", "GDK_SCALE" };
+    for (size_t i = 0; i < sizeof(names) / sizeof(*names); i++) {
+        const char *value = getenv(names[i]);
+        if (value == NULL)
+            continue;
+        char *end = NULL;
+        double parsed = strtod(value, &end);
+        // Reject trailing junk, non-finite values, and anything under 1x: X11
+        // has no fractional-scale path, so a 1.5 request cannot be honoured.
+        if (end == value || *end != '\0' || !isfinite(parsed) || parsed < 1)
+            continue;
+        _backingScale = (CGFloat) parsed;
+        NSLog(@"X11 backend: %s=%s, using a %.2fx backing scale", names[i],
+              value, (double) _backingScale);
+        break;
+    }
+    return _backingScale;
+}
+
 - (void) _enableDetectableAutoRepeat {
     int major = XkbMajorVersion, minor = XkbMinorVersion;
     XkbStateRec state;
@@ -221,12 +264,17 @@ static void socketCallback(CFSocketRef s, CFSocketCallBackType type,
             if (oinfo->crtc) {
                 XRRCrtcInfo *crtc =
                         XRRGetCrtcInfo(_display, screen, oinfo->crtc);
-                NSRect frame =
-                        NSMakeRect(crtc->x, crtc->y, crtc->width, crtc->height);
+                CGFloat scale = [self backingScale];
+                // NSScreen.frame is in logical points, like the Wayland
+                // backend's: CRTC geometry is device pixels, so divide it.
+                NSRect frame = NSMakeRect(crtc->x / scale, crtc->y / scale,
+                                          crtc->width / scale,
+                                          crtc->height / scale);
 
-                nsscreen =
-                        [[[NSScreen alloc] initWithFrame: frame
-                                            visibleFrame: frame] autorelease];
+                X11Screen *nsscreen = [[[X11Screen alloc]
+                            initWithFrame: frame
+                             visibleFrame: frame] autorelease];
+                nsscreen->_x11Scale = scale;
 
                 Atom actualType;
                 unsigned long nitems, bytesAfter;
@@ -244,9 +292,11 @@ static void socketCallback(CFSocketRef s, CFSocketCallBackType type,
 
                 XRRFreeCrtcInfo(crtc);
             } else {
-                nsscreen = [[[NSScreen alloc] initWithFrame: NSZeroRect
-                                               visibleFrame: NSZeroRect]
+                X11Screen *empty = [[[X11Screen alloc]
+                        initWithFrame: NSZeroRect visibleFrame: NSZeroRect]
                         autorelease];
+                empty->_x11Scale = [self backingScale];
+                nsscreen = empty;
             }
             [nsscreen setCgDirectDisplayID: (i + 1)];
 
@@ -261,13 +311,15 @@ static void socketCallback(CFSocketRef s, CFSocketCallBackType type,
         _lastScreens = [array retain];
         return array;
     } else {
+        CGFloat scale = [self backingScale];
         NSRect frame = NSMakeRect(
-                0, 0, DisplayWidth(_display, DefaultScreen(_display)),
-                DisplayHeight(_display, DefaultScreen(_display)));
-        return [NSArray
-                arrayWithObject: [[[NSScreen alloc] initWithFrame: frame
-                                                     visibleFrame: frame]
-                                         autorelease]];
+                0, 0, DisplayWidth(_display, DefaultScreen(_display)) / scale,
+                DisplayHeight(_display, DefaultScreen(_display)) / scale);
+        X11Screen *screen = [[[X11Screen alloc] initWithFrame: frame
+                                                 visibleFrame: frame]
+                                    autorelease];
+        screen->_x11Scale = scale;
+        return [NSArray arrayWithObject: screen];
     }
 }
 
@@ -978,7 +1030,10 @@ static int compareFontPatterns(const void *a, const void *b) {
     XQueryPointer(_display, root, &root, &child, &root_x, &root_y, &win_x,
                   &win_y, &mask);
     int height = DisplayHeight(_display, DefaultScreen(_display));
-    return NSMakePoint(root_x, height - root_y);
+    // XQueryPointer reports device pixels, while NSScreen.frame is in points,
+    // so this has to be un-scaled or +[NSApp mouseLocation] is off by the scale.
+    CGFloat scale = [self backingScale];
+    return NSMakePoint(root_x / scale, (height - root_y) / scale);
 }
 
 - (void) setWindow: (id) window forID: (XID) i {
@@ -1160,7 +1215,7 @@ static int ignoreBadWindowWhileOrdering(Display *display, XErrorEvent *errorEven
         if (text != buf)
             free(text);
         NSPoint pos =
-                [window transformPoint: NSMakePoint(ev->xkey.x, ev->xkey.y)];
+                [window logicalPoint: NSMakePoint(ev->xkey.x, ev->xkey.y)];
 
         uint16_t ucsCode = (uint16_t) X11KeySymToUCS(keySym); // All defined codes in the table fit into 16 bits
         NSString* strIg = [NSString stringWithCharacters: &ucsCode length: 1];
@@ -1206,7 +1261,7 @@ static int ignoreBadWindowWhileOrdering(Display *display, XErrorEvent *errorEven
         lastClickTimeStamp = now;
 
         pos = [window
-                transformPoint: NSMakePoint(ev->xbutton.x, ev->xbutton.y)];
+                logicalPoint: NSMakePoint(ev->xbutton.x, ev->xbutton.y)];
 
         switch (ev->xbutton.button) {
         case Button1:
@@ -1238,7 +1293,7 @@ static int ignoreBadWindowWhileOrdering(Display *display, XErrorEvent *errorEven
 
     case ButtonRelease:
         pos = [window
-                transformPoint: NSMakePoint(ev->xbutton.x, ev->xbutton.y)];
+                logicalPoint: NSMakePoint(ev->xbutton.x, ev->xbutton.y)];
 
         CGFloat deltaY = 0.0;
 
@@ -1280,8 +1335,12 @@ static int ignoreBadWindowWhileOrdering(Display *display, XErrorEvent *errorEven
             // ev->xmotion.y_root);
 
             CGPoint lastMotionPos = [window mouseLocationOutsideOfEventStream];
-            pos = [window
-                    transformPoint: NSMakePoint(ev->xmotion.x, ev->xmotion.y)];
+            // Logical, for the NSEvent location and the drag deltas. The raw
+            // device point below is what the window stores, so the two are kept
+            // apart instead of reusing one value for both.
+            CGPoint devicePos =
+                    NSMakePoint(ev->xmotion.x, ev->xmotion.y);
+            pos = [window logicalPoint: devicePos];
 
             CGFloat deltaX = pos.x - lastMotionPos.x;
             CGFloat deltaY = pos.y - lastMotionPos.y;
@@ -1290,13 +1349,15 @@ static int ignoreBadWindowWhileOrdering(Display *display, XErrorEvent *errorEven
             // _cursorGrabbed, deltaX, deltaY);
             if (_cursorGrabbed) {
                 if (pos.x != lastMotionPos.x || pos.y != lastMotionPos.y) {
-                    CGPoint globalPos = [window transformPoint: lastMotionPos];
-                    // NSLog(@"last known pos in window: x=%f, y=%f",
-                    // globalPos.x, globalPos.y);
+                    // XWarpPointer needs DEVICE root coordinates: the window
+                    // origin is device pixels, so the cursor's logical position
+                    // has to be scaled back up before being added.
+                    CGFloat scale = [window backingScaleFactor];
                     CGRect frame = [window transformFrame: [window frame]];
 
-                    globalPos.x += frame.origin.x;
-                    globalPos.y += frame.origin.y;
+                    CGPoint globalPos =
+                            NSMakePoint(frame.origin.x + pos.x * scale,
+                                        frame.origin.y + pos.y * scale);
 
                     [self warpMouse: globalPos];
 
@@ -1307,7 +1368,7 @@ static int ignoreBadWindowWhileOrdering(Display *display, XErrorEvent *errorEven
                     break;
                 }
             } else {
-                [window setLastKnownCursorPosition: pos];
+                [window setLastKnownCursorPosition: devicePos];
             }
 
             type = NSMouseMoved;
@@ -1342,9 +1403,7 @@ static int ignoreBadWindowWhileOrdering(Display *display, XErrorEvent *errorEven
         NSLog(@"EnterNotify");
         if (!_cursorGrabbed)
             [window setLastKnownCursorPosition:
-                            [window transformPoint: NSMakePoint(
-                                                            ev->xcrossing.x,
-                                                            ev->xcrossing.y)]];
+                            NSMakePoint(ev->xcrossing.x, ev->xcrossing.y)];
         break;
 
     case LeaveNotify:
@@ -1638,6 +1697,8 @@ void CGNativeBorderFrameWidthsForStyle(NSUInteger styleMask, CGFloat *top,
             // NSLog(@"setting last known pos in window to x=%f, y=%f\n",
             // ptLocal.x, ptLocal.y);
 
+            // The window stores a raw device point, and transformFrame: returns
+            // device pixels, so its centre is already in the right units.
             [xwin setLastKnownCursorPosition: [xwin transformPoint: ptLocal]];
             [self warpMouse: ptGlobal];
         } else {

@@ -20,9 +20,11 @@
 
     _display = [(X11Display *) [NSDisplay currentDisplay] display];
 
+    // A child window is positioned in the parent's DEVICE pixels.
+    O2Rect device = [parent deviceRect: frame];
     _window = XCreateSimpleWindow(_display, [parent windowHandle],
-                                  frame.origin.x, frame.origin.y,
-                                  frame.size.width, frame.size.height, 0, 0,
+                                  device.origin.x, device.origin.y,
+                                  device.size.width, device.size.height, 0, 0,
                                   0 /* border_width, border, background */
     );
 
@@ -48,10 +50,20 @@
 }
 
 - (void) setFrame: (CGRect) frame {
-    frame = [self convertFrame: frame];
+    O2Rect device = [_parent deviceRect: [self convertFrame: frame]];
 
-    XMoveResizeWindow(_display, _window, frame.origin.x, frame.origin.y,
-                      frame.size.width, frame.size.height);
+    XMoveResizeWindow(_display, _window, device.origin.x, device.origin.y,
+                      device.size.width, device.size.height);
+}
+
+- (CGFloat) backingScaleFactor {
+    return [_parent backingScaleFactor];
+}
+
+- (CGSize) drawablePixelSize {
+    CGRect frame = [_parent frame];
+    return CGSizeMake(frame.size.width * [self backingScaleFactor],
+                      frame.size.height * [self backingScaleFactor]);
 }
 
 @end

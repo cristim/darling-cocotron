@@ -63,7 +63,21 @@
 - (Visual *) visual;
 - (Drawable) drawable;
 - (NSPoint) transformPoint: (NSPoint) pos;
+- (NSPoint) logicalPoint: (NSPoint) devicePoint;
 - (O2Rect) transformFrame: (O2Rect) frame;
+
+// Device pixels per logical point, read from the display so this window and
+// its NSScreen always report the same value. -[NSWindow backingScaleFactor]
+// prefers the platform window's answer whenever it is finite and positive, so
+// a window that disagreed with its screen would silently win.
+- (CGFloat) backingScaleFactor;
+
+// Logical rect -> the device-pixel rect libX11 takes. AppKit-level geometry is
+// points; every value handed to X is device pixels. One rounding for sizes and
+// origins keeps the X window and the backing surface in agreement, which the GL
+// viewport depends on.
+- (NSSize) deviceSize: (NSSize) size;
+- (O2Rect) deviceRect: (O2Rect) rect;
 
 - (Window) windowHandle;
 
