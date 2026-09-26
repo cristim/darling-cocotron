@@ -32,6 +32,16 @@
     return item;
 }
 
++ (instancetype) sidebarWithViewController: (NSViewController *) viewController {
+    /* A sidebar item differs from a plain one only in its defaults, so build on
+     * the factory that already exists rather than duplicating it. macOS lets a
+     * sidebar collapse, so canCollapse is on. */
+    NSSplitViewItem *item = [self splitViewItemWithViewController: viewController];
+    [item setCanCollapse: YES];
+    [item setCollapsed: NO];
+    return item;
+}
+
 - (instancetype) init {
     if ((self = [super init]))
         _holdingPriority = NSLayoutPriorityDefaultLow;
