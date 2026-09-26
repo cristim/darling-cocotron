@@ -446,6 +446,7 @@ static BOOL _allowsAutomaticWindowTabbing;
     [_menu release];
     [_menuView release];
     [_contentView release];
+    [_contentViewController release];
     [_backgroundColor release];
     [_sharedFieldEditor release];
     [_draggedTypes release];
@@ -1148,6 +1149,28 @@ static BOOL _allowsAutomaticWindowTabbing;
     _contentView = view;
 
     [_backgroundView addSubview: _contentView];
+}
+
+- (void) setContentViewController: (NSViewController *) controller {
+    /* Installing a view controller is the common way a modern app sets a
+     * window's content, and it was entirely absent, so any app doing it died
+     * with "unrecognized selector sent to instance" before drawing anything.
+     * That is how YouLearn v0.3.1 failed to reach its main window.
+     *
+     * The controller is retained so the view it vends stays alive, and its
+     * view becomes the content view. -[NSViewController view] loads the view on
+     * first access, so a controller that has not called loadView yet works. */
+    if (_contentViewController != controller) {
+        [_contentViewController release];
+        _contentViewController = [controller retain];
+    }
+    if (controller != nil) {
+        [self setContentView: [controller view]];
+    }
+}
+
+- (NSViewController *) contentViewController {
+    return _contentViewController;
 }
 
 - (void) setInitialFirstResponder: (NSView *) view {
