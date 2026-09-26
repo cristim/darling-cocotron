@@ -30,7 +30,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 @class NSView, NSEvent, NSColor, NSColorSpace, NSCursor, NSImage, NSScreen,
         NSText, NSTextView, CGWindow, NSPasteboard, NSSheetContext,
-        NSTitlebarAccessoryViewController,
+        NSTitlebarAccessoryViewController, NSViewController,
         NSUndoManager, NSButton, NSButtonCell, NSDrawer, NSDockTile, NSToolbar,
         NSWindowAnimationContext, NSTrackingArea, NSThemeFrame,
         NSWindowController, NSMenuItem, CARenderer;
@@ -179,6 +179,7 @@ APPKIT_EXPORT const NSNotificationName NSWindowDidExposeNotification;
     NSMenu *_menu;
     NSView *_menuView;
     NSView *_contentView;
+    NSViewController *_contentViewController;
     NSColor *_backgroundColor;
 
     id<NSWindowDelegate> _delegate;
@@ -396,6 +397,8 @@ APPKIT_EXPORT const NSNotificationName NSWindowDidExposeNotification;
 - (void) setTitle: (NSString *) title;
 - (void) setTitleWithRepresentedFilename: (NSString *) filename;
 - (void) setContentView: (NSView *) view;
+- (void) setContentViewController: (NSViewController *) controller;
+- (NSViewController *) contentViewController;
 
 - (void) setInitialFirstResponder: (NSView *) view;
 - (void) setMiniwindowImage: (NSImage *) image;
