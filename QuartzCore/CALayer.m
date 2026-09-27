@@ -485,4 +485,8 @@ static void replaceColor(CGColorRef *slot, CGColorRef value) {
     _textureContents = value;
 }
 
+- (BOOL) _drawLayerContents: (CGRect) bounds opacity: (CGFloat) opacity {
+    return NO;
+}
+
 @end
