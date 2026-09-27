@@ -271,10 +271,10 @@ static void socketCallback(CFSocketRef s, CFSocketCallBackType type,
                                           crtc->width / scale,
                                           crtc->height / scale);
 
-                X11Screen *nsscreen = [[[X11Screen alloc]
-                            initWithFrame: frame
-                             visibleFrame: frame] autorelease];
-                nsscreen->_x11Scale = scale;
+                nsscreen = [[[X11Screen alloc] initWithFrame: frame
+                                                 visibleFrame: frame]
+                                autorelease];
+                ((X11Screen *) nsscreen)->_x11Scale = scale;
 
                 Atom actualType;
                 unsigned long nitems, bytesAfter;
@@ -845,29 +845,41 @@ static NSDictionary *modeInfoToDictionary(const XRRModeInfo *mi, int depth) {
     return ret;
 }
 
-- (NSString *) substituteFamilyName: (NSString *) familyName {
-    FcConfig *config = O2FontSharedFontConfig();
-
-    FcPattern *pat = FcNameParse((FcChar8 *) [familyName UTF8String]);
+static NSString *matchedFamily(FcConfig *config, NSString *family) {
+    FcPattern *pat = FcPatternCreate();
+    if (family != nil) {
+        FcPatternAddString(pat, FC_FAMILY,
+                           (const FcChar8 *) [family UTF8String]);
+    }
     FcConfigSubstitute(config, pat, FcMatchPattern);
     FcDefaultSubstitute(pat);
 
-    FcResult fcResult;
-    FcPattern *match = FcFontMatch(config, pat, &fcResult);
+    FcResult result;
+    FcPattern *match = FcFontMatch(config, pat, &result);
     FcPatternDestroy(pat);
     if (match == NULL)
-        return NULL;
+        return nil;
 
-    FcChar8 *rawRes = NULL;
-    FcPatternGetString(match, FC_FAMILY, 0, &rawRes);
-
+    FcChar8 *matched = NULL;
     NSString *res = nil;
-    if (rawRes != NULL) {
-        res = [NSString stringWithUTF8String: (char *) rawRes];
-    }
-
+    if (FcPatternGetString(match, FC_FAMILY, 0, &matched) == FcResultMatch)
+        res = [NSString stringWithUTF8String: (const char *) matched];
     FcPatternDestroy(match);
     return res;
+}
+
+- (NSString *) substituteFamilyName: (NSString *) familyName {
+    return matchedFamily(O2FontSharedFontConfig(), familyName);
+}
+
+// A generic family with no installed member matches the same default font as
+// a pattern without any family.
+- (NSString *) fontFamilyNameForGenericFamily: (NSString *) generic {
+    FcConfig *config = O2FontSharedFontConfig();
+    NSString *family = matchedFamily(config, generic);
+    if (family == nil || [family isEqualToString: matchedFamily(config, nil)])
+        return nil;
+    return family;
 }
 
 // NSUnboldFontMask and NSUnitalicFontMask are conversion requests, not face
@@ -1029,11 +1041,16 @@ static int compareFontPatterns(const void *a, const void *b) {
 
     XQueryPointer(_display, root, &root, &child, &root_x, &root_y, &win_x,
                   &win_y, &mask);
-    int height = DisplayHeight(_display, DefaultScreen(_display));
-    // XQueryPointer reports device pixels, while NSScreen.frame is in points,
-    // so this has to be un-scaled or +[NSApp mouseLocation] is off by the scale.
+    // No Y flip. AppKit's global screen space has its origin at the TOP-left of the
+    // primary display, which is the space NSScreen.frame and CGWarpMouseCursorPosition
+    // both use, and X already reports root_y from the top. Flipping here put the pointer
+    // at the mirrored position and made a warp not round-trip. (Window-local
+    // -[X11Window mouseLocationOutsideOfEventStream] does flip, correctly: view
+    // coordinates are bottom-left origin.)
+    //
+    // XQueryPointer reports device pixels, so divide by the scale to get points.
     CGFloat scale = [self backingScale];
-    return NSMakePoint(root_x / scale, (height - root_y) / scale);
+    return NSMakePoint(root_x / scale, root_y / scale);
 }
 
 - (void) setWindow: (id) window forID: (XID) i {
@@ -1349,15 +1366,15 @@ static int ignoreBadWindowWhileOrdering(Display *display, XErrorEvent *errorEven
             // _cursorGrabbed, deltaX, deltaY);
             if (_cursorGrabbed) {
                 if (pos.x != lastMotionPos.x || pos.y != lastMotionPos.y) {
-                    // XWarpPointer needs DEVICE root coordinates: the window
-                    // origin is device pixels, so the cursor's logical position
-                    // has to be scaled back up before being added.
+                    // -warpMouse: takes points, so anchor on the logical window
+                    // origin and convert the device-space motion delta to points.
                     CGFloat scale = [window backingScaleFactor];
-                    CGRect frame = [window transformFrame: [window frame]];
+                    CGRect logicalFrame =
+                        [window transformFrame: [window frame]];
 
                     CGPoint globalPos =
-                            NSMakePoint(frame.origin.x + pos.x * scale,
-                                        frame.origin.y + pos.y * scale);
+                            NSMakePoint(logicalFrame.origin.x + pos.x / scale,
+                                        logicalFrame.origin.y + pos.y / scale);
 
                     [self warpMouse: globalPos];
 
@@ -1660,10 +1677,15 @@ void CGNativeBorderFrameWidthsForStyle(NSUInteger styleMask, CGFloat *top,
     return frame;
 }
 
+// Takes POINTS, like NSScreen.frame and +[NSEvent mouseLocation]: CGWarpMouseCursorPosition
+// hands its argument straight through, and on macOS that API is documented in points.
+// XWarpPointer wants device pixels, so the conversion belongs here rather than at every
+// caller. Invisible at 1x, off by the scale factor at 2x.
 - (void) warpMouse: (NSPoint) position {
+    CGFloat scale = [self backingScale];
     NSLog(@"Warp to: x=%f, y=%f\n", position.x, position.y);
     XWarpPointer(_display, None, DefaultRootWindow(_display), 0, 0, 0, 0,
-                 position.x, position.y);
+                 position.x * scale, position.y * scale);
     XSync(_display, False);
 }
 
@@ -1684,21 +1706,24 @@ void CGNativeBorderFrameWidthsForStyle(NSUInteger styleMask, CGFloat *top,
             _cursorGrabbed = YES;
             NSLog(@"XGrabPointer() succeeded for window %lu\n", win);
 
-            NSRect frame = [xwin transformFrame: nswin.frame];
+            // -warpMouse: takes points, so the grab seed is the window centre in
+            // points. The window stores a raw DEVICE point and -transformPoint:
+            // flips in device space, so the seed it records is the centre in
+            // device pixels instead.
+            O2Rect logicalFrame = [xwin transformFrame: nswin.frame];
+            O2Rect deviceFrame = [xwin deviceRect: logicalFrame];
             // NSLog(@"Window's frame is at %f,%f, size %fx%f\n",
-            // frame.origin.x, frame.origin.y, frame.size.width,
-            // frame.size.height);
+            // logicalFrame.origin.x, logicalFrame.origin.y,
+            // logicalFrame.size.width, logicalFrame.size.height);
             CGPoint ptGlobal =
-                    NSMakePoint(frame.size.width / 2.0 + frame.origin.x,
-                                frame.size.height / 2.0 + frame.origin.y);
-            CGPoint ptLocal = NSMakePoint(frame.size.width / 2.0,
-                                          frame.size.height / 2.0);
+                    NSMakePoint(logicalFrame.size.width / 2.0 + logicalFrame.origin.x,
+                                logicalFrame.size.height / 2.0 + logicalFrame.origin.y);
+            CGPoint ptLocal = NSMakePoint(deviceFrame.size.width / 2.0,
+                                          deviceFrame.size.height / 2.0);
 
             // NSLog(@"setting last known pos in window to x=%f, y=%f\n",
             // ptLocal.x, ptLocal.y);
 
-            // The window stores a raw device point, and transformFrame: returns
-            // device pixels, so its centre is already in the right units.
             [xwin setLastKnownCursorPosition: [xwin transformPoint: ptLocal]];
             [self warpMouse: ptGlobal];
         } else {
