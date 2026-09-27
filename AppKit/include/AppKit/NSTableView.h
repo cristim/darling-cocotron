@@ -71,6 +71,13 @@ enum {
 typedef NSInteger NSTableViewSelectionHighlightStyle;
 
 typedef enum {
+    NSTableViewStyleAutomatic = 0,
+    NSTableViewStylePlain = 1,
+    NSTableViewStyleOutline = 2,
+    NSTableViewStyleSourceList = 3,
+} NSTableViewStyle;
+
+typedef enum {
     NSTableViewDropOn,
     NSTableViewDropAbove
 } NSTableViewDropOperation;
@@ -104,6 +111,7 @@ typedef enum {
     BOOL _alternatingRowBackground;
     unsigned int _gridStyleMask;
     NSTableViewSelectionHighlightStyle _selectionHighlightStyle;
+    NSTableViewStyle _style;
 
     // temp ivars
     NSMutableArray *_selectedColumns;
@@ -147,6 +155,7 @@ typedef enum {
 - (BOOL) usesAlternatingRowBackgroundColors;
 - (unsigned int) gridStyleMask;
 - (NSTableViewSelectionHighlightStyle) selectionHighlightStyle;
+- (NSTableViewStyle) style;
 
 - (NSInteger) numberOfRows;
 - (NSUInteger) numberOfColumns;
@@ -192,6 +201,7 @@ typedef enum {
 - (void) setUsesAlternatingRowBackgroundColors: (BOOL) flag;
 - (void) setGridStyleMask: (unsigned int) gridStyle;
 - (void) setSelectionHighlightStyle: (NSTableViewSelectionHighlightStyle) value;
+- (void) setStyle: (NSTableViewStyle) style;
 
 - (void) addTableColumn: (NSTableColumn *) column;
 - (void) removeTableColumn: (NSTableColumn *) column;
