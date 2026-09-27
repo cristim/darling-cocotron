@@ -187,6 +187,7 @@ APPKIT_EXPORT const NSNotificationName NSWindowDidExposeNotification
     NSWindowStyleMask _styleMask;
     NSBackingStoreType _backingType;
     NSWindowLevel _level;
+    NSWindowCollectionBehavior _collectionBehavior;
 
     NSSize _minSize;
     NSSize _maxSize;
