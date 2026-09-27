@@ -79,6 +79,13 @@ typedef NS_ENUM(NSInteger, NSTableViewRowSizeStyle) {
 };
 
 typedef enum {
+    NSTableViewStyleAutomatic = 0,
+    NSTableViewStylePlain = 1,
+    NSTableViewStyleOutline = 2,
+    NSTableViewStyleSourceList = 3,
+} NSTableViewStyle;
+
+typedef enum {
     NSTableViewDropOn,
     NSTableViewDropAbove
 } NSTableViewDropOperation;
@@ -115,6 +122,7 @@ typedef enum {
     BOOL _floatsGroupRows;
     NSTableViewRowSizeStyle _rowSizeStyle;
     CGFloat _styledRowHeight;
+    NSTableViewStyle _style;
 
     // temp ivars
     NSMutableArray *_selectedColumns;
@@ -162,6 +170,7 @@ typedef enum {
 - (BOOL) floatsGroupRows;
 - (NSTableViewRowSizeStyle) rowSizeStyle;
 - (NSTableViewRowSizeStyle) effectiveRowSizeStyle;
+- (NSTableViewStyle) style;
 
 - (NSInteger) numberOfRows;
 - (NSUInteger) numberOfColumns;
@@ -207,8 +216,12 @@ typedef enum {
 - (void) setUsesAlternatingRowBackgroundColors: (BOOL) flag;
 - (void) setGridStyleMask: (unsigned int) gridStyle;
 - (void) setSelectionHighlightStyle: (NSTableViewSelectionHighlightStyle) value;
+<<<<<<< HEAD
 - (void) setFloatsGroupRows: (BOOL) flag;
 - (void) setRowSizeStyle: (NSTableViewRowSizeStyle) style;
+=======
+- (void) setStyle: (NSTableViewStyle) style;
+>>>>>>> ae5f024ae (fix(appkit): implement NSTableView style accessors)
 
 - (void) addTableColumn: (NSTableColumn *) column;
 - (void) removeTableColumn: (NSTableColumn *) column;
