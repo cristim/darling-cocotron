@@ -216,12 +216,9 @@ typedef enum {
 - (void) setUsesAlternatingRowBackgroundColors: (BOOL) flag;
 - (void) setGridStyleMask: (unsigned int) gridStyle;
 - (void) setSelectionHighlightStyle: (NSTableViewSelectionHighlightStyle) value;
-<<<<<<< HEAD
 - (void) setFloatsGroupRows: (BOOL) flag;
 - (void) setRowSizeStyle: (NSTableViewRowSizeStyle) style;
-=======
 - (void) setStyle: (NSTableViewStyle) style;
->>>>>>> ae5f024ae (fix(appkit): implement NSTableView style accessors)
 
 - (void) addTableColumn: (NSTableColumn *) column;
 - (void) removeTableColumn: (NSTableColumn *) column;
