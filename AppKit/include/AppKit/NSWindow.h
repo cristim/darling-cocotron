@@ -566,6 +566,8 @@ APPKIT_EXPORT const NSNotificationName NSWindowDidExposeNotification
 - (void) flushWindowIfNeeded;
 - (void) displayIfNeeded;
 - (void) display;
+- (void) updateConstraintsIfNeeded;
+- (void) layoutIfNeeded;
 
 - (void) invalidateShadow;
 
