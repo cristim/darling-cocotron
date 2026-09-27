@@ -1361,16 +1361,15 @@ static int ignoreBadWindowWhileOrdering(Display *display, XErrorEvent *errorEven
             // _cursorGrabbed, deltaX, deltaY);
             if (_cursorGrabbed) {
                 if (pos.x != lastMotionPos.x || pos.y != lastMotionPos.y) {
-                    // XWarpPointer needs DEVICE root coordinates, and
-                    // -transformFrame: now works in points, so convert the
-                    // window origin and the cursor position separately.
+                    // -warpMouse: takes points, so anchor on the logical window
+                    // origin and convert the device-space motion delta to points.
                     CGFloat scale = [window backingScaleFactor];
-                    CGRect deviceFrame =
-                        [window deviceRect: [window transformFrame: [window frame]]];
+                    CGRect logicalFrame =
+                        [window transformFrame: [window frame]];
 
                     CGPoint globalPos =
-                            NSMakePoint(deviceFrame.origin.x + pos.x * scale,
-                                        deviceFrame.origin.y + pos.y * scale);
+                            NSMakePoint(logicalFrame.origin.x + pos.x / scale,
+                                        logicalFrame.origin.y + pos.y / scale);
 
                     [self warpMouse: globalPos];
 
@@ -1677,10 +1676,15 @@ void CGNativeBorderFrameWidthsForStyle(NSUInteger styleMask, CGFloat *top,
     return frame;
 }
 
+// Takes POINTS, like NSScreen.frame and +[NSEvent mouseLocation]: CGWarpMouseCursorPosition
+// hands its argument straight through, and on macOS that API is documented in points.
+// XWarpPointer wants device pixels, so the conversion belongs here rather than at every
+// caller. Invisible at 1x, off by the scale factor at 2x.
 - (void) warpMouse: (NSPoint) position {
+    CGFloat scale = [self backingScale];
     NSLog(@"Warp to: x=%f, y=%f\n", position.x, position.y);
     XWarpPointer(_display, None, DefaultRootWindow(_display), 0, 0, 0, 0,
-                 position.x, position.y);
+                 position.x * scale, position.y * scale);
     XSync(_display, False);
 }
 
@@ -1701,18 +1705,18 @@ void CGNativeBorderFrameWidthsForStyle(NSUInteger styleMask, CGFloat *top,
             _cursorGrabbed = YES;
             NSLog(@"XGrabPointer() succeeded for window %lu\n", win);
 
-            // Both the grab seed and the warp work in device pixels, so convert
-            // the logical frame once. The window stores a raw device point and
-            // -transformPoint: flips in device space, so its centre is already
-            // in the right units.
-            O2Rect deviceFrame =
-                [xwin deviceRect: [xwin transformFrame: nswin.frame]];
+            // -warpMouse: takes points, so the grab seed is the window centre in
+            // points. The window stores a raw DEVICE point and -transformPoint:
+            // flips in device space, so the seed it records is the centre in
+            // device pixels instead.
+            O2Rect logicalFrame = [xwin transformFrame: nswin.frame];
+            O2Rect deviceFrame = [xwin deviceRect: logicalFrame];
             // NSLog(@"Window's frame is at %f,%f, size %fx%f\n",
-            // deviceFrame.origin.x, deviceFrame.origin.y,
-            // deviceFrame.size.width, deviceFrame.size.height);
+            // logicalFrame.origin.x, logicalFrame.origin.y,
+            // logicalFrame.size.width, logicalFrame.size.height);
             CGPoint ptGlobal =
-                    NSMakePoint(deviceFrame.size.width / 2.0 + deviceFrame.origin.x,
-                                deviceFrame.size.height / 2.0 + deviceFrame.origin.y);
+                    NSMakePoint(logicalFrame.size.width / 2.0 + logicalFrame.origin.x,
+                                logicalFrame.size.height / 2.0 + logicalFrame.origin.y);
             CGPoint ptLocal = NSMakePoint(deviceFrame.size.width / 2.0,
                                           deviceFrame.size.height / 2.0);
 
