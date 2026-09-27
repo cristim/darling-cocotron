@@ -1041,11 +1041,16 @@ static int compareFontPatterns(const void *a, const void *b) {
 
     XQueryPointer(_display, root, &root, &child, &root_x, &root_y, &win_x,
                   &win_y, &mask);
-    int height = DisplayHeight(_display, DefaultScreen(_display));
-    // XQueryPointer reports device pixels, while NSScreen.frame is in points,
-    // so this has to be un-scaled or +[NSApp mouseLocation] is off by the scale.
+    // No Y flip. AppKit's global screen space has its origin at the TOP-left of the
+    // primary display, which is the space NSScreen.frame and CGWarpMouseCursorPosition
+    // both use, and X already reports root_y from the top. Flipping here put the pointer
+    // at the mirrored position and made a warp not round-trip. (Window-local
+    // -[X11Window mouseLocationOutsideOfEventStream] does flip, correctly: view
+    // coordinates are bottom-left origin.)
+    //
+    // XQueryPointer reports device pixels, so divide by the scale to get points.
     CGFloat scale = [self backingScale];
-    return NSMakePoint(root_x / scale, (height - root_y) / scale);
+    return NSMakePoint(root_x / scale, root_y / scale);
 }
 
 - (void) setWindow: (id) window forID: (XID) i {
