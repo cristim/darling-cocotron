@@ -206,8 +206,11 @@ static void socketCallback(CFSocketRef s, CFSocketCallBackType type,
             continue;
         char *end = NULL;
         double parsed = strtod(value, &end);
-        // Reject trailing junk, non-finite values, and anything under 1x: X11
-        // has no fractional-scale path, so a 1.5 request cannot be honoured.
+        // Reject trailing junk, non-finite values, and anything under 1x.
+        // Fractional scales are honoured: X11 window geometry is integral, but
+        // -[X11Window deviceRect:] and -deviceSize: round points to whole device
+        // pixels, so 1.5 gives a 1280x800 display a 853.3x533.3 point screen and a
+        // 400x300 point window a 600x450 pixel one. Verified at GDK_SCALE 1.5.
         if (end == value || *end != '\0' || !isfinite(parsed) || parsed < 1)
             continue;
         _backingScale = (CGFloat) parsed;
