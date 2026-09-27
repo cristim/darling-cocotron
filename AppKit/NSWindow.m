@@ -2076,6 +2076,15 @@ static BOOL _allowsAutomaticWindowTabbing;
     }
 }
 
+- (void) updateConstraintsIfNeeded {
+    [_contentView updateConstraintsForSubtreeIfNeeded];
+}
+
+- (void) layoutIfNeeded {
+    [self updateConstraintsIfNeeded];
+    [_contentView layoutSubtreeIfNeeded];
+}
+
 - (void) display {
     // FIXME: See Issue #405, display when the window is not visible causes
     // layout problems (maybe the underlying Win32 window doesn't exist and

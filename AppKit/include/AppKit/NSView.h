@@ -523,10 +523,10 @@ APPKIT_EXPORT const NSViewFullScreenModeOptionKey NSFullScreenModeApplicationPre
 // implementation only clears needsLayout: there is no constraint solver, so
 // nothing recomputes a frame. Subclasses override and call super first.
 - (void) layout;
-// An override point only. Nothing in this AppKit sends it, because there is no
-// constraint solver and no -updateConstraintsForSubtreeIfNeeded to drive one;
-// an override here does not run unless the application sends it itself.
+// Called for views marked as needing a constraint update during a subtree pass.
+// There is no constraint solver, so this does not recompute view frames.
 - (void) updateConstraints;
+- (void) updateConstraintsForSubtreeIfNeeded;
 
 // Activates the constraints.
 - (void) addConstraints: (NSArray *) constraints;

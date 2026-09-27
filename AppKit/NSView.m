@@ -3201,6 +3201,14 @@ static id anchorForView(NSView *view, NSString *className,
     _needsUpdateConstraints = NO;
 }
 
+- (void) updateConstraintsForSubtreeIfNeeded {
+    // Constraint updates run from descendants toward their containing view.
+    for (NSView *subview in [[_subviews copy] autorelease])
+        [subview updateConstraintsForSubtreeIfNeeded];
+    if (_needsUpdateConstraints)
+        [self updateConstraints];
+}
+
 - (void) layout {
     _needsLayout = NO;
 }
