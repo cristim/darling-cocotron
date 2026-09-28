@@ -20,7 +20,11 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #include <limits.h>
 
 #import "CGConversions.h"
+#import "CGGradientPrivate.h"
 #import <CoreGraphics/CGContext.h>
+#import <CoreGraphics/CGFunction.h>
+#import <CoreGraphics/CGGradient.h>
+#import <CoreGraphics/CGShading.h>
 #import <CoreGraphics/CoreGraphicsPrivate.h>
 #import <Onyx2D/O2Context.h>
 #import <Onyx2D/O2MutablePath.h>
@@ -617,18 +621,96 @@ void CGContextSetShouldSubpixelPositionFonts(CGContextRef context,
                                             shouldSubpixelPositionFonts);
 }
 
+/* The stops are sampled through a CGFunction, so the shading sees the gradient
+ * as a function of position rather than having to know about colour stops. */
+static void CGGradientEvaluate(void *info, const CGFloat *in, CGFloat *out) {
+    CGGradientColorAtLocation((CGGradientRef)info, in[0], out);
+}
+
+static CGShadingRef CGGradientCreateShading(CGGradientRef gradient,
+                                             CGPoint startPoint,
+                                             CGFloat startRadius,
+                                             CGPoint endPoint,
+                                             CGFloat endRadius,
+                                             bool isRadial,
+                                             CGGradientDrawingOptions options) {
+    CGFloat domain[] = { 0.0, 1.0 };
+    CGFloat range[2 * CGGradientMaximumComponents];
+    CGFunctionCallbacks callbacks;
+    CGFunctionRef function;
+    CGShadingRef shading;
+    size_t i, numberOfComponents = gradient->numberOfComponents;
+
+    /* CGFunctionCreate takes the range as pairs, and O2Paint_ramp reads the
+     * function's output as the stop's components, so the range is the unit
+     * interval for every component. */
+    for (i = 0; i < numberOfComponents; i++) {
+        range[2 * i] = 0.0;
+        range[2 * i + 1] = 1.0;
+    }
+
+    memset(&callbacks, 0, sizeof(callbacks));
+    callbacks.evaluate = CGGradientEvaluate;
+
+    function = CGFunctionCreate((void *)gradient, 1, domain, numberOfComponents,
+                               range, &callbacks);
+    if (function == NULL) {
+        NSLog(@"CGContextDraw%sGradient, could not create the colour function",
+              isRadial ? "Radial" : "Linear");
+        return NULL;
+    }
+
+    if (isRadial)
+        shading = CGShadingCreateRadial(
+                gradient->colorSpace, startPoint, startRadius, endPoint,
+                endRadius, function,
+                (options & kCGGradientDrawsBeforeStartLocation) != 0,
+                (options & kCGGradientDrawsAfterEndLocation) != 0);
+    else
+        shading = CGShadingCreateAxial(
+                gradient->colorSpace, startPoint, endPoint, function,
+                (options & kCGGradientDrawsBeforeStartLocation) != 0,
+                (options & kCGGradientDrawsAfterEndLocation) != 0);
+
+    /* The shading retains the function. */
+    CGFunctionRelease(function);
+    return shading;
+}
+
 void CGContextDrawLinearGradient(CGContextRef c,
                                  CGGradientRef gradient, CGPoint startPoint, CGPoint endPoint,
                                  CGGradientDrawingOptions options)
 {
-    printf("STUB %s\n", __PRETTY_FUNCTION__);
+    CGShadingRef shading;
+
+    if (c == NULL || gradient == NULL)
+        return;
+
+    shading = CGGradientCreateShading(gradient, startPoint, 0.0, endPoint, 0.0,
+                                      false, options);
+    if (shading == NULL)
+        return;
+
+    CGContextDrawShading(c, shading);
+    CGShadingRelease(shading);
 }
 
 void CGContextDrawRadialGradient(CGContextRef c,
                                  CGGradientRef gradient, CGPoint startCenter, CGFloat startRadius,
                                  CGPoint endCenter, CGFloat endRadius, CGGradientDrawingOptions options)
 {
-    printf("STUB %s\n", __PRETTY_FUNCTION__);
+    CGShadingRef shading;
+
+    if (c == NULL || gradient == NULL)
+        return;
+
+    shading = CGGradientCreateShading(gradient, startCenter, startRadius,
+                                      endCenter, endRadius, true, options);
+    if (shading == NULL)
+        return;
+
+    CGContextDrawShading(c, shading);
+    CGShadingRelease(shading);
 }
 
 void CGContextDrawTiledImage(CGContextRef c, CGRect rect, CGImageRef image)
