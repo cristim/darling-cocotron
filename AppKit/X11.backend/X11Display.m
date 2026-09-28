@@ -1412,6 +1412,26 @@ static int ignoreBadWindowWhileOrdering(Display *display, XErrorEvent *errorEven
         pos = [window
                 logicalPoint: NSMakePoint(ev->xbutton.x, ev->xbutton.y)];
 
+        // A wheel notch arrives as a press/release pair and belongs to exactly
+        // one of them, or the notch scrolls twice. The press carries it: a
+        // release the client never sees (a grab, an unmap, focus lost while
+        // the button is held) then cannot swallow the scroll, and the press
+        // has already been accepted by the server when we get it. A notch is
+        // not a click, so it must not touch the click count either.
+        if (ev->xbutton.button >= Button4 && ev->xbutton.button <= Button5) {
+            event = [NSEvent
+                    mouseEventWithType: NSScrollWheel
+                              location: pos
+                         modifierFlags: [self modifierFlagsForState: ev->xbutton
+                                                                             .state]
+                               window: delegate
+                           clickCount: 0
+                               deltaX: 0.0
+                               deltaY: ev->xbutton.button == Button4 ? 1.0 : -1.0];
+            [self postEvent: event atStart: NO];
+            break;
+        }
+
         switch (ev->xbutton.button) {
         case Button1:
             type = NSLeftMouseDown;
@@ -1419,10 +1439,6 @@ static int ignoreBadWindowWhileOrdering(Display *display, XErrorEvent *errorEven
         case Button3:
             type = NSRightMouseDown;
             break;
-        case Button4:
-        case Button5:
-            // Skip these, we'll send NSScrollWheel on release.
-            return;
         default:
             type = NSOtherMouseDown;
         }
@@ -1446,10 +1462,13 @@ static int ignoreBadWindowWhileOrdering(Display *display, XErrorEvent *errorEven
         break;
 
     case ButtonRelease:;
+        // The wheel's other half of the pair; the press already scrolled.
+        if (ev->xbutton.button >= Button4 && ev->xbutton.button <= Button5)
+            break;
+
         pos = [window
                 logicalPoint: NSMakePoint(ev->xbutton.x, ev->xbutton.y)];
 
-        CGFloat deltaY = 0.0;
         // The up of a click reports the count its down was given, so that a
         // double click's two downs are matched by their own ups. A release
         // with no press behind it (the app attached mid-drag) is a single
@@ -1464,14 +1483,6 @@ static int ignoreBadWindowWhileOrdering(Display *display, XErrorEvent *errorEven
         case Button3:
             type = NSRightMouseUp;
             break;
-        case Button4:
-            type = NSScrollWheel;
-            deltaY = 1.0;
-            break;
-        case Button5:
-            type = NSScrollWheel;
-            deltaY = -1.0;
-            break;
         default:
             type = NSOtherMouseUp;
         }
@@ -1484,7 +1495,7 @@ static int ignoreBadWindowWhileOrdering(Display *display, XErrorEvent *errorEven
                             window: delegate
                         clickCount: upCount ? [upCount integerValue] : 1
                             deltaX: 0.0
-                            deltaY: deltaY];
+                            deltaY: 0.0];
         [(NSEvent_mouse *) event
                 _setButtonNumber: cocoaButtonNumber(ev->xbutton.button)];
         [self postEvent: event atStart: NO];
