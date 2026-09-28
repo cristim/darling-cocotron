@@ -1194,6 +1194,19 @@ static unsigned int x11StateAfterKeyEvent(const X11ModifierKey *key,
              atStart: NO];
 }
 
+// Cocoa numbers the mouse buttons in press order from 0 (left), 1 (right) and
+// 2 for everything else, so an app reading +[NSEvent buttonNumber] for the
+// right button gets 3 and reads the middle button as the right one. X numbers
+// them by position instead: 1 left, 3 right, 2 middle.
+static NSInteger cocoaButtonNumber(unsigned int xButton) {
+    switch (xButton) {
+    case Button1: return 0;
+    case Button3: return 1;
+    case Button2: return 2;
+    default: return (NSInteger) xButton - Button1 + 2;
+    }
+}
+
 // Returns the window numbers of this app's windows, frontmost first, using the X server's stacking
 // order: XQueryTree lists the root's children bottom to top. Under a reparenting window manager our
 // top-level windows are children of frame windows, so each root child is matched against our windows
@@ -1404,7 +1417,8 @@ static int ignoreBadWindowWhileOrdering(Display *display, XErrorEvent *errorEven
                         clickCount: clickCount
                             deltaX: 0.0
                             deltaY: 0.0];
-        [(NSEvent_mouse *) event _setButtonNumber: ev->xbutton.button];
+        [(NSEvent_mouse *) event
+                _setButtonNumber: cocoaButtonNumber(ev->xbutton.button)];
         [self postEvent: event atStart: NO];
         break;
 
@@ -1442,7 +1456,8 @@ static int ignoreBadWindowWhileOrdering(Display *display, XErrorEvent *errorEven
                         clickCount: clickCount
                             deltaX: 0.0
                             deltaY: deltaY];
-        [event _setButtonNumber: ev->xbutton.button];
+        [(NSEvent_mouse *) event
+                _setButtonNumber: cocoaButtonNumber(ev->xbutton.button)];
         [self postEvent: event atStart: NO];
         break;
 
