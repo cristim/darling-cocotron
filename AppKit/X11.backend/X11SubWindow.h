@@ -7,6 +7,9 @@
     X11Window *_parent;
     Display *_display;
     Window _window;
+    // Logical points, in the parent's coordinate space, as the caller supplied them.
+    // -drawablePixelSize is about this window's own size, not the parent's.
+    CGRect _frame;
 }
 
 - initWithParentWindow: (X11Window *) parent frame: (CGRect) frame;
