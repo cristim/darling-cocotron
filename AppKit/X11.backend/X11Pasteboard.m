@@ -300,7 +300,7 @@ static const NSTimeInterval SelectionTimeout = 5;
     // because it might be the owner that is providing us
     // with this data.
     _typeToData[type] = data;
-    // NOT SENT: [_typeToOwner[type] pasteboardChangedOwner: self];
+    [_typeToOwner[type] pasteboardChangedOwner: self];
     [_typeToOwner removeObjectForKey: type];
     return YES;
 }
