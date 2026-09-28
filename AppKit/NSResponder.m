@@ -29,6 +29,13 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <objc/message.h>
 #import <objc/runtime.h>
 
+// -selectedRange returns an NSRange by value, but it is declared on NSText, not
+// NSResponder, so the compiler otherwise assumes an id return and the probe code
+// below reinterprets the struct's location field as an object pointer.
+@interface NSResponder (NSTextSelectionRange)
+- (NSRange) selectedRange;
+@end
+
 @implementation NSResponder
 
 - (void) encodeWithCoder: (NSCoder *) coder {
@@ -123,12 +130,13 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
         NSArray *selectorNames = [keyBinding selectorNames];
 
         if (log) {
+            // -selectedRange returns an NSRange by value. NSResponder does not
+            // declare it, so storing the result in an id reads only the first
+            // word and leaves sel uninitialised; the probe then messages what
+            // is really the struct's location field as if it were an object.
             NSRange sel = NSMakeRange(0, 0);
-            NSValue *selected = nil;
             if ([self respondsToSelector: @selector(selectedRange)])
-                selected = [self selectedRange];
-            if (selected != nil)
-                [selected getValue: &sel];
+                sel = (NSRange) [self selectedRange];
             NSLog(@"PROBE-INTERPRET responder=%@ chars=%@ charsIgnoring=%@ "
                   @"flags=0x%08lx keyCode=0x%02x binding=%@ selectors=%@ "
                   @"selectedRange=%@",
@@ -148,13 +156,9 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
                                                    objectAtIndex: j])];
             }
             if (log && [self respondsToSelector: @selector(selectedRange)]) {
-                NSValue *selected = [self selectedRange];
-                if (selected != nil) {
-                    NSRange after = NSMakeRange(0, 0);
-                    [selected getValue: &after];
-                    NSLog(@"PROBE-AFTER selectedRange=%@",
-                          NSStringFromRange(after));
-                }
+                NSRange after = (NSRange) [self selectedRange];
+                NSLog(@"PROBE-AFTER selectedRange=%@",
+                      NSStringFromRange(after));
             }
         } else if ([self respondsToSelector: @selector(insertText:)]) {
             string = [event characters];
