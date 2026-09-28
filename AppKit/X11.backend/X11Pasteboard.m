@@ -201,8 +201,15 @@ static const NSTimeInterval SelectionTimeout = 5;
 }
 
 // An owner that is gone, or that ignores the request, never answers at all, so
-// every wait is bounded instead of hanging the caller forever.
-- (NSData *) receiveDataForTarget: (Atom) target format: (int) format {
+// the wait is bounded by a deadline the caller shares across its attempts
+// instead of hanging the caller forever.
+- (NSData *) receiveDataForTarget: (Atom) target
+                          format: (int) format
+                        deadline: (NSTimeInterval) deadline
+{
+    if ([NSDate timeIntervalSinceReferenceDate] >= deadline)
+        return nil;
+
     XDeleteProperty(_display, _window, _receivingProperty);
     _awaitingTarget = target;
     _selectionNotifyResult = WAITING;
@@ -211,8 +218,6 @@ static const NSTimeInterval SelectionTimeout = 5;
                       _window, CurrentTime); // FIXME: don't use CurrentTime
     XFlush(_display);
 
-    NSTimeInterval deadline = [NSDate timeIntervalSinceReferenceDate]
-            + SelectionTimeout;
     while (_selectionNotifyResult == WAITING) {
         NSTimeInterval remaining = deadline
                 - [NSDate timeIntervalSinceReferenceDate];
@@ -255,9 +260,12 @@ static const NSTimeInterval SelectionTimeout = 5;
         // No owner, no reply, and waiting for one would block the caller.
         return nil;
 
+    NSTimeInterval deadline = [NSDate timeIntervalSinceReferenceDate]
+            + SelectionTimeout;
     for (NSString *target in [X11Pasteboard targetsForType: type]) {
         Atom targetAtom = XInternAtom(_display, [target UTF8String], False);
-        NSData *data = [self receiveDataForTarget: targetAtom format: 8];
+        NSData *data = [self receiveDataForTarget: targetAtom format: 8
+                                         deadline: deadline];
         if (data != nil)
             return data;
     }
@@ -349,8 +357,13 @@ static const NSTimeInterval SelectionTimeout = 5;
 
     // Nothing owns the selection, so no TARGETS reply is ever coming and asking
     // for one would block the caller for the whole timeout.
-    NSData *targets = _remoteOwner == None ? nil
-            : [self receiveDataForTarget: _targetsAtom format: 32];
+    NSData *targets = nil;
+    if (_remoteOwner != None) {
+        NSTimeInterval deadline = [NSDate timeIntervalSinceReferenceDate]
+                + SelectionTimeout;
+        targets = [self receiveDataForTarget: _targetsAtom format: 32
+                                     deadline: deadline];
+    }
     if (targets != nil) {
         NSArray *metaTargets = @[
             @"TARGETS", @"TIMESTAMP", @"MULTIPLE", @"SAVE_TARGETS", @"DELETE"
