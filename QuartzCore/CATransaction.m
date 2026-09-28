@@ -1,4 +1,5 @@
 #import "CATransactionGroup.h"
+#import "CATransactionInternal.h"
 #import <Foundation/NSArray.h>
 #import <Foundation/NSNumber.h>
 #import <Foundation/NSString.h>
@@ -98,7 +99,14 @@ static CATransactionGroup *createImplicitTransactionGroupIfNeeded() {
 + (void) begin {
     CATransactionGroup *group = [[CATransactionGroup alloc] init];
 
+    [group setExplicitlyBegan: YES];
     [transactionStack() addObject: group];
+}
+
++ (BOOL) hasOpenTransaction {
+    CATransactionGroup *group = currentTransactionGroup();
+
+    return group != nil && [group isExplicitlyBegan];
 }
 
 + (void) commit {

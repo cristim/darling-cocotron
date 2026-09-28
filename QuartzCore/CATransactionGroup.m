@@ -24,4 +24,12 @@
     [_values setObject: value forKey: key];
 }
 
+- (BOOL) isExplicitlyBegan {
+    return _explicitlyBegan;
+}
+
+- (void) setExplicitlyBegan: (BOOL) value {
+    _explicitlyBegan = value;
+}
+
 @end

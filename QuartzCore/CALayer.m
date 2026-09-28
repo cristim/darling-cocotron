@@ -7,6 +7,7 @@
 #import <QuartzCore/CATransaction.h>
 #import <Onyx2D/O2Image.h>
 #import "CACoding.h"
+#import "CATransactionInternal.h"
 
 NSString *const kCAFilterLinear = @"linear";
 NSString *const kCAFilterNearest = @"nearest";
@@ -131,7 +132,8 @@ NSString *const CAToneMapModeIfSupported = @"ifSupported";
 - (void) setPosition: (CGPoint) value {
     CAAnimation *animation = [self animationForKey: @"position"];
 
-    if (animation == nil && ![CATransaction disableActions]) {
+    if (animation == nil && [CATransaction hasOpenTransaction] &&
+        ![CATransaction disableActions]) {
         id action = [self actionForKey: @"position"];
 
         if (action != nil)
@@ -148,7 +150,8 @@ NSString *const CAToneMapModeIfSupported = @"ifSupported";
 - (void) setBounds: (CGRect) value {
     CAAnimation *animation = [self animationForKey: @"bounds"];
 
-    if (animation == nil && ![CATransaction disableActions]) {
+    if (animation == nil && [CATransaction hasOpenTransaction] &&
+        ![CATransaction disableActions]) {
         id action = [self actionForKey: @"bounds"];
 
         if (action != nil)
@@ -196,7 +199,8 @@ NSString *const CAToneMapModeIfSupported = @"ifSupported";
 - (void) setOpacity: (CGFloat) value {
     CAAnimation *animation = [self animationForKey: @"opacity"];
 
-    if (animation == nil && ![CATransaction disableActions]) {
+    if (animation == nil && [CATransaction hasOpenTransaction] &&
+        ![CATransaction disableActions]) {
         id action = [self actionForKey: @"opacity"];
 
         if (action != nil)
