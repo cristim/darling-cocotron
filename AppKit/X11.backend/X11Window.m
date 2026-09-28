@@ -316,23 +316,30 @@ static NSData *makeWindowIcon() {
     return _styleMask;
 }
 
+// The mask is passed in rather than read from _styleMask because
+// -setStyleMask: hands the new mask here before it stores it. The hinted size is
+// _frame's, so a caller that just resized has to re-issue these.
+- (void) updateSizeHints: (NSUInteger) mask {
+    XSizeHints *sh = XAllocSizeHints();
+    if (mask & NSWindowStyleMaskResizable) {
+        // Make resizable
+        sh->flags = 0;
+    } else {
+        // Make non-resizable. WM size hints are in device pixels too.
+        NSSize device = [self deviceSize: _frame.size];
+        sh->flags = PMinSize | PMaxSize;
+        sh->min_width = sh->max_width = device.width;
+        sh->min_height = sh->max_height = device.height;
+    }
+
+    XSetWMSizeHints(_display, _window, sh, XA_WM_NORMAL_HINTS);
+    XFree(sh);
+}
+
 - (void) setStyleMaskInternal: (NSUInteger) mask force: (BOOL) force {
     if (force || (mask & NSWindowStyleMaskResizable) !=
                          (_styleMask & NSWindowStyleMaskResizable)) {
-        XSizeHints *sh = XAllocSizeHints();
-        if (mask & NSWindowStyleMaskResizable) {
-            // Make resizable
-            sh->flags = 0;
-        } else {
-            // Make non-resizable. WM size hints are in device pixels too.
-            NSSize device = [self deviceSize: _frame.size];
-            sh->flags = PMinSize | PMaxSize;
-            sh->min_width = sh->max_width = device.width;
-            sh->min_height = sh->max_height = device.height;
-        }
-
-        XSetWMSizeHints(_display, _window, sh, XA_WM_NORMAL_HINTS);
-        XFree(sh);
+        [self updateSizeHints: mask];
     }
 
     if (!_mapped) {
@@ -558,14 +565,22 @@ static NSData *makeWindowIcon() {
     // _frame stays in logical points; only the X call and the surface use device
     // pixels. Assign _frame before invalidating so the rebuilt context is
     // allocated at the new size.
-    O2Rect deviceFrame = [self deviceRect: [self transformFrame: frame]];
+    O2Rect transformed = [self transformFrame: frame];
+    O2Rect deviceFrame = [self deviceRect: transformed];
+    NSSize previousDeviceSize = [self deviceSize: _frame.size];
     XMoveResizeWindow(_display, _window, deviceFrame.origin.x,
                       deviceFrame.origin.y, deviceFrame.size.width,
                       deviceFrame.size.height);
     // -frame applies transformFrame:, so _frame is stored bottom-left origin. Storing
     // the caller's frame unflipped made -frame mirror the position.
-    _frame = [self transformFrame: frame];
+    _frame = transformed;
     [self invalidateContextWithNewSize: frame.size];
+    // A non-resizable window hints PMinSize == PMaxSize, and a window manager
+    // refuses any resize that falls outside the pair, so the hints have to follow
+    // the size. Compared in device pixels, which is what they carry, and only on a
+    // real change so a drag does not re-issue them per pixel.
+    if (!NSEqualSizes(previousDeviceSize, deviceFrame.size))
+        [self updateSizeHints: _styleMask];
 }
 
 - (void) setHasShadow: (BOOL) value {
