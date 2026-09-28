@@ -130,6 +130,7 @@ static const NSTimeInterval SelectionTimeout = 5;
 }
 
 - (NSInteger) changeCount {
+    [self observeSelectionOwner];
     return _changeCount;
 }
 
@@ -334,6 +335,9 @@ static const NSTimeInterval SelectionTimeout = 5;
     _remoteOwner = owner;
     [_remoteTypes release];
     _remoteTypes = nil;
+    // Whatever the previous owner held is gone, which is a change as far as a
+    // caller watching -changeCount is concerned.
+    _changeCount++;
 }
 
 - (NSArray<NSPasteboardType> *) remoteTypes {
