@@ -562,7 +562,9 @@ static NSData *makeWindowIcon() {
     XMoveResizeWindow(_display, _window, deviceFrame.origin.x,
                       deviceFrame.origin.y, deviceFrame.size.width,
                       deviceFrame.size.height);
-    _frame = frame;
+    // -frame applies transformFrame:, so _frame is stored bottom-left origin. Storing
+    // the caller's frame unflipped made -frame mirror the position.
+    _frame = [self transformFrame: frame];
     [self invalidateContextWithNewSize: frame.size];
 }
 
@@ -885,7 +887,12 @@ static int ignoreBadWindow(Display *display, XErrorEvent *errorEvent) {
         CGFloat scale = [self backingScaleFactor];
         [self invalidateContextWithNewSize:
                  NSMakeSize(rect.size.width / scale, rect.size.height / scale)];
-        _frame = NSMakeRect(rect.origin.x / scale, rect.origin.y / scale,
+        // X geometry is top-left origin and -frame applies transformFrame:, so flip it
+        // into the bottom-left convention _frame is stored in. Storing it unflipped made
+        // -frame report screenHeight - height - y instead of y.
+        CGFloat screenHeight = DisplayHeight(_display, DefaultScreen(_display)) / scale;
+        _frame = NSMakeRect(rect.origin.x / scale,
+                            screenHeight - rect.origin.y / scale - rect.size.height / scale,
                             rect.size.width / scale, rect.size.height / scale);
     } @finally {
         XSetErrorHandler(previousHandler);
