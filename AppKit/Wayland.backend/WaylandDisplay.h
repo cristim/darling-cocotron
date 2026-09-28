@@ -142,6 +142,11 @@ struct wl_proxy *WaylandCreateObject(struct wl_proxy *proxy, uint32_t opcode,
     struct xkb_context *_xkbContext;
     struct xkb_keymap *_xkbKeymap;
     struct xkb_state *_xkbState;
+    // The raw keymap the compositor last sent. A keymap event precedes every
+    // keyboard enter, so comparing against this is what keeps a focus cycle
+    // from discarding the xkb state that in-flight keys are recorded against.
+    char *_xkbKeymapText;
+    size_t _xkbKeymapLength;
     WaylandWindow *_keyboardWindow;
     BOOL _syncModifierFlags;
     BOOL _classifyHeldKeys;

@@ -366,6 +366,7 @@ static NSString *stringWithCodepoint(uint32_t codepoint) {
         WL.xkb_state_unref(_xkbState);
     if (_xkbKeymap != NULL)
         WL.xkb_keymap_unref(_xkbKeymap);
+    free(_xkbKeymapText);
     if (_xkbContext != NULL)
         WL.xkb_context_unref(_xkbContext);
     if (_cursorTheme != NULL)
@@ -1205,18 +1206,22 @@ static NSUInteger modifierDeviceMask(int code) {
     case WP_KEYBOARD_EV_ENTER: {
         if (getenv("DARLING_KEY_LOG") != NULL)
             NSLog(@"PROBE-WLENTER serial=%u", args[0].u);
-        [self resetKeyboardModifiers];
         _keyboardWindow = [self windowForSurface: (struct wl_proxy *) args[1].o];
         if (_heldKeyIdentities == nil)
             _heldKeyIdentities = [NSMutableDictionary new];
         struct wl_array *keys = args[2].a;
+        // Seed only keys the compositor reports as already down. Do not clear
+        // what we already track: a key pressed before the focus cycle must stay
+        // known until its release, or the press is lost and only the release
+        // arrives.
         for (size_t i = 0; i < keys->size / sizeof(uint32_t); i++) {
             uint32_t raw = ((uint32_t *)keys->data)[i];
             [_heldKeyIdentities setObject: @(-1) forKey: @(raw + 8)];
         }
         // Enter is followed by modifiers: classify under that current group,
         // without inventing key presses for keys held before focus arrived.
-        _classifyHeldKeys = YES;
+        _classifyHeldKeys = _heldKeyIdentities != nil &&
+                            [_heldKeyIdentities count] > 0;
         _syncModifierFlags = YES;
         break;
     }
@@ -1226,7 +1231,12 @@ static NSUInteger modifierDeviceMask(int code) {
             NSLog(@"PROBE-WLLEAVE");
         _keyboardWindow = nil;
         [self stopKeyRepeat];
-        [self resetKeyboardModifiers];
+        // A key still held when focus leaves is released by the compositor
+        // after the matching enter, so the held-key bookkeeping has to survive
+        // the leave. Resetting it here loses the press and delivers only the
+        // release.
+        _syncModifierFlags = _heldKeyIdentities != nil &&
+                             [_heldKeyIdentities count] > 0;
         break;
 
     case WP_KEYBOARD_EV_KEY: {
@@ -1320,9 +1330,33 @@ static NSUInteger modifierDeviceMask(int code) {
     if (map == MAP_FAILED)
         return;
 
+    size_t length = strnlen(map, size);
+
+    // A keymap event precedes every keyboard enter, and enter/leave cycles
+    // happen per keystroke. Rebuilding xkb state each time throws away the
+    // pressed-key and modifier state that in-flight keys are recorded against,
+    // so the following press no longer matches and is dropped. Keep the
+    // existing state when the compositor sends the same keymap again.
+    if (_xkbState != NULL && _xkbKeymapText != NULL &&
+        _xkbKeymapLength == length && memcmp(_xkbKeymapText, map, length) == 0) {
+        munmap(map, size);
+        _syncModifierFlags = _keyboardWindow != nil;
+        return;
+    }
+
     struct xkb_keymap *keymap = WL.xkb_keymap_new_from_buffer(
-            _xkbContext, map, strnlen(map, size), XKB_KEYMAP_FORMAT_TEXT_V1,
+            _xkbContext, map, length, XKB_KEYMAP_FORMAT_TEXT_V1,
             XKB_KEYMAP_COMPILE_NO_FLAGS);
+
+    // The mapping must outlive the mmap, so take a copy before unmapping.
+    char *text = NULL;
+    if (keymap != NULL) {
+        text = malloc(length + 1);
+        if (text != NULL) {
+            memcpy(text, map, length);
+            text[length] = '\0';
+        }
+    }
     munmap(map, size);
 
     struct xkb_state *state = keymap != NULL ? WL.xkb_state_new(keymap) : NULL;
@@ -1330,6 +1364,7 @@ static NSUInteger modifierDeviceMask(int code) {
         NSLog(@"Wayland backend: cannot use the compositor's keymap");
         if (keymap != NULL)
             WL.xkb_keymap_unref(keymap);
+        free(text);
         return;
     }
 
@@ -1338,8 +1373,11 @@ static NSUInteger modifierDeviceMask(int code) {
         WL.xkb_state_unref(_xkbState);
     if (_xkbKeymap != NULL)
         WL.xkb_keymap_unref(_xkbKeymap);
+    free(_xkbKeymapText);
     _xkbKeymap = keymap;
     _xkbState = state;
+    _xkbKeymapText = text;
+    _xkbKeymapLength = text != NULL ? length : 0;
     [self cancelPendingModifier];
     // Preserve press-time identities through keymap changes until release.
     // Only enter-seeded keys need classification under the current group.
