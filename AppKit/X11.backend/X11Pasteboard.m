@@ -351,7 +351,7 @@ static const NSTimeInterval SelectionTimeout = 5;
 - (NSArray<NSPasteboardType> *) remoteTypes {
     [self observeSelectionOwner];
     if (_remoteTypes != nil)
-        return _remoteTypes;
+        return [[_remoteTypes copy] autorelease];
 
     NSMutableArray *types = [NSMutableArray array];
 
