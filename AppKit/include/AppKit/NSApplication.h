@@ -27,6 +27,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <Foundation/NSRunLoop.h>
 
 @class NSWindow, NSImage, NSMenu, NSPasteboard, NSDisplay, NSDockTile;
+@protocol NSApplicationDelegate;
 
 APPKIT_EXPORT const NSRunLoopMode NSModalPanelRunLoopMode;
 APPKIT_EXPORT const NSRunLoopMode NSEventTrackingRunLoopMode;
@@ -168,7 +169,7 @@ typedef NS_OPTIONS(NSInteger, NSWindowListOptions) {
 
 - (NSGraphicsContext *) context;
 
-- delegate;
+@property(assign) id<NSApplicationDelegate> delegate;
 - (NSArray *) windows;
 - (NSWindow *) windowWithWindowNumber: (NSInteger) number;
 
@@ -188,7 +189,6 @@ typedef NS_OPTIONS(NSInteger, NSWindowListOptions) {
 - (NSArray *) orderedWindows;
 - (void) preventWindowOrdering;
 
-- (void) setDelegate: delegate;
 - (void) setMainMenu: (NSMenu *) menu;
 - (void) setApplicationIconImage: (NSImage *) image;
 
@@ -288,6 +288,9 @@ typedef NS_OPTIONS(NSInteger, NSWindowListOptions) {
 
 - (NSDockTile *) dockTile;
 
+- (void) disableRelaunchOnLogin;
+- (void) enableRelaunchOnLogin;
+
 // private
 - (void) _addWindow: (NSWindow *) window;
 
@@ -305,66 +308,8 @@ APPKIT_EXPORT __kindof NSApplication *NSApp;
                               types: (NSArray *) types;
 @end
 
-@interface NSObject (NSApplication_notifications)
-- (void) applicationWillFinishLaunching: (NSNotification *) note;
-- (void) applicationDidFinishLaunching: (NSNotification *) note;
-
-- (void) applicationWillBecomeActive: (NSNotification *) note;
-- (void) applicationDidBecomeActive: (NSNotification *) note;
-- (void) applicationWillResignActive: (NSNotification *) note;
-- (void) applicationDidResignActive: (NSNotification *) note;
-
-- (void) applicationWillUpdate: (NSNotification *) note;
-- (void) applicationDidUpdate: (NSNotification *) note;
-
-- (void) applicationWillHide: (NSNotification *) note;
-- (void) applicationDidHide: (NSNotification *) note;
-- (void) applicationWillUnhide: (NSNotification *) note;
-- (void) applicationDidUnhide: (NSNotification *) note;
-
-- (void) applicationWillTerminate: (NSNotification *) note;
-
-- (void) applicationDidChangeScreenParameters: (NSNotification *) note;
-@end
-
-@interface NSObject (NSApplication_delegate)
-- (BOOL) applicationShouldOpenUntitledFile: (NSApplication *) application;
-- (BOOL) applicationOpenUntitledFile: (NSApplication *) application;
-- (BOOL) application: (NSApplication *) application openFile: (NSString *) path;
-- (void) application: (NSApplication *) application
-           openFiles: (NSArray *) pathArray;
-- (BOOL) application: (NSApplication *) application
-        openFileWithoutUI: (NSString *) path;
-- (BOOL) application: (NSApplication *) applicationsender
-        openTempFile: (NSString *) path;
-- (BOOL) applicationShouldHandleReopen: (NSApplication *) application
-                     hasVisibleWindows: (BOOL) visible;
-
-- (BOOL) application: (NSApplication *) application
-           printFile: (NSString *) path;
-- (NSApplicationPrintReply) application: (NSApplication *) application
-                             printFiles: (NSArray *) pathArray
-                           withSettings: (NSDictionary *) settings
-                        showPrintPanels: (BOOL) showPanel;
-
-- (NSMenu *) applicationDockMenu: (NSApplication *) application;
-- (BOOL) application: (NSApplication *) application
-        delegateHandlesKey: (NSString *) key;
-
-- (NSError *) application: (NSApplication *) application
-         willPresentError: (NSError *) error;
-
-- (BOOL) applicationShouldTerminateAfterLastWindowClosed:
-        (NSApplication *) application;
-- (NSApplicationTerminateReply) applicationShouldTerminate:
-        (NSApplication *) application;
-
-@end
-
-@protocol NSApplicationDelegate
-
-// FIXME: @optional is broken in compiler
-//@optional
+@protocol NSApplicationDelegate <NSObject>
+@optional
 
 - (BOOL) application: (NSApplication *) theApplication
             openFile: (NSString *) filename;
@@ -388,6 +333,7 @@ APPKIT_EXPORT __kindof NSApplication *NSApp;
 - (void) applicationDidUnhide: (NSNotification *) aNotification;
 - (void) applicationDidUpdate: (NSNotification *) aNotification;
 - (NSMenu *) applicationDockMenu: (NSApplication *) sender;
+- (BOOL) application: (NSApplication *) sender delegateHandlesKey: (NSString *) key;
 - (BOOL) applicationOpenUntitledFile: (NSApplication *) theApplication;
 - (BOOL) applicationShouldHandleReopen: (NSApplication *) theApplication
                      hasVisibleWindows: (BOOL) flag;
@@ -417,9 +363,3 @@ APPKIT_EXPORT BOOL NSPerformService(NSString *itemName,
                                 usingBlock: (void (^)(NSWindow *window, BOOL *stop)) block;
 @end
 
-// Performance-test hooks; they do nothing here.
-@interface NSApplication (NSApplicationPerformanceTesting)
-- (void) startedTest: (NSString *) name;
-- (void) finishedTest: (NSString *) name;
-- (void) failedTest: (NSString *) name withFailure: (NSString *) failureReason;
-@end

@@ -42,6 +42,11 @@ NSNotificationName const NSSystemColorsDidChangeNotification = @"NSSystemColorsD
 + (NSColor *) _colorNamedInAssetCatalog: (NSString *) name bundle: (NSBundle *) bundle;
 @end
 
+// NSColor_dynamic.m
+@interface NSColor_dynamic : NSColor
+- initWithName: (NSColorName) name provider: (NSColor * (^)(NSAppearance *)) provider;
+@end
+
 @interface NSColor (private)
 - (NSColorListName) catalogName;
 - (NSColorName) colorName;
@@ -914,6 +919,12 @@ static NSColor *systemCatalogColor(NSColorName name, NSColor *fallback) {
     return [NSColor_CGColor colorWithGray: white
                                     alpha: alpha
                                 spaceName: NSCustomColorSpace];
+}
+
++ (NSColor *) colorWithName: (NSColorName) colorName dynamicProvider: (NSColor * (^)(NSAppearance *)) dynamicProvider {
+    if (dynamicProvider == nil)
+        [NSException raise: NSInvalidArgumentException format: @"+[NSColor colorWithName:dynamicProvider:]: nil provider"];
+    return [[[NSColor_dynamic alloc] initWithName: colorName provider: dynamicProvider] autorelease];
 }
 
 + (NSColor *) colorFromPasteboard: (NSPasteboard *) pasteboard {

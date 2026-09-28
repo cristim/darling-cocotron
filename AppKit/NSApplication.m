@@ -38,12 +38,14 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSScreen.h>
 #import <AppKit/NSSheetContext.h>
 #import <AppKit/NSSpellChecker.h>
+#import <AppKit/NSStoryboard-Private.h>
 #import <AppKit/NSSystemInfoPanel.h>
 #import <AppKit/NSWindow-Private.h>
 #import <AppKit/NSWorkspace.h>
 #import <CoreGraphics/CGWindowPrivate.h>
 #import <objc/message.h>
 #import <pthread.h>
+#import <stdatomic.h>
 
 @interface NSEvent (LocalMonitorsInternal)
 + (NSEvent *) _filterEventWithLocalMonitors: (NSEvent *) event;
@@ -1540,6 +1542,24 @@ NSApplication *NSApp = nil;
     return _dockTile;
 }
 
+// Darling has no login session that relaunches apps, so these only record the setting.
+static _Atomic long relaunchOnLoginDisableCount;
+
+- (void) disableRelaunchOnLogin {
+    atomic_fetch_add(&relaunchOnLoginDisableCount, 1);
+}
+
+- (void) enableRelaunchOnLogin {
+    long count = atomic_load(&relaunchOnLoginDisableCount);
+    while (count > 0 && !atomic_compare_exchange_weak(&relaunchOnLoginDisableCount,
+                                                      &count, count - 1))
+        ;
+}
+
+- (BOOL) _relaunchesOnLogin {
+    return atomic_load(&relaunchOnLoginDisableCount) == 0;
+}
+
 - (void) doCommandBySelector: (SEL) selector {
     if ([_delegate respondsToSelector: selector])
         [_delegate performSelector: selector withObject: nil];
@@ -1730,10 +1750,15 @@ int NSApplicationMain(int argc, const char *argv[]) {
 
     [class sharedApplication];
 
-    nibFile = [nibFile stringByDeletingPathExtension];
+    NSStoryboard *storyboard = [NSStoryboard mainStoryboard];
+    if (storyboard != nil)
+        [storyboard _instantiateAsMainStoryboard];
+    else {
+        nibFile = [nibFile stringByDeletingPathExtension];
 
-    if (![NSBundle loadNibNamed: nibFile owner: NSApp])
-        NSLog(@"Unable to load main nib file %@", nibFile);
+        if (![NSBundle loadNibNamed: nibFile owner: NSApp])
+            NSLog(@"Unable to load main nib file %@", nibFile);
+    }
 
     [pool release];
 

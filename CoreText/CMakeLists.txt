@@ -15,6 +15,7 @@ include_directories(
 )
 
 set(CoreText_sources
+	CTAdaptiveImageGlyph.m
 	CTFont.m
 	CTGlyphInfo.m
 	CTParagraphStyle.m
@@ -29,7 +30,6 @@ set(CoreText_sources
 	CTRunDelegate.c
 	CTTypesetter.m
 	KTFont.m
-	KTFont_FT.m
 	constants.c
 	stubs.c
 )

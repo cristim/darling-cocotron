@@ -23,6 +23,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSAccessibility.h>
 #import <AppKit/NSAccessibilityElement.h>
 #import <AppKit/NSActionCell.h>
+#import <AppKit/NSAdaptiveImageGlyph.h>
 #import <AppKit/NSAffineTransform.h>
 #import <AppKit/NSAlert.h>
 #import <AppKit/NSAnimation.h>
@@ -165,11 +166,14 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSSpeechSynthesizer.h>
 #import <AppKit/NSSpellChecker.h>
 #import <AppKit/NSSplitView.h>
+#import <AppKit/NSSplitViewController.h>
+#import <AppKit/NSSplitViewItem.h>
 #import <AppKit/NSStackView.h>
 #import <AppKit/NSStatusBar.h>
 #import <AppKit/NSStatusItem.h>
 #import <AppKit/NSStepper.h>
 #import <AppKit/NSStepperCell.h>
+#import <AppKit/NSStoryboard.h>
 #import <AppKit/NSStringDrawing.h>
 #import <AppKit/NSSwitch.h>
 #import <AppKit/NSTabView.h>

@@ -31,6 +31,7 @@ typedef NSString *NSColorSpaceName;
 @class NSPasteboard;
 
 @class NSColorSpace;
+@class NSAppearance;
 
 @interface NSColor : NSObject <NSCopying, NSCoding> {
     NSColorListName _catalogName;
@@ -250,6 +251,10 @@ typedef NSString *NSColorSpaceName;
 
 + (NSColor *) colorNamed: (NSColorName) name;
 + (NSColor *) colorNamed: (NSColorName) name bundle: (NSBundle *) bundle;
+NS_ASSUME_NONNULL_BEGIN
++ (NSColor *) colorWithName: (nullable NSColorName) colorName
+              dynamicProvider: (NSColor * (^)(NSAppearance *appearance)) dynamicProvider;
+NS_ASSUME_NONNULL_END
 
 + (NSColor *) colorFromPasteboard: (NSPasteboard *) pasteboard;
 

@@ -80,6 +80,7 @@
 - (O2Rect) deviceRect: (O2Rect) rect;
 
 - (Window) windowHandle;
+- (BOOL) isMapped;
 
 - (void) frameChanged;
 - (void) setLastKnownCursorPosition: (CGPoint) point;

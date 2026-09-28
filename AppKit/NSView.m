@@ -48,6 +48,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <QuartzCore/CALayerContext.h>
 #import <QuartzCore/CATransaction.h>
 #import <AppKit/NSLayoutConstraint.h>
+#import "NSGestureRecognizer-Private.h"
 
 @class IBMetricsTable;
 
@@ -202,6 +203,7 @@ typedef struct __VFlags {
     // TODO: decode this
     _translatesAutoresizingMaskIntoConstraints = YES;
     [self _setDefaultLayoutPriorities];
+    _alphaValue = 1.0;
 
     if ([coder allowsKeyedCoding]) {
         NSKeyedUnarchiver *keyed = (NSKeyedUnarchiver *) coder;
@@ -436,6 +438,7 @@ typedef struct __VFlags {
 
     _translatesAutoresizingMaskIntoConstraints = YES;
     [self _setDefaultLayoutPriorities];
+    _alphaValue = 1.0;
 
     return self;
 }
@@ -470,6 +473,8 @@ typedef struct __VFlags {
     [_layerContext release];
 
     [_identifier release];
+    for (NSGestureRecognizer *recognizer in _gestureRecognizers)
+        [recognizer _setView: nil];
     [_gestureRecognizers release];
 
     [super dealloc];
@@ -736,12 +741,13 @@ static inline void buildTransformsIfNeeded(NSView *self) {
 }
 
 - (CGFloat) alphaValue {
-    NSUnimplementedMethod();
-    return 0.;
+    return _alphaValue;
 }
 
+// Applied through the backing layer; views drawn without one ignore it.
 - (void) setAlphaValue: (CGFloat) alpha {
-    NSUnimplementedMethod();
+    _alphaValue = alpha;
+    [_layer setOpacity: alpha];
 }
 
 - (int) gState {
@@ -1933,6 +1939,7 @@ static void alignAxis(CGFloat *origin, CGFloat *length, NSAlignmentOptions optio
 
     if (_layer == nil) {
         _layer = [[self makeBackingLayer] retain];
+        [_layer setOpacity: _alphaValue];
         configureLayerGeometry(self);
     }
 
@@ -2527,7 +2534,10 @@ static NSView *viewBeingPrinted = nil;
             [[NSColor yellowColor] set];
             NSRectFill(rect);
         } else {
-            [self drawRect: rect];
+            if (_layer != nil && [self wantsUpdateLayer])
+                [self updateLayer];
+            else
+                [self drawRect: rect];
             if (NSShowAllViews) {
                 [[self _borderColorForNSShowAllViews] set];
                 NSFrameRect(rect);
@@ -2576,6 +2586,40 @@ static NSView *viewBeingPrinted = nil;
                           inContext: (NSGraphicsContext *) context
 {
     NSUnimplementedMethod();
+}
+
+- (BOOL) wantsUpdateLayer {
+    return NO;
+}
+
+- (void) updateLayer {
+}
+
+- (void) prepareForReuse {
+    [self setAlphaValue: 1.0];
+    [self setHidden: NO];
+}
+
+- (NSEdgeInsets) alignmentRectInsets {
+    return NSEdgeInsetsMake(0, 0, 0, 0);
+}
+
+// The insets are measured in the view's own coordinates, so which of top and
+// bottom touches the frame's origin depends on whether the view is flipped.
+- (NSRect) frameForAlignmentRect: (NSRect) alignmentRect {
+    NSEdgeInsets insets = [self alignmentRectInsets];
+    CGFloat originInset = [self isFlipped] ? insets.top : insets.bottom;
+    return NSMakeRect(alignmentRect.origin.x - insets.left, alignmentRect.origin.y - originInset,
+                      alignmentRect.size.width + insets.left + insets.right,
+                      alignmentRect.size.height + insets.top + insets.bottom);
+}
+
+- (NSRect) alignmentRectForFrame: (NSRect) frame {
+    NSEdgeInsets insets = [self alignmentRectInsets];
+    CGFloat originInset = [self isFlipped] ? insets.top : insets.bottom;
+    return NSMakeRect(frame.origin.x + insets.left, frame.origin.y + originInset,
+                      frame.size.width - insets.left - insets.right,
+                      frame.size.height - insets.top - insets.bottom);
 }
 
 - (void) drawRect: (NSRect) rect {
@@ -3178,18 +3222,27 @@ static id anchorForView(NSView *view, NSString *className,
 }
 
 - (void) setGestureRecognizers: (NSArray *) recognizers {
-    NSMutableArray *copied = [recognizers mutableCopy];
-    [_gestureRecognizers release];
-    _gestureRecognizers = copied;
+    for (NSGestureRecognizer *recognizer in [self gestureRecognizers])
+        [self removeGestureRecognizer: recognizer];
+    for (NSGestureRecognizer *recognizer in recognizers)
+        [self addGestureRecognizer: recognizer];
 }
 
+// A recognizer belongs to one view; adding it here takes it from any other.
 - (void) addGestureRecognizer: (NSGestureRecognizer *) recognizer {
+    if ([recognizer view] == self)
+        return;
+    [[recognizer view] removeGestureRecognizer: recognizer];
     if (_gestureRecognizers == nil)
         _gestureRecognizers = [[NSMutableArray alloc] init];
     [_gestureRecognizers addObject: recognizer];
+    [recognizer _setView: self];
 }
 
 - (void) removeGestureRecognizer: (NSGestureRecognizer *) recognizer {
+    if ([recognizer view] != self)
+        return;
+    [recognizer _setView: nil];
     [_gestureRecognizers removeObjectIdenticalTo: recognizer];
 }
 

@@ -163,6 +163,13 @@ NSNotificationName NSWorkspaceWillUnmountNotification = @"NSWorkspaceWillUnmount
     return 0;
 }
 
+- (void) openURL: (NSURL *) url
+        configuration: (NSWorkspaceOpenConfiguration *) configuration
+    completionHandler: (void (^)(NSRunningApplication *app, NSError *error)) completionHandler
+{
+    NSInvalidAbstractInvocation();
+}
+
 - (BOOL) selectFile: (NSString *) path
         inFileViewerRootedAtPath: (NSString *) rootedAtPath
 {

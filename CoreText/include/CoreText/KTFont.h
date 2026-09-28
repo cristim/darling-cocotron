@@ -18,53 +18,29 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <CoreGraphics/CoreGraphics.h>
 #import <CoreText/CTFont.h>
+#import <CoreText/CoreTextExport.h>
 #import <Foundation/NSString.h>
 
 enum { CGNullGlyph = 0x0 };
 
+// A CTFontRef is any object that answers -cgFont and -pointSize; the CTFont
+// functions derive everything else from those two. KTFont is CoreText's own
+// such class, used when no other class is registered.
 @interface KTFont : NSObject {
     CGFontRef _font;
     CGFloat _size;
-    CGFloat _unitsPerEm;
-    CGGlyph **_twoLevel;
 }
 
 - initWithFont: (CGFontRef) font size: (CGFloat) size;
-- initWithUIFontType: (CTFontUIFontType) uiFontType
-                size: (CGFloat) size
-            language: (NSString *) language;
 
 - (CFStringRef) copyName;
 - (CGFontRef) cgFont;
 - (CGFloat) pointSize;
-- (CGFloat) fontSize;
-
-- (CGRect) boundingRect;
-- (CGFloat) ascender;
-- (CGFloat) descender;
-- (CGFloat) leading;
-- (CGFloat) underlineThickness;
-- (CGFloat) underlinePosition;
-- (CGFloat) italicAngle;
-- (CGFloat) leading;
-- (CGFloat) xHeight;
-- (CGFloat) capHeight;
-
-- (NSUInteger) numberOfGlyphs;
-
-- (CGPoint) positionOfGlyph: (CGGlyph) current
-            precededByGlyph: (CGGlyph) previous
-                  isNominal: (BOOL *) isNominalp;
-
-- (void) getGlyphs: (CGGlyph *) glyphs
-        forCharacters: (const unichar *) characters
-               length: (NSUInteger) length;
-
-- (void) getAdvancements: (CGSize *) advancements
-               forGlyphs: (const CGGlyph *) glyphs
-                   count: (NSUInteger) count;
-
-- (CGPathRef) createPathForGlyph: (CGGlyph) glyph
-                       transform: (CGAffineTransform *) xform;
 
 @end
+
+// Makes CoreText create every font as an instance of fontClass, which must
+// answer -initWithFont:size:, -cgFont and -pointSize. AppKit registers NSFont
+// from +load. Raises if CoreText has already created a font, or if another
+// class is already registered: fonts must never be of two classes.
+CORETEXT_EXPORT void _CTFontSetConcreteClass(Class fontClass);

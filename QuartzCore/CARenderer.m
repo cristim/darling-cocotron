@@ -4,7 +4,12 @@
 #import <QuartzCore/CAAnimation.h>
 #import <QuartzCore/CAMediaTimingFunction.h>
 #import <QuartzCore/CARenderer.h>
+#import <QuartzCore/CASpringAnimation.h>
 #import "CALayerInternal.h"
+
+@interface CASpringAnimation (Private)
+- (CGFloat) _springProgressAtTime: (CFTimeInterval) t;
+@end
 
 NSString *const kCARendererColorSpace = @"kCARendererColorSpace";
 
@@ -98,6 +103,10 @@ static CGFloat mediaTimingScale(CAAnimation *animation,
         return 1;
 
     CFTimeInterval delta = currentTime - begin;
+    if ([animation isKindOfClass: [CASpringAnimation class]])
+        return [(CASpringAnimation *) animation
+                _springProgressAtTime: MIN(MAX(delta, 0.0), duration)];
+
     double zeroToOne = MIN(MAX(delta / duration, 0.0), 1.0);
     CAMediaTimingFunction *function = [animation timingFunction];
 
@@ -405,6 +414,7 @@ static void roundedRectOutline(CGRect r, CGFloat radius, GLfloat *xy) {
 - (void) _drawContentsOfLayer: (CALayer *) layer
                        bounds: (CGRect) bounds
                       opacity: (CGFloat) opacity
+                      flipped: (BOOL) flipped
 {
     CGImageRef image = (CGImageRef) layer.contents;
 
@@ -440,7 +450,11 @@ static void roundedRectOutline(CGRect r, CGFloat radius, GLfloat *xy) {
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
     }
 
-    const GLfloat textureVertices[4 * 2] = {0, 1, 1, 1, 0, 0, 1, 0};
+    // Texture row 0 is the top of the image. It goes at the top of the screen
+    // whether or not the layer's coordinate space is flipped.
+    const GLfloat uprightTexture[4 * 2] = {0, 1, 1, 1, 0, 0, 1, 0};
+    const GLfloat flippedTexture[4 * 2] = {0, 0, 1, 0, 0, 1, 1, 1};
+    const GLfloat *textureVertices = flipped ? flippedTexture : uprightTexture;
     const GLfloat vertices[4 * 2] = {0, 0, bounds.size.width, 0,
                                      0, bounds.size.height,
                                      bounds.size.width, bounds.size.height};
@@ -456,9 +470,11 @@ static void roundedRectOutline(CGRect r, CGFloat radius, GLfloat *xy) {
 
 // Layers are composited in painter's order: a layer's background, contents and
 // border, then its sublayers in array order. Opacity multiplies down the tree.
+// parentFlipped says whether the parent's coordinate space is y-flipped on screen.
 - (void) _renderLayer: (CALayer *) layer
           currentTime: (CFTimeInterval) currentTime
         parentOpacity: (CGFloat) parentOpacity
+        parentFlipped: (BOOL) parentFlipped
 {
     if (layer.hidden)
         return;
@@ -483,14 +499,29 @@ static void roundedRectOutline(CGRect r, CGFloat radius, GLfloat *xy) {
     glTranslatef(-bounds.size.width * anchorPoint.x,
                  -bounds.size.height * anchorPoint.y, 0);
 
+    BOOL flipped = parentFlipped;
+    if (layer.geometryFlipped) {
+        glTranslatef(0, bounds.size.height, 0);
+        glScalef(1, -1, 1);
+        flipped = !flipped;
+    }
+
     [self _drawBackgroundOfLayer: layer bounds: bounds opacity: opacity];
-    [self _drawContentsOfLayer: layer bounds: bounds opacity: opacity];
+    // A layer that draws its own content (CAMetalLayer draws the texture the GPU
+    // filled in) opts out of the contents path, which would otherwise upload
+    // into the same texture it just drew from.
+    if (![layer _drawLayerContents: bounds opacity: opacity])
+        [self _drawContentsOfLayer: layer
+                            bounds: bounds
+                           opacity: opacity
+                           flipped: flipped];
     [self _drawBorderOfLayer: layer bounds: bounds opacity: opacity];
 
     for (CALayer *child in layer.sublayers)
         [self _renderLayer: child
                 currentTime: currentTime
-              parentOpacity: opacity];
+              parentOpacity: opacity
+              parentFlipped: flipped];
 
     glPopMatrix();
 }
@@ -539,7 +570,8 @@ static void displayLayerTreeIfNeeded(CALayer *layer) {
 
     [self _renderLayer: _rootLayer
             currentTime: CACurrentMediaTime()
-          parentOpacity: 1.0];
+          parentOpacity: 1.0
+          parentFlipped: [_rootLayer.superlayer contentsAreFlipped]];
 
     glFlush();
 }

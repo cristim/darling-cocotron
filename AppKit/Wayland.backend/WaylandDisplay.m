@@ -18,6 +18,7 @@
 
 #import "WaylandDisplay.h"
 #import "CarbonKeys.h"
+#import "NSEvent_gesture.h"
 #import "NSEvent_mouse.h"
 #import "WaylandCursor.h"
 #import "WaylandScale.h"
@@ -208,8 +209,10 @@ static NSString *stringWithCodepoint(uint32_t codepoint) {
 @implementation WaylandDisplay
 
 - (instancetype) init {
-    const char *requested = getenv("DARLING_APPKIT_BACKEND");
-    if (requested == NULL || strcasecmp(requested, "wayland") != 0) {
+    // WaylandBackendSelected() is shared with CoreGraphics' Wayland backend (see
+    // WaylandLibrary.h): the two frameworks pick a display server independently, and
+    // they must not disagree.
+    if (!WaylandBackendSelected()) {
         [self release];
         return nil;
     }
@@ -372,7 +375,8 @@ static NSString *stringWithCodepoint(uint32_t codepoint) {
         WL.wl_cursor_theme_destroy(_cursorTheme);
     if (_wlDisplay != NULL) {
         // wl_display_disconnect() doesn't free proxies.
-        struct wl_proxy *proxies[] = {_imageCursorBuffer, _cursorFractionalScale, _cursorViewport, _cursorSurface, _pointer, _keyboard,
+        struct wl_proxy *proxies[] = {_imageCursorBuffer, _cursorFractionalScale, _cursorViewport, _cursorSurface,
+                                      _pinchGesture, _pointerGestures, _pointer, _keyboard,
                                       _seat, _decorationManager, _dataDeviceManager, _wmBase,
                                       _shm, _viewporter, _fractionalScaleManager, _subcompositor, _logicalOutputManager,
                                       _legacyLogicalOutputManager, _compositor, _registry};
@@ -542,6 +546,12 @@ static NSString *stringWithCodepoint(uint32_t codepoint) {
                          version: 1
                             kind: 0
                           object: nil];
+    } else if (strcmp(interface, "zwp_pointer_gestures_v1") == 0 && _pointerGestures == NULL) {
+        // Version 2 adds the release request.
+        _pointerGesturesName = name;
+        _pointerGestures = [self bindGlobal: name interface: &zwp_pointer_gestures_v1_interface
+                                    version: MIN(version, 2) kind: 0 object: nil];
+        [self attachPinchGesture];
     } else if (strcmp(interface, "wl_seat") == 0 && _seat == NULL) {
         // Version 4 adds wl_keyboard.repeat_info, 5 wl_pointer.frame.
         _seat = [self bindGlobal: name
@@ -625,6 +635,15 @@ static NSString *stringWithCodepoint(uint32_t codepoint) {
 }
 
 - (void) registryGlobalRemoved: (uint32_t) name {
+    if (_pointerGestures && name == _pointerGesturesName) {
+        [self detachPinchGesture];
+        if (WL.wl_proxy_get_version(_pointerGestures) >= 2)
+            WaylandMarshal(_pointerGestures, WP_GESTURES_RELEASE, NULL, WL_MARSHAL_FLAG_DESTROY, NULL);
+        else
+            WL.wl_proxy_destroy(_pointerGestures);
+        _pointerGestures = NULL; _pointerGesturesName = 0;
+        return;
+    }
     if (_fractionalScaleManager && name == _fractionalScaleManagerName) {
         WaylandMarshal(_fractionalScaleManager, WP_FRACTIONAL_MANAGER_DESTROY, NULL, WL_MARSHAL_FLAG_DESTROY, NULL);
         _fractionalScaleManager = NULL; _fractionalScaleManagerName = 0;
@@ -772,6 +791,10 @@ static NSString *stringWithCodepoint(uint32_t codepoint) {
         [self pointerEvent: opcode arguments: args];
         break;
 
+    case WaylandObjectPinchGesture:
+        [self pinchEvent: opcode arguments: args];
+        break;
+
     case WaylandObjectKeyboardSync:
         if (proxy == _modifierSync && opcode == WP_CALLBACK_EV_DONE)
             [self flushPendingModifier];
@@ -808,7 +831,9 @@ static NSString *stringWithCodepoint(uint32_t codepoint) {
         _pointer = WaylandCreateObject(_seat, WP_SEAT_GET_POINTER,
                                        &wl_pointer_interface, args,
                                        WaylandObjectPointer, self);
+        [self attachPinchGesture];
     } else if (!(capabilities & WP_SEAT_CAPABILITY_POINTER) && _pointer != NULL) {
+        [self detachPinchGesture];
         [_draggingManager cancel];
         [self consumeDragPress];
         [self releaseInputDevice: &_pointer opcode: WP_POINTER_RELEASE];
@@ -1087,6 +1112,86 @@ static NSString *stringWithCodepoint(uint32_t codepoint) {
                         deltaX: deltaX
                         deltaY: deltaY];
     [self postEvent: event atStart: NO];
+}
+
+#pragma mark - Pinch gestures
+
+- (void) attachPinchGesture {
+    if (_pointerGestures == NULL || _pointer == NULL || _pinchGesture != NULL)
+        return;
+    union wl_argument args[2] = {{.o = NULL}, {.o = (struct wl_object *) _pointer}};
+    _pinchGesture = WaylandCreateObject(_pointerGestures, WP_GESTURES_GET_PINCH,
+                                        &zwp_pointer_gesture_pinch_v1_interface, args,
+                                        WaylandObjectPinchGesture, self);
+}
+
+- (void) detachPinchGesture {
+    if (_pinchGesture == NULL)
+        return;
+    [self postPinchPhase: NSEventPhaseCancelled];
+    WaylandMarshal(_pinchGesture, WP_PINCH_DESTROY, NULL, WL_MARSHAL_FLAG_DESTROY, NULL);
+    _pinchGesture = NULL;
+}
+
+- (void) postGesture: (NSEventType) type
+               phase: (NSEventPhase) phase
+       magnification: (CGFloat) magnification
+            rotation: (float) rotation
+{
+    WaylandWindow *window = _pinchWindow;
+    NSEvent *event = [[[NSEvent_gesture alloc]
+             initWithType: type
+                 location: [window transformPoint: _pointerSurfacePoint]
+            modifierFlags: [self currentModifierFlags]
+                   window: [window delegate]
+                    phase: phase
+            magnification: magnification
+                 rotation: rotation] autorelease];
+    [self postEvent: event atStart: NO];
+}
+
+// Ends an active pinch; a no-op when none is in progress.
+- (void) postPinchPhase: (NSEventPhase) phase {
+    if (_pinchWindow == nil)
+        return;
+    [self postGesture: NSEventTypeMagnify phase: phase magnification: 0 rotation: 0];
+    [self postGesture: NSEventTypeRotate phase: phase magnification: 0 rotation: 0];
+    _pinchWindow = nil;
+}
+
+// A pinch reports its scale relative to where the fingers started and its
+// rotation in degrees clockwise since the last update. AppKit events carry the
+// change in magnification and counterclockwise degrees.
+- (void) pinchEvent: (uint32_t) opcode arguments: (union wl_argument *) args {
+    [self postPendingScroll];
+    switch (opcode) {
+    case WP_PINCH_EV_BEGIN:
+        _pinchWindow = [self windowForSurface: (struct wl_proxy *) args[2].o];
+        _pinchScale = 1;
+        if (_pinchWindow == nil)
+            break;
+        [self postGesture: NSEventTypeMagnify phase: NSEventPhaseBegan magnification: 0 rotation: 0];
+        [self postGesture: NSEventTypeRotate phase: NSEventPhaseBegan magnification: 0 rotation: 0];
+        break;
+
+    case WP_PINCH_EV_UPDATE: {
+        if (_pinchWindow == nil)
+            break;
+        CGFloat scale = wl_fixed_to_double(args[3].f);
+        float rotation = -wl_fixed_to_double(args[4].f);
+        if (scale != _pinchScale)
+            [self postGesture: NSEventTypeMagnify phase: NSEventPhaseChanged
+                magnification: scale - _pinchScale rotation: 0];
+        if (rotation != 0)
+            [self postGesture: NSEventTypeRotate phase: NSEventPhaseChanged magnification: 0 rotation: rotation];
+        _pinchScale = scale;
+        break;
+    }
+
+    case WP_PINCH_EV_END:
+        [self postPinchPhase: args[2].i ? NSEventPhaseCancelled : NSEventPhaseEnded];
+        break;
+    }
 }
 
 - (NSPoint) mouseLocation {
@@ -1738,6 +1843,8 @@ static NSUInteger modifierDeviceMask(int code) {
     if (_dragPressWindow == window) [self consumeDragPress];
     if (_lastClickWindow == window)
         _lastClickWindow = nil;
+    if (_pinchWindow == window)
+        [self postPinchPhase: NSEventPhaseCancelled];
     if (_pointerWindow == window) {
         _pointerWindow = nil;
         _pointerEnterSerial = 0;
@@ -1781,9 +1888,15 @@ static NSUInteger modifierDeviceMask(int code) {
 
 #pragma mark - Cursors
 
+// The output scale must be applied exactly once. A cursor surface without a
+// wp_viewport cannot express a logical size, so pre-scaling the raster and then
+// setting wl_surface.set_buffer_scale to the same factor asks the compositor to
+// scale it twice: a 24pt cursor then covers 96 physical px on a 2x output.
+// With a viewporter the client owns the scaling and pins buffer_scale to 1;
+// without one the compositor owns it, so hand over a 1x raster at buffer_scale 1.
 - (uint32_t) cursorRenderScale120 {
     if (_cursorFractionalScale) return _cursorPreferredScale120 ?: (_pointerWindow ? [_pointerWindow renderScale120] : 120);
-    return (uint32_t)MIN((uint64_t)(_pointerWindow ? [_pointerWindow bufferScale] : 1) * 120, UINT32_MAX);
+    return 120;
 }
 - (void) preferredScaleChanged: (uint32_t) scale120 {
     if (!_cursorFractionalScale || !scale120 || scale120 == _cursorPreferredScale120) return;
@@ -1922,6 +2035,10 @@ static NSUInteger modifierDeviceMask(int code) {
             hotSpot = NSMakePoint(MIN(logical.width - 1, floor(image->hotspot_x * logical.width / image->width)),
                 MIN(logical.height - 1, floor(image->hotspot_y * logical.height / image->height)));
         } else {
+            // No wp_viewport: the theme is loaded at the compositor's nominal
+            // size (_cursorThemeScale120 is 120, since cursorRenderScale120
+            // hands scaling to the compositor) and the surface stays at
+            // buffer_scale 1, so the hotspot is used unscaled.
             wireScale = (int32_t)(_cursorThemeScale120 / 120);
             if (wireScale < 1 || image->width % wireScale || image->height % wireScale) wireScale = 1;
             logical = NSMakeSize(image->width / wireScale, image->height / wireScale);

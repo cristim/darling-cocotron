@@ -25,6 +25,7 @@
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
+#include <strings.h>
 #include <unistd.h>
 
 extern struct elf_calls *_elfcalls;
@@ -46,6 +47,26 @@ static bool resolve(void *handle, const char *name, void **slot) {
     if (*slot == NULL)
         NSLog(@"Wayland backend: missing native function %s", name);
     return *slot != NULL;
+}
+
+bool WaylandBackendSelected(void) {
+    const char *requested = getenv("DARLING_APPKIT_BACKEND");
+
+    if (requested != NULL && *requested != '\0') {
+        if (strcasecmp(requested, "wayland") == 0)
+            return true;
+        if (strcasecmp(requested, "x11") == 0)
+            return false;
+        // An unrecognised value is a configuration error worth surfacing, but
+        // guessing beats refusing to start.
+        NSLog(@"Wayland backend: ignoring unknown DARLING_APPKIT_BACKEND=%s, "
+              @"autodetecting", requested);
+    }
+
+    // Nothing asked for Wayland specifically, so use it when a compositor is
+    // advertised. Whether the connection then succeeds is WaylandDisplay's problem
+    // to report, and it falls back to X11.
+    return getenv("WAYLAND_DISPLAY") != NULL;
 }
 
 bool WaylandLibraryLoad(void) {
@@ -113,6 +134,12 @@ bool WaylandCheckOpcodes(void) {
             {&wl_data_source_interface, true, WP_DATA_SOURCE_EV_FINISHED, "dnd_finished"},
             {&wl_data_source_interface, true, WP_DATA_SOURCE_EV_ACTION, "action"},
             {&wl_subsurface_interface, false, WP_SUBSURFACE_PLACE_ABOVE, "place_above"},
+            {&zwp_pointer_gestures_v1_interface, false, WP_GESTURES_GET_PINCH, "get_pinch_gesture"},
+            {&zwp_pointer_gestures_v1_interface, false, WP_GESTURES_RELEASE, "release"},
+            {&zwp_pointer_gesture_pinch_v1_interface, false, WP_PINCH_DESTROY, "destroy"},
+            {&zwp_pointer_gesture_pinch_v1_interface, true, WP_PINCH_EV_BEGIN, "begin"},
+            {&zwp_pointer_gesture_pinch_v1_interface, true, WP_PINCH_EV_UPDATE, "update"},
+            {&zwp_pointer_gesture_pinch_v1_interface, true, WP_PINCH_EV_END, "end"},
             {&wp_fractional_scale_manager_v1_interface, false, WP_FRACTIONAL_MANAGER_DESTROY, "destroy"},
             {&wp_fractional_scale_manager_v1_interface, false, WP_FRACTIONAL_MANAGER_GET_SCALE, "get_fractional_scale"},
             {&wp_fractional_scale_v1_interface, false, WP_FRACTIONAL_DESTROY, "destroy"},

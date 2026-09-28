@@ -570,6 +570,12 @@ boolean_t CGDisplayIsActive(CGDirectDisplayID display) {
     return (display == CGMainDisplayID());
 }
 
+// The X11 and Wayland backends report no display power state, and a display
+// they list stays drawable, so no display is ever reported asleep.
+boolean_t CGDisplayIsAsleep(CGDirectDisplayID display) {
+    return false;
+}
+
 boolean_t CGDisplayIsBuiltin(CGDirectDisplayID display) {
     return (display == CGMainDisplayID());
 }

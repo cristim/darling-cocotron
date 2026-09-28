@@ -72,7 +72,7 @@ typedef enum {
 + (BOOL) currentContextDrawingToScreen;
 
 - (CGContextRef) graphicsPort;
-- (CGContextRef) CGContext;
+@property (readonly) CGContextRef CGContext;
 - (NSMutableArray *) focusStack;
 
 @property (readonly) BOOL isDrawingToScreen;

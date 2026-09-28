@@ -275,6 +275,7 @@ set(AppKit_sources
 	NSEvent.subproj/NSEvent_CoreGraphics.m
 	NSEvent.subproj/NSEvent_other.m
 	NSEvent.subproj/NSEvent_keyboard.m
+	NSEvent.subproj/NSEvent_gesture.m
 	NSEvent.subproj/NSEvent.m
 
 	NSButton.m
@@ -319,6 +320,7 @@ set(AppKit_sources
 	NSColor.subproj/NSColor_catalog.m
 	NSColor.subproj/NSColor_CGColor.m
 	NSColor.subproj/NSColor_assetCatalog.m
+	NSColor.subproj/NSColor_dynamic.m
 
 	NSTableCornerView.m
 	NSTabView.m
@@ -396,6 +398,7 @@ set(AppKit_sources
 	NSKeyboardBinding/NSKeyboardBindingManager.m
 	NSKeyboardBinding/NSKeyboardBinding.m
 
+	NSAdaptiveImageGlyph.m
 	NSTextAttachment.m
 
 	NSCollectionView/NSCollectionViewItem.m
@@ -499,6 +502,20 @@ set(AppKit_resources
 
 	NSApplicationIcon.tiff NSSystemInfoPanel/NSApplicationIcon.tiff
 
+	NSComputer.png SystemImages/NSComputer.png
+	NSFolder.png SystemImages/NSFolder.png
+	NSNetwork.png SystemImages/NSNetwork.png
+	NSTrashEmpty.png SystemImages/NSTrashEmpty.png
+	NSTrashFull.png SystemImages/NSTrashFull.png
+	NSUser.png SystemImages/NSUser.png
+	application-x-executable.png SystemImages/application-x-executable.png
+	application-x-generic.png SystemImages/application-x-generic.png
+	audio-x-generic.png SystemImages/audio-x-generic.png
+	image-x-generic.png SystemImages/image-x-generic.png
+	text-x-generic.png SystemImages/text-x-generic.png
+	video-x-generic.png SystemImages/video-x-generic.png
+	COPYING.Adwaita SystemImages/COPYING.Adwaita
+
 	NSMenuArrow.tiff NSMenu.subproj/NSMenuArrow.tiff
 	NSMenuViewDoubleRightArrowGray.tiff NSMenu.subproj/NSMenuViewDoubleRightArrowGray.tiff
 	NSMenuViewDoubleRightArrow.tiff NSMenu.subproj/NSMenuViewDoubleRightArrow.tiff
@@ -564,6 +581,7 @@ add_framework(AppKit
 		fontconfig
 		jpeg png tiff
 		CoreServices
+		UniformTypeIdentifiers
 )
 
 reexport(AppKit Foundation ${CMAKE_BINARY_DIR}/src/external/foundation/Foundation)
@@ -666,7 +684,8 @@ set(WAYLAND_PROTOCOL_FILES
 	"${WAYLAND_PROTOCOLS_DIR}/stable/viewporter/viewporter.xml"
 	"${WAYLAND_PROTOCOLS_DIR}/staging/fractional-scale/fractional-scale-v1.xml"
 	"${WAYLAND_PROTOCOLS_DIR}/unstable/xdg-output/xdg-output-unstable-v1.xml"
-	"${WAYLAND_PROTOCOLS_DIR}/unstable/xdg-decoration/xdg-decoration-unstable-v1.xml")
+	"${WAYLAND_PROTOCOLS_DIR}/unstable/xdg-decoration/xdg-decoration-unstable-v1.xml"
+	"${WAYLAND_PROTOCOLS_DIR}/unstable/pointer-gestures/pointer-gestures-unstable-v1.xml")
 set(WAYLAND_PROTOCOL_FILES_FOUND TRUE)
 foreach(protocol ${WAYLAND_PROTOCOL_FILES})
 	if (NOT EXISTS "${protocol}")

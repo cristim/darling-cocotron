@@ -100,10 +100,11 @@ static void socketCallback(CFSocketRef socket, CFSocketCallBackType type,
 @implementation CGSConnectionWayland
 
 + (BOOL) isAvailable {
-    // CGS.m selects by NSPriority alone, with no variable of its own; gating on
-    // AppKit's keeps both frameworks on the same display server.
-    const char *requested = getenv("DARLING_APPKIT_BACKEND");
-    if (requested == NULL || strcasecmp(requested, "wayland") != 0)
+    // WaylandBackendSelected() is shared with AppKit's Wayland backend (see
+    // WaylandLibrary.h). CGS.m selects by NSPriority alone, with no variable of its
+    // own; gating on the same predicate AppKit uses keeps both frameworks on the same
+    // display server.
+    if (!WaylandBackendSelected())
         return NO;
     if (getenv("WAYLAND_DISPLAY") == NULL) {
         NSLog(@"CoreGraphics Wayland backend: DARLING_APPKIT_BACKEND=wayland "

@@ -34,12 +34,12 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
         NSTextInputContext, NSImage, NSBitmapImageRep, NSScrollView,
         NSTrackingArea, NSShadow, NSScreen, CALayer, CIFilter, CALayerContext,
         NSLayoutDimension, NSLayoutXAxisAnchor, NSLayoutYAxisAnchor,
-        NSGestureRecognizer;
+        NSGestureRecognizer, NSView;
 
 // See Cocoa Event Handling Guide : Using Tracking-Area Objects : Compatibility
 // Issues
-typedef NSTrackingArea *NSTrackingRectTag;
-typedef NSTrackingArea *NSToolTipTag;
+typedef NSTrackingArea *NSTrackingRectTag NS_SWIFT_NAME(NSView.TrackingRectTag);
+typedef NSTrackingArea *NSToolTipTag NS_SWIFT_NAME(NSView.ToolTipTag);
 typedef NSString *NSViewFullScreenModeOptionKey;
 
 typedef NS_OPTIONS(NSUInteger, NSAutoresizingMaskOptions) {
@@ -98,6 +98,7 @@ APPKIT_EXPORT const NSViewFullScreenModeOptionKey NSFullScreenModeApplicationPre
     NSView *_nextKeyView;
     NSView *_previousKeyView;
     BOOL _isHidden;
+    CGFloat _alphaValue;
     BOOL _postsNotificationOnFrameChange;
     BOOL _postsNotificationOnBoundsChange;
     BOOL _autoresizesSubviews;
@@ -160,7 +161,8 @@ APPKIT_EXPORT const NSViewFullScreenModeOptionKey NSFullScreenModeApplicationPre
 + (NSMenu *) defaultMenu;
 + (NSFocusRingType) defaultFocusRingType;
 
-- (instancetype) initWithFrame: (NSRect) frame;
+- (instancetype) initWithFrame: (NSRect) frame NS_DESIGNATED_INITIALIZER;
+- (nullable instancetype) initWithCoder: (NSCoder *) coder NS_DESIGNATED_INITIALIZER;
 
 @property NSRect frame;
 - (CGFloat) frameRotation;
@@ -183,7 +185,7 @@ APPKIT_EXPORT const NSViewFullScreenModeOptionKey NSFullScreenModeApplicationPre
 - (NSScrollView *) enclosingScrollView;
 - (NSRect) adjustScroll: (NSRect) toRect;
 
-@property (copy) NSArray *subviews;
+@property (copy) NSArray<__kindof NSView *> *subviews;
 @property BOOL autoresizesSubviews;
 - (NSAutoresizingMaskOptions) autoresizingMask;
 - (NSFocusRingType) focusRingType;
@@ -191,8 +193,15 @@ APPKIT_EXPORT const NSViewFullScreenModeOptionKey NSFullScreenModeApplicationPre
 - (NSInteger) tag;
 @property (readonly) BOOL isFlipped;
 @property (readonly) BOOL isOpaque;
-- (CGFloat) alphaValue;
-- (void) setAlphaValue: (CGFloat) alpha;
+@property CGFloat alphaValue;
+
+// Makes the view visible and opaque again before it is reused.
+- (void) prepareForReuse;
+
+// A layer-backed view that answers YES gets -updateLayer instead of
+// -drawRect:; the default -updateLayer does nothing.
+@property(readonly) BOOL wantsUpdateLayer;
+- (void) updateLayer;
 - (int) gState;
 - (NSRect) visibleRect;
 - (BOOL) wantsDefaultClipping;
@@ -265,7 +274,7 @@ APPKIT_EXPORT const NSViewFullScreenModeOptionKey NSFullScreenModeApplicationPre
 - (void) setFocusRingType: (NSFocusRingType) value;
 
 - (void) setNextKeyView: (NSView *) next;
-- (BOOL) acceptsFirstMouse: (NSEvent *) event;
+- (BOOL) acceptsFirstMouse: (NSEvent *) event NS_SWIFT_NAME(acceptsFirstMouse(for:));
 - (BOOL) acceptsTouchEvents;
 - (void) setAcceptsTouchEvents: (BOOL) accepts;
 - (BOOL) wantsRestingTouches;
@@ -530,6 +539,12 @@ APPKIT_EXPORT const NSViewFullScreenModeOptionKey NSFullScreenModeApplicationPre
 - (NSLayoutPriority) contentCompressionResistancePriorityForOrientation: (NSLayoutConstraintOrientation) orientation;
 - (void) setContentCompressionResistancePriority: (NSLayoutPriority) priority
                                   forOrientation: (NSLayoutConstraintOrientation) orientation;
+
+// NSEdgeInsetsZero here; subclasses whose content sits inside their frame
+// override it, and the two conversions below follow.
+@property(readonly) NSEdgeInsets alignmentRectInsets;
+- (NSRect) alignmentRectForFrame: (NSRect) frame;
+- (NSRect) frameForAlignmentRect: (NSRect) alignmentRect;
 // Clears needsLayout in the subtree; frames aren't recomputed.
 - (void) layoutSubtreeIfNeeded;
 
@@ -537,9 +552,7 @@ APPKIT_EXPORT const NSViewFullScreenModeOptionKey NSFullScreenModeApplicationPre
 
 @interface NSView (NSViewGestureRecognizers)
 
-// Stored only: AppKit never routes events to a recognizer, so a recognizer
-// added here stays in NSGestureRecognizerStatePossible and never fires.
-@property(copy) NSArray *gestureRecognizers;
+@property(copy) NSArray<NSGestureRecognizer *> *gestureRecognizers;
 - (void) addGestureRecognizer: (NSGestureRecognizer *) recognizer;
 - (void) removeGestureRecognizer: (NSGestureRecognizer *) recognizer;
 
@@ -548,11 +561,11 @@ APPKIT_EXPORT const NSViewFullScreenModeOptionKey NSFullScreenModeApplicationPre
 @interface NSView (NSViewEffectiveAppearance)
 
 // The view's own appearance, else its superview's, else the current appearance.
-@property(readonly) NSAppearance *effectiveAppearance;
+@property(readonly, nonnull) NSAppearance *effectiveAppearance;
 
 @end
 
-@interface NSObject (NSView_toolTipOwner)
+@protocol NSViewToolTipOwner <NSObject>
 - (NSString *) view: (NSView *) view
         stringForToolTip: (NSToolTipTag) tag
                    point: (NSPoint) point

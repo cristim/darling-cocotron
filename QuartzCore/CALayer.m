@@ -1,9 +1,12 @@
 #import <Foundation/NSDictionary.h>
 #import <Foundation/NSException.h>
 #import <QuartzCore/CAAnimation.h>
+#import <QuartzCore/CAConstraintLayoutManager.h>
 #import <QuartzCore/CALayer.h>
 #import <QuartzCore/CALayerContext.h>
 #import <QuartzCore/CATransaction.h>
+#import <Onyx2D/O2Image.h>
+#import "CACoding.h"
 
 NSString *const kCAFilterLinear = @"linear";
 NSString *const kCAFilterNearest = @"nearest";
@@ -90,6 +93,27 @@ NSString *const CAToneMapModeIfSupported = @"ifSupported";
 
 - (void) setDelegate: (id<CALayerDelegate>)value {
     _delegate = value;
+}
+
+- (NSString *) name {
+    return _name;
+}
+
+- (void) setName: (NSString *) value {
+    value = [value copy];
+    [_name release];
+    _name = value;
+}
+
+- (id<CALayoutManager>) layoutManager {
+    return _layoutManager;
+}
+
+- (void) setLayoutManager: (id<CALayoutManager>) value {
+    [value retain];
+    [_layoutManager release];
+    _layoutManager = value;
+    [self setNeedsLayout];
 }
 
 - (CGPoint) anchorPoint {
@@ -265,6 +289,14 @@ NSString *const CAToneMapModeIfSupported = @"ifSupported";
     _allowsEdgeAntialiasing = value;
 }
 
+- (CAEdgeAntialiasingMask) edgeAntialiasingMask {
+    return _edgeAntialiasingMask;
+}
+
+- (void) setEdgeAntialiasingMask: (CAEdgeAntialiasingMask) value {
+    _edgeAntialiasingMask = value;
+}
+
 - (CATransform3D) transform {
     return _transform;
 }
@@ -312,7 +344,9 @@ NSString *const CAToneMapModeIfSupported = @"ifSupported";
     _magnificationFilter = value;
 }
 
-- init {
+// Shared by -init and -initWithLayer:. The latter must not call -init, or a
+// subclass's override of -init would run again on the copy.
+- (void) _setDefaults {
     _superlayer = nil;
     _sublayers = [NSArray new];
     _delegate = nil;
@@ -336,16 +370,229 @@ NSString *const CAToneMapModeIfSupported = @"ifSupported";
     _shadowRadius = 3;
     _shadowOffset = CGSizeMake(0, -3);
     _allowsEdgeAntialiasing = NO;
+    _edgeAntialiasingMask = kCALayerLeftEdge | kCALayerRightEdge | kCALayerBottomEdge | kCALayerTopEdge;
     _transform = CATransform3DIdentity;
     _sublayerTransform = CATransform3DIdentity;
     _minificationFilter = kCAFilterLinear;
     _magnificationFilter = kCAFilterLinear;
     _animations = [[NSMutableDictionary alloc] init];
+}
+
+- init {
+    [self _setDefaults];
+    return self;
+}
+
+- initWithLayer: (id) layer {
+    if (![layer isKindOfClass: [CALayer class]]) {
+        [self release];
+        [NSException raise: NSInvalidArgumentException
+                    format: @"-[CALayer initWithLayer:] needs a CALayer, not %@", layer];
+    }
+    self = [super init];
+    [self _setDefaults];
+    CALayer *other = layer;
+
+    // Scalars are assigned directly: some setters (opacity) would start
+    // implicit animations on the copy.
+    _delegate = other->_delegate;
+    _anchorPoint = other->_anchorPoint;
+    _position = other->_position;
+    _bounds = other->_bounds;
+    _opacity = other->_opacity;
+    _opaque = other->_opaque;
+    _contentsScale = other->_contentsScale;
+    _contentsCenter = other->_contentsCenter;
+    _allowsGroupOpacity = other->_allowsGroupOpacity;
+    _allowsEdgeAntialiasing = other->_allowsEdgeAntialiasing;
+    _edgeAntialiasingMask = other->_edgeAntialiasingMask;
+    _transform = other->_transform;
+    _sublayerTransform = other->_sublayerTransform;
+    _borderWidth = other->_borderWidth;
+    _cornerRadius = other->_cornerRadius;
+    _masksToBounds = other->_masksToBounds;
+    _shadowOpacity = other->_shadowOpacity;
+    _shadowRadius = other->_shadowRadius;
+    _shadowOffset = other->_shadowOffset;
+    _hidden = other->_hidden;
+    _needsDisplayOnBoundsChange = other->_needsDisplayOnBoundsChange;
+    _geometryFlipped = other->_geometryFlipped;
+
+    // The copy has no context yet, so these setters only do the retain/copy.
+    [self setContents: other->_contents];
+    [self setContentsFormat: other->_contentsFormat];
+    [self setContentsGravity: other->_contentsGravity];
+    [self setCornerCurve: other->_cornerCurve];
+    [self setPreferredDynamicRange: other->_preferredDynamicRange];
+    [self setToneMapMode: other->_toneMapMode];
+    [self setMinificationFilter: other->_minificationFilter];
+    [self setMagnificationFilter: other->_magnificationFilter];
+    [self setBackgroundColor: other->_backgroundColor];
+    [self setBorderColor: other->_borderColor];
+    [self setShadowColor: other->_shadowColor];
+    [self setShadowPath: other->_shadowPath];
+    [self setFilters: other->_filters];
+    [self setCompositingFilter: other->_compositingFilter];
+    [self setName: other->_name];
+    // Assigned directly: the setters would mark this copy and its superlayer for layout.
+    _layoutManager = [other->_layoutManager retain];
+    _constraints = [other->_constraints copy];
+    // Shared, not re-parented: -setMask: would move the mask to this
+    // context-less copy.
+    _mask = [other->_mask retain];
+    return self;
+}
+
++ (BOOL) supportsSecureCoding {
+    return YES;
+}
+
+// The delegate, the superlayer and the render context are not archived; the
+// superlayer is restored when the parent decodes its sublayers.
+- (void) encodeWithCoder: (NSCoder *) coder {
+    CARequireKeyedCoder(coder);
+    if ([_animations count] > 0)
+        [NSException raise: NSInvalidArchiveOperationException
+                    format: @"Cannot archive %@: its animations do not support archiving", self];
+    if ([_filters count] > 0)
+        [NSException raise: NSInvalidArchiveOperationException
+                    format: @"Cannot archive %@: its filters do not support archiving", self];
+    if (_compositingFilter != nil && ![_compositingFilter isKindOfClass: [NSString class]])
+        [NSException raise: NSInvalidArchiveOperationException
+                    format: @"Cannot archive %@: compositing filter %@ does not support archiving", self,
+                            _compositingFilter];
+    if (_contents != nil && ![_contents isKindOfClass: [O2Image class]])
+        [NSException raise: NSInvalidArchiveOperationException
+                    format: @"Cannot archive %@: contents %@ are not a CGImage", self, _contents];
+    if (_layoutManager != nil && ![_layoutManager conformsToProtocol: @protocol(NSCoding)])
+        [NSException raise: NSInvalidArchiveOperationException
+                    format: @"Cannot archive %@: layout manager %@ does not support archiving", self,
+                            _layoutManager];
+
+    [coder encodeObject: _sublayers forKey: @"sublayers"];
+    [coder encodeObject: _mask forKey: @"mask"];
+    CAEncodePoint(coder, _anchorPoint, @"anchorPoint");
+    CAEncodePoint(coder, _position, @"position");
+    CAEncodeRect(coder, _bounds, @"bounds");
+    [coder encodeDouble: _opacity forKey: @"opacity"];
+    [coder encodeBool: _opaque forKey: @"opaque"];
+    CAEncodeImage(coder, (CGImageRef) _contents, @"contents");
+    [coder encodeDouble: _contentsScale forKey: @"contentsScale"];
+    CAEncodeRect(coder, _contentsCenter, @"contentsCenter");
+    [coder encodeObject: _contentsFormat forKey: @"contentsFormat"];
+    [coder encodeObject: _contentsGravity forKey: @"contentsGravity"];
+    [coder encodeObject: _cornerCurve forKey: @"cornerCurve"];
+    [coder encodeObject: _preferredDynamicRange forKey: @"preferredDynamicRange"];
+    [coder encodeObject: _toneMapMode forKey: @"toneMapMode"];
+    [coder encodeBool: _allowsGroupOpacity forKey: @"allowsGroupOpacity"];
+    CAEncodePath(coder, _shadowPath, @"shadowPath");
+    [coder encodeBool: _allowsEdgeAntialiasing forKey: @"allowsEdgeAntialiasing"];
+    [coder encodeInt: _edgeAntialiasingMask forKey: @"edgeAntialiasingMask"];
+    CAEncodeTransform3D(coder, _transform, @"transform");
+    CAEncodeTransform3D(coder, _sublayerTransform, @"sublayerTransform");
+    [coder encodeObject: _minificationFilter forKey: @"minificationFilter"];
+    [coder encodeObject: _magnificationFilter forKey: @"magnificationFilter"];
+    CAEncodeColor(coder, _backgroundColor, @"backgroundColor");
+    CAEncodeColor(coder, _borderColor, @"borderColor");
+    [coder encodeDouble: _borderWidth forKey: @"borderWidth"];
+    [coder encodeDouble: _cornerRadius forKey: @"cornerRadius"];
+    [coder encodeBool: _masksToBounds forKey: @"masksToBounds"];
+    [coder encodeObject: _compositingFilter forKey: @"compositingFilter"];
+    CAEncodeColor(coder, _shadowColor, @"shadowColor");
+    [coder encodeFloat: _shadowOpacity forKey: @"shadowOpacity"];
+    [coder encodeDouble: _shadowRadius forKey: @"shadowRadius"];
+    CAEncodeSize(coder, _shadowOffset, @"shadowOffset");
+    [coder encodeBool: _hidden forKey: @"hidden"];
+    [coder encodeBool: _needsDisplayOnBoundsChange forKey: @"needsDisplayOnBoundsChange"];
+    [coder encodeBool: _geometryFlipped forKey: @"geometryFlipped"];
+    [coder encodeObject: _name forKey: @"name"];
+    [coder encodeObject: _constraints forKey: @"constraints"];
+    [coder encodeObject: _layoutManager forKey: @"layoutManager"];
+}
+
+- initWithCoder: (NSCoder *) coder {
+    CARequireKeyedCoder(coder);
+    self = [super init];
+    [self _setDefaults];
+
+    NSSet *layers = [NSSet setWithObjects: [NSArray class], [CALayer class], nil];
+    [self setSublayers: [coder decodeObjectOfClasses: layers forKey: @"sublayers"]];
+    [self setMask: [coder decodeObjectOfClass: [CALayer class] forKey: @"mask"]];
+
+    // Scalars are assigned directly, as in -initWithLayer:.
+    _anchorPoint = CADecodePoint(coder, @"anchorPoint");
+    _position = CADecodePoint(coder, @"position");
+    _bounds = CADecodeRect(coder, @"bounds");
+    _opacity = [coder decodeDoubleForKey: @"opacity"];
+    _opaque = [coder decodeBoolForKey: @"opaque"];
+    _contentsScale = [coder decodeDoubleForKey: @"contentsScale"];
+    _contentsCenter = CADecodeRect(coder, @"contentsCenter");
+    _allowsGroupOpacity = [coder decodeBoolForKey: @"allowsGroupOpacity"];
+    _allowsEdgeAntialiasing = [coder decodeBoolForKey: @"allowsEdgeAntialiasing"];
+    _edgeAntialiasingMask = [coder decodeIntForKey: @"edgeAntialiasingMask"];
+    _transform = CADecodeTransform3D(coder, @"transform");
+    _sublayerTransform = CADecodeTransform3D(coder, @"sublayerTransform");
+    _borderWidth = [coder decodeDoubleForKey: @"borderWidth"];
+    _cornerRadius = [coder decodeDoubleForKey: @"cornerRadius"];
+    _masksToBounds = [coder decodeBoolForKey: @"masksToBounds"];
+    _shadowOpacity = [coder decodeFloatForKey: @"shadowOpacity"];
+    _shadowRadius = [coder decodeDoubleForKey: @"shadowRadius"];
+    _shadowOffset = CADecodeSize(coder, @"shadowOffset");
+    _hidden = [coder decodeBoolForKey: @"hidden"];
+    _needsDisplayOnBoundsChange = [coder decodeBoolForKey: @"needsDisplayOnBoundsChange"];
+    _geometryFlipped = [coder decodeBoolForKey: @"geometryFlipped"];
+
+    Class string = [NSString class];
+    [self setContentsFormat: [coder decodeObjectOfClass: string forKey: @"contentsFormat"]];
+    [self setContentsGravity: [coder decodeObjectOfClass: string forKey: @"contentsGravity"]];
+    [self setCornerCurve: [coder decodeObjectOfClass: string forKey: @"cornerCurve"]];
+    [self setPreferredDynamicRange: [coder decodeObjectOfClass: string forKey: @"preferredDynamicRange"]];
+    [self setToneMapMode: [coder decodeObjectOfClass: string forKey: @"toneMapMode"]];
+    [self setMinificationFilter: [coder decodeObjectOfClass: string forKey: @"minificationFilter"]];
+    [self setMagnificationFilter: [coder decodeObjectOfClass: string forKey: @"magnificationFilter"]];
+    [self setCompositingFilter: [coder decodeObjectOfClass: string forKey: @"compositingFilter"]];
+    [self setName: [coder decodeObjectOfClass: string forKey: @"name"]];
+    NSSet *constraintClasses = [NSSet setWithObjects: [NSArray class], [CAConstraint class], nil];
+    id constraints = [coder decodeObjectOfClasses: constraintClasses forKey: @"constraints"];
+    if (constraints != nil && ![constraints isKindOfClass: [NSArray class]])
+        [NSException raise: NSInvalidUnarchiveOperationException
+                    format: @"Layer constraints %@ are not an array", constraints];
+    for (id constraint in constraints)
+        if (![constraint isKindOfClass: [CAConstraint class]])
+            [NSException raise: NSInvalidUnarchiveOperationException
+                        format: @"Layer constraint %@ is not a CAConstraint", constraint];
+    [self setConstraints: constraints];
+    // Any class may be a layout manager, so the archive decides; it must still be one.
+    id layoutManager = [coder decodeObjectOfClass: [NSObject class] forKey: @"layoutManager"];
+    if (layoutManager != nil && ![layoutManager conformsToProtocol: @protocol(CALayoutManager)])
+        [NSException raise: NSInvalidUnarchiveOperationException
+                    format: @"Layout manager %@ does not conform to CALayoutManager", layoutManager];
+    [self setLayoutManager: layoutManager];
+
+    CGImageRef image = CADecodeImage(coder, @"contents");
+    [self setContents: (id) image];
+    CGImageRelease(image);
+    CGPathRef shadowPath = CADecodePath(coder, @"shadowPath");
+    [self setShadowPath: shadowPath];
+    CGPathRelease(shadowPath);
+
+    CGColorRef color = CADecodeColor(coder, @"backgroundColor");
+    [self setBackgroundColor: color];
+    CGColorRelease(color);
+    color = CADecodeColor(coder, @"borderColor");
+    [self setBorderColor: color];
+    CGColorRelease(color);
+    color = CADecodeColor(coder, @"shadowColor");
+    [self setShadowColor: color];
+    CGColorRelease(color);
     return self;
 }
 
 - (void) dealloc {
     [_sublayers release];
+    [_name release];
+    [_layoutManager release];
+    [_constraints release];
     [_animations release];
     [_minificationFilter release];
     [_magnificationFilter release];
@@ -631,7 +878,12 @@ static void replaceColor(CGColorRef *slot, CGColorRef value) {
         return;
 
     CGContextClearRect(context, CGRectMake(0, 0, width, height));
-    // Layer coordinates: the bounds origin is the bitmap's bottom-left corner.
+    // Layer coordinates: the bounds origin is the bitmap's bottom-left corner,
+    // or its top-left corner when the layer's content is flipped.
+    if ([self contentsAreFlipped]) {
+        CGContextTranslateCTM(context, 0, height);
+        CGContextScaleCTM(context, 1, -1);
+    }
     CGContextTranslateCTM(context, -_bounds.origin.x, -_bounds.origin.y);
     [self drawInContext: context];
 
@@ -652,6 +904,8 @@ static void replaceColor(CGColorRef *slot, CGColorRef value) {
 - (void) layoutSublayers {
     if ([_delegate respondsToSelector: @selector(layoutSublayersOfLayer:)])
         [_delegate layoutSublayersOfLayer: self];
+    else if ([_layoutManager respondsToSelector: @selector(layoutSublayersOfLayer:)])
+        [_layoutManager layoutSublayersOfLayer: self];
 }
 
 - (void) layoutIfNeeded {
@@ -672,6 +926,23 @@ static void replaceColor(CGColorRef *slot, CGColorRef value) {
 
 - (BOOL) needsLayout {
     return _needsLayout;
+}
+
+- (BOOL) isGeometryFlipped {
+    return _geometryFlipped;
+}
+
+- (void) setGeometryFlipped: (BOOL) value {
+    _geometryFlipped = value;
+    [_context startTimerIfNeeded];
+}
+
+- (BOOL) contentsAreFlipped {
+    BOOL flipped = NO;
+
+    for (CALayer *layer = self; layer != nil; layer = layer->_superlayer)
+        flipped ^= layer->_geometryFlipped;
+    return flipped;
 }
 
 - (BOOL) needsDisplayOnBoundsChange {
@@ -769,6 +1040,10 @@ static void replaceColor(CGColorRef *slot, CGColorRef value) {
     value = [value retain];
     [_textureContents release];
     _textureContents = value;
+}
+
+- (BOOL) _drawLayerContents: (CGRect) bounds opacity: (CGFloat) opacity {
+    return NO;
 }
 
 @end

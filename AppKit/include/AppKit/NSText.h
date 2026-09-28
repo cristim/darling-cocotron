@@ -53,13 +53,12 @@ typedef NS_ENUM(NSInteger, NSTextAlignment) {
 };
 #endif // !__NSTEXT_ALIGNMENT_SHARED_SECTION__
 
-enum {
-    NSLeftTextAlignment = NSTextAlignmentLeft,
-    NSRightTextAlignment = NSTextAlignmentRight,
-    NSCenterTextAlignment = NSTextAlignmentCenter,
-    NSJustifiedTextAlignment = NSTextAlignmentJustified,
-    NSNaturalTextAlignment = NSTextAlignmentNatural
-};
+// Macros rather than constants so they still work as case labels and in C++.
+#define NSLeftTextAlignment NSTextAlignmentLeft
+#define NSRightTextAlignment NSTextAlignmentRight
+#define NSCenterTextAlignment NSTextAlignmentCenter
+#define NSJustifiedTextAlignment NSTextAlignmentJustified
+#define NSNaturalTextAlignment NSTextAlignmentNatural
 
 enum {
     NSIllegalTextMovement = 0x00,

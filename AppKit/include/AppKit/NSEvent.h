@@ -21,7 +21,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/AppKitExport.h>
 #import <Foundation/Foundation.h>
 
-@class NSWindow, NSGraphicsContext, NSTrackingArea;
+@class NSEvent, NSWindow, NSGraphicsContext, NSTrackingArea;
 
 typedef NS_ENUM(NSUInteger, NSEventType) {
     NSEventTypeLeftMouseDown = 1,
@@ -75,6 +75,8 @@ typedef NS_ENUM(NSUInteger, NSEventType) {
     NSEventTypeCursorUpdate = 17,
     NSCursorUpdate = 17,
 
+    NSEventTypeRotate = 18,
+
     NSEventTypeScrollWheel = 22,
     NSScrollWheel = 22,
 
@@ -84,10 +86,13 @@ typedef NS_ENUM(NSUInteger, NSEventType) {
     NSEventTypeOtherMouseUp = 26,
     NSOtherMouseUp = 26,
 
+    NSEventTypeMagnify = 30,
+
     NSAppKitSystem = 100,
 
-    NSPlatformSpecific = 29,
-    NSPlatformSpecificDisplayEvent = 30
+    // Cocotron-private; numbered where AppKit defines no event type.
+    NSPlatformSpecific = 21,
+    NSPlatformSpecificDisplayEvent = 28
 };
 
 typedef NS_OPTIONS(unsigned long long, NSEventMask) {
@@ -110,6 +115,8 @@ typedef NS_OPTIONS(unsigned long long, NSEventMask) {
     NSEventMaskAppKitDefined = 1ULL << NSEventTypeAppKitDefined,
     NSEventMaskOtherMouseDown = 1ULL << NSEventTypeOtherMouseDown,
     NSEventMaskOtherMouseUp = 1ULL << NSEventTypeOtherMouseUp,
+    NSEventMaskRotate = 1ULL << NSEventTypeRotate,
+    NSEventMaskMagnify = 1ULL << NSEventTypeMagnify,
 };
 
 // Pre-10.12 spellings.  NSAnyEventMask keeps Cocotron's 32-bit value rather
@@ -146,7 +153,17 @@ typedef NS_OPTIONS(NSUInteger, NSEventModifierFlags) {
     NSEventModifierFlagHelp = 1 << 22,
     NSEventModifierFlagFunction = 1 << 23,
     NSEventModifierFlagDeviceIndependentFlagsMask = 0xffff0000UL
-};
+} NS_SWIFT_NAME(NSEvent.ModifierFlags);
+
+typedef NS_OPTIONS(NSUInteger, NSEventPhase) {
+    NSEventPhaseNone = 0,
+    NSEventPhaseBegan = 0x1 << 0,
+    NSEventPhaseStationary = 0x1 << 1,
+    NSEventPhaseChanged = 0x1 << 2,
+    NSEventPhaseEnded = 0x1 << 3,
+    NSEventPhaseCancelled = 0x1 << 4,
+    NSEventPhaseMayBegin = 0x1 << 5,
+} NS_SWIFT_NAME(NSEvent.Phase);
 
 // Pre-10.12 spellings.
 static const NSEventModifierFlags NSAlphaShiftKeyMask = NSEventModifierFlagCapsLock;
@@ -321,6 +338,12 @@ enum { NSApplicationActivated = 0, NSApplicationDeactivated = 1 };
 - (CGFloat) deltaX;
 - (CGFloat) deltaY;
 - (CGFloat) deltaZ;
+
+// Set on magnify and rotate events; NSEventPhaseNone, 0 and 0 on every other event.
+@property (readonly) NSEventPhase phase;
+@property (readonly) NSEventPhase momentumPhase;
+@property (readonly) CGFloat magnification;
+@property (readonly) float rotation;
 
 - (NSString *) characters;
 - (NSString *) charactersIgnoringModifiers;

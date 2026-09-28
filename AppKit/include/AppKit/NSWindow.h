@@ -33,7 +33,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
         NSTitlebarAccessoryViewController,
         NSUndoManager, NSButton, NSButtonCell, NSDrawer, NSDockTile, NSToolbar,
         NSWindowAnimationContext, NSTrackingArea, NSThemeFrame,
-        NSWindowController, NSMenuItem, CARenderer;
+        NSWindowController, NSMenuItem, CARenderer, NSViewController;
 @protocol NSWindowDelegate;
 
 // Old NSWindowStyleMask constants
@@ -197,6 +197,7 @@ APPKIT_EXPORT const NSNotificationName NSWindowDidExposeNotification
     NSMutableArray<NSWindow *> *_childWindows;
 
     NSString *_representedFilename;
+    NSURL *_representedURL;
     NSString *_title;
     NSString *_miniwindowTitle;
     NSImage *_miniwindowImage;
@@ -205,6 +206,7 @@ APPKIT_EXPORT const NSNotificationName NSWindowDidExposeNotification
     NSMenu *_menu;
     NSView *_menuView;
     NSView *_contentView;
+    NSViewController *_contentViewController;
     NSColor *_backgroundColor;
 
     id<NSWindowDelegate> _delegate;
@@ -333,6 +335,11 @@ APPKIT_EXPORT const NSNotificationName NSWindowDidExposeNotification
 - (void) setAllowsConcurrentViewDrawing: (BOOL) allows;
 
 @property (retain) NSView *contentView;
+// Setting it makes the controller's view the content view.
+@property (retain) NSViewController *contentViewController;
+// A titled, closable, miniaturizable, resizable window sized to the
+// controller's preferredContentSize, or else its view, and titled after it.
++ (instancetype) windowWithContentViewController: (NSViewController *) contentViewController;
 @property (weak) id<NSWindowDelegate> delegate;
 
 - (NSString *) title;

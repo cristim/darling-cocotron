@@ -244,6 +244,22 @@ static NSMutableArray<_NSEventLocalMonitor *> *s_localMonitors = nil;
     return 0;
 }
 
+- (NSEventPhase) phase {
+    return NSEventPhaseNone;
+}
+
+- (NSEventPhase) momentumPhase {
+    return NSEventPhaseNone;
+}
+
+- (CGFloat) magnification {
+    return 0;
+}
+
+- (float) rotation {
+    return 0;
+}
+
 - (NSString *) characters {
     return nil;
 }

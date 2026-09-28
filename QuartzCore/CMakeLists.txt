@@ -31,6 +31,7 @@ set(QuartzCore_sources
 	CAEmitterCell.m
 	CAEmitterLayer.m
 	CALayerContext.m
+	CACoding.m
 	CALayer.m
 	CALayerHost.m
 	CATextLayer.m

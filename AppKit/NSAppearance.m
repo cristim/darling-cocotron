@@ -55,11 +55,36 @@ BOOL NSSolariumEnabled(void) {
     return appearance;
 }
 
-+ (NSAppearance *) currentAppearance {
+static NSString *const NSAppearanceDrawingAppearanceKey = @"NSAppearanceCurrentDrawingAppearance";
+
++ (NSAppearance *) currentDrawingAppearance {
+    NSAppearance *drawing =
+            [[[NSThread currentThread] threadDictionary] objectForKey: NSAppearanceDrawingAppearanceKey];
+    if (drawing != nil)
+        return drawing;
     if (!sCurrentAppearance) {
         sCurrentAppearance = [self appearanceNamed:NSAppearanceNameAqua];
     }
     return sCurrentAppearance;
+}
+
++ (NSAppearance *) currentAppearance {
+    return [self currentDrawingAppearance];
+}
+
+- (void) performAsCurrentDrawingAppearance: (void (^)(void)) block {
+    NSMutableDictionary *threadDictionary = [[NSThread currentThread] threadDictionary];
+    NSAppearance *previous = [[threadDictionary objectForKey: NSAppearanceDrawingAppearanceKey] retain];
+    [threadDictionary setObject: self forKey: NSAppearanceDrawingAppearanceKey];
+    @try {
+        block();
+    } @finally {
+        if (previous != nil)
+            [threadDictionary setObject: previous forKey: NSAppearanceDrawingAppearanceKey];
+        else
+            [threadDictionary removeObjectForKey: NSAppearanceDrawingAppearanceKey];
+        [previous release];
+    }
 }
 
 + (void) setCurrentAppearance: (NSAppearance *) appearance {

@@ -25,9 +25,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 @interface NSResponder : NSObject <NSCoding> {
     id _nextResponder;
     NSTouchBar *_touchBar;
+    NSUserActivity *_userActivity;
 }
 
-@property (weak) NSResponder *nextResponder;
+@property (weak) NSResponder *nextResponder NS_SWIFT_NAME(nextResponder);
 
 @property(retain) NSTouchBar *touchBar;
 - (NSTouchBar *) makeTouchBar;
@@ -49,7 +50,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 - (BOOL) becomeFirstResponder;
 - (BOOL) resignFirstResponder;
 
-- (void) flagsChanged: (NSEvent *) event;
+- (void) flagsChanged: (NSEvent *) event NS_SWIFT_NAME(flagsChanged(with:));
 
 - (NSError *) willPresentError: (NSError *) error;
 - (BOOL) presentError: (NSError *) error;
@@ -59,22 +60,27 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
         didPresentSelector: (SEL) selector
                contextInfo: (void *) info;
 
-- (void) keyUp: (NSEvent *) event;
-- (void) keyDown: (NSEvent *) event;
+- (void) keyUp: (NSEvent *) event NS_SWIFT_NAME(keyUp(with:));
+- (void) keyDown: (NSEvent *) event NS_SWIFT_NAME(keyDown(with:));
 
-- (void) cursorUpdate: (NSEvent *) event;
-- (void) scrollWheel: (NSEvent *) event;
+- (void) cursorUpdate: (NSEvent *) event NS_SWIFT_NAME(cursorUpdate(with:));
+- (void) scrollWheel: (NSEvent *) event NS_SWIFT_NAME(scrollWheel(with:));
+- (void) magnifyWithEvent: (NSEvent *) event;
+- (void) rotateWithEvent: (NSEvent *) event;
 
-- (void) mouseUp: (NSEvent *) event;
-- (void) mouseDown: (NSEvent *) event;
-- (void) mouseMoved: (NSEvent *) event;
-- (void) mouseEntered: (NSEvent *) event;
-- (void) mouseExited: (NSEvent *) event;
-- (void) mouseDragged: (NSEvent *) event;
+- (void) mouseUp: (NSEvent *) event NS_SWIFT_NAME(mouseUp(with:));
+- (void) mouseDown: (NSEvent *) event NS_SWIFT_NAME(mouseDown(with:));
+- (void) mouseMoved: (NSEvent *) event NS_SWIFT_NAME(mouseMoved(with:));
+- (void) mouseEntered: (NSEvent *) event NS_SWIFT_NAME(mouseEntered(with:));
+- (void) mouseExited: (NSEvent *) event NS_SWIFT_NAME(mouseExited(with:));
+- (void) mouseDragged: (NSEvent *) event NS_SWIFT_NAME(mouseDragged(with:));
 
-- (void) rightMouseUp: (NSEvent *) event;
-- (void) rightMouseDown: (NSEvent *) event;
-- (void) rightMouseDragged: (NSEvent *) event;
+- (void) rightMouseUp: (NSEvent *) event NS_SWIFT_NAME(rightMouseUp(with:));
+- (void) rightMouseDown: (NSEvent *) event NS_SWIFT_NAME(rightMouseDown(with:));
+- (void) rightMouseDragged: (NSEvent *) event NS_SWIFT_NAME(rightMouseDragged(with:));
+- (void) otherMouseUp: (NSEvent *) event NS_SWIFT_NAME(otherMouseUp(with:));
+- (void) otherMouseDown: (NSEvent *) event NS_SWIFT_NAME(otherMouseDown(with:));
+- (void) otherMouseDragged: (NSEvent *) event NS_SWIFT_NAME(otherMouseDragged(with:));
 
 // Does nothing: Cocotron doesn't save or restore window state.
 - (void) invalidateRestorableState;
@@ -84,6 +90,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 - (void) encodeRestorableStateWithCoder: (NSCoder *) coder;
 - (void) encodeRestorableStateWithCoder: (NSCoder *) coder backgroundQueue: (NSOperationQueue *) queue;
 - (void) restoreStateWithCoder: (NSCoder *) coder;
+// Stored only: this AppKit does not make it current or update it.
+@property(retain) NSUserActivity *userActivity;
 - (void) updateUserActivityState: (NSUserActivity *) userActivity;
 - (void) restoreUserActivityState: (NSUserActivity *) userActivity;
 

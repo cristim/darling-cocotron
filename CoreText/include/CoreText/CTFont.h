@@ -24,6 +24,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <ATS/ATS.h>
 
 #ifdef __OBJC__
+@class NSFont;
+
 // A Core Text adaptive image provider supplies an image for a proposed layout size.
 @protocol CTAdaptiveImageProviding
 - (CGImageRef _Nullable)imageForProposedSize:(CGSize)proposedSize
@@ -33,7 +35,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 @end
 #endif
 
-typedef struct CF_BRIDGED_TYPE(id) KTFont *CTFontRef;
+typedef const struct CF_BRIDGED_TYPE(NSFont) __CTFont *CTFontRef;
 
 CORETEXT_EXPORT const CFStringRef kCTFontCopyrightNameKey;
 CORETEXT_EXPORT const CFStringRef kCTFontFamilyNameKey;

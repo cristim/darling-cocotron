@@ -48,8 +48,13 @@ APPKIT_EXPORT BOOL NSSolariumEnabled(void);
 }
 
 + (NSAppearance *) appearanceNamed: (NSAppearanceName) name;
+// The appearance -performAsCurrentDrawingAppearance: installed on this thread,
+// else the process-wide one +setCurrentAppearance: sets (Aqua by default).
++ (NSAppearance *) currentDrawingAppearance NS_SWIFT_NAME(currentDrawing());
 + (NSAppearance *) currentAppearance;
 + (void) setCurrentAppearance: (NSAppearance *) appearance;
+- (void) performAsCurrentDrawingAppearance: (void (NS_NOESCAPE ^)(void)) block
+        NS_SWIFT_NAME(performAsCurrentDrawingAppearance(_:));
 @property (readonly, copy) NSAppearanceName name;
 - (NSAppearanceName) bestMatchFromAppearancesWithNames: (NSArray *) appearances;
 

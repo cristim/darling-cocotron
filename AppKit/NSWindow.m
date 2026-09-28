@@ -45,6 +45,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSWindowAnimationContext.h>
 #import <ApplicationServices/ApplicationServices.h>
 #import <CoreGraphics/CGWindowPrivate.h>
+#import "NSGestureRecognizer-Private.h"
 #include <math.h>
 
 const NSNotificationName NSWindowDidBecomeKeyNotification =
@@ -442,6 +443,8 @@ static BOOL _allowsAutomaticWindowTabbing;
 - (void) dealloc {
     [[NSNotificationCenter defaultCenter] removeObserver: self];
     [_childWindows release];
+    [_representedFilename release];
+    [_representedURL release];
     [_title release];
     [_miniwindowTitle release];
     [_miniwindowImage release];
@@ -451,6 +454,7 @@ static BOOL _allowsAutomaticWindowTabbing;
     [_menu release];
     [_menuView release];
     [_contentView release];
+    [_contentViewController release];
     [_backgroundColor release];
     [_sharedFieldEditor release];
     [_draggedTypes release];
@@ -570,8 +574,7 @@ static BOOL _allowsAutomaticWindowTabbing;
 }
 
 - (NSURL *) representedURL {
-    NSUnimplementedMethod();
-    return nil;
+    return _representedURL;
 }
 
 - (NSWindowLevel) level {
@@ -1143,6 +1146,34 @@ static BOOL _allowsAutomaticWindowTabbing;
         [NSApp changeWindowsItem: self title: filename filename: YES];
 }
 
++ (instancetype) windowWithContentViewController: (NSViewController *) controller {
+    NSSize size = [controller preferredContentSize];
+    if (NSEqualSizes(size, NSZeroSize))
+        size = [[controller view] frame].size;
+    NSWindow *window = [[[self alloc]
+            initWithContentRect: NSMakeRect(0, 0, size.width, size.height)
+                      styleMask: NSTitledWindowMask | NSClosableWindowMask |
+                                 NSMiniaturizableWindowMask | NSResizableWindowMask
+                        backing: NSBackingStoreBuffered
+                          defer: YES] autorelease];
+    [window setContentViewController: controller];
+    if ([controller title] != nil)
+        [window setTitle: [controller title]];
+    return window;
+}
+
+- (NSViewController *) contentViewController {
+    return _contentViewController;
+}
+
+- (void) setContentViewController: (NSViewController *) controller {
+    [controller retain];
+    [_contentViewController release];
+    _contentViewController = controller;
+    if (controller != nil)
+        [self setContentView: [controller view]];
+}
+
 - (void) setContentView: (NSView *) view {
     view = [view retain];
     [view setFrame: [_contentView frame]];
@@ -1318,14 +1349,25 @@ static BOOL _allowsAutomaticWindowTabbing;
     // _preservesContentDuringLiveResize=value;
 }
 
+// The represented filename and URL describe the same file; setting one updates
+// the other. A non-file URL has no filename.
 - (void) setRepresentedFilename: (NSString *) value {
     value = [value copy];
     [_representedFilename release];
     _representedFilename = value;
+
+    [_representedURL release];
+    _representedURL = [value length] > 0
+            ? [[NSURL fileURLWithPath: value] retain] : nil;
 }
 
 - (void) setRepresentedURL: (NSURL *) newURL {
-    NSUnimplementedMethod();
+    newURL = [newURL copy];
+    [_representedURL release];
+    _representedURL = newURL;
+
+    [_representedFilename release];
+    _representedFilename = [newURL isFileURL] ? [[newURL path] copy] : nil;
 }
 
 - (void) setResizeIncrements: (NSSize) value {
@@ -2259,10 +2301,26 @@ static BOOL _allowsAutomaticWindowTabbing;
         if (![self isKindOfClass: [NSPanel class]]) {
             [NSApp removeWindowsItem: self];
         }
+        if ([self isKeyWindow])
+            [self _passKeyToFrontmostWindow];
         break;
     }
 
     [self postNotificationName: NSWindowDidMoveNotification];
+}
+
+// Like macOS, ordering out the key window makes the frontmost remaining
+// window that can become key the key window; without one, none is key.
+- (void) _passKeyToFrontmostWindow {
+    for (NSWindow *window in [NSApp orderedWindows]) {
+        if (window != self && [window isVisible] &&
+            [window canBecomeKeyWindow]) {
+            [window becomeKeyWindow];
+            return;
+        }
+    }
+    [NSApp _setKeyWindow: nil];
+    [self resignKeyWindow];
 }
 
 - (void) orderFrontRegardless {
@@ -2310,6 +2368,34 @@ static BOOL _allowsAutomaticWindowTabbing;
     NSUnimplementedMethod();
 }
 
+// The recognizers of the view an event goes to and of that view's ancestors,
+// innermost first. Releases and drags go where the press went.
+- (NSArray *) _gestureRecognizersForEvent: (NSEvent *) event {
+    NSPoint location;
+    switch ([event type]) {
+    case NSEventTypeLeftMouseDown:
+    case NSEventTypeRightMouseDown:
+    case NSEventTypeOtherMouseDown:
+    case NSEventTypeOtherMouseUp:
+    case NSEventTypeMagnify:
+    case NSEventTypeRotate:
+        location = [event locationInWindow];
+        break;
+    case NSEventTypeLeftMouseUp:
+    case NSEventTypeRightMouseUp:
+    case NSEventTypeLeftMouseDragged:
+    case NSEventTypeRightMouseDragged:
+        location = _mouseDownLocationInWindow;
+        break;
+    default:
+        return nil;
+    }
+    NSMutableArray *recognizers = [NSMutableArray array];
+    for (NSView *view = [_backgroundView hitTest: location]; view != nil; view = [view superview])
+        [recognizers addObjectsFromArray: [view gestureRecognizers]];
+    return recognizers;
+}
+
 - (void) sendEvent: (NSEvent *) event {
     // Some events can cause our window to be destroyed
     // So make sure self lives at least through this current run loop...
@@ -2347,6 +2433,10 @@ static BOOL _allowsAutomaticWindowTabbing;
             return;
         }
     }
+
+    NSArray *recognizers = [self _gestureRecognizersForEvent: event];
+    for (NSGestureRecognizer *recognizer in recognizers)
+        [recognizer _receiveEvent: event];
 
     BOOL shouldValidateToolbarItems = YES;
     // OK let's see if anyone else wants it.
@@ -2437,6 +2527,16 @@ static BOOL _allowsAutomaticWindowTabbing;
                 scrollWheel: event];
         break;
 
+    case NSEventTypeMagnify:
+        [[_backgroundView hitTest: [event locationInWindow]]
+                magnifyWithEvent: event];
+        break;
+
+    case NSEventTypeRotate:
+        [[_backgroundView hitTest: [event locationInWindow]]
+                rotateWithEvent: event];
+        break;
+
     case NSAppKitDefined:
         // Nothing special to do.
         break;
@@ -2446,6 +2546,9 @@ static BOOL _allowsAutomaticWindowTabbing;
         NSUnimplementedMethod();
         break;
     }
+    for (NSGestureRecognizer *recognizer in recognizers)
+        [recognizer _resetIfFinished];
+
     if (shouldValidateToolbarItems && [self toolbar]) {
         [NSObject cancelPreviousPerformRequestsWithTarget: [self toolbar]
                                                  selector: @selector

@@ -20,7 +20,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/AppKitExport.h>
 #import <Foundation/Foundation.h>
 
-@class NSImage, NSView;
+@class NSImage, NSView, NSRunningApplication, NSWorkspaceOpenConfiguration;
 
 APPKIT_EXPORT NSString *const NSWorkspaceApplicationKey;
 
@@ -55,7 +55,7 @@ typedef NSUInteger NSWorkspaceIconCreationOptions;
     NSNotificationCenter *_notificationCenter;
 }
 
-+ (NSWorkspace *) sharedWorkspace;
+@property (class, readonly, retain) NSWorkspace *sharedWorkspace;
 
 - (NSNotificationCenter *) notificationCenter;
 
@@ -80,6 +80,9 @@ typedef NSUInteger NSWorkspaceIconCreationOptions;
         withApplication: (NSString *) application
           andDeactivate: (BOOL) deactivate;
 - (BOOL) openURL: (NSURL *) url;
+- (void) openURL: (NSURL *) url
+        configuration: (NSWorkspaceOpenConfiguration *) configuration
+    completionHandler: (void (^)(NSRunningApplication *app, NSError *error)) completionHandler;
 
 - (BOOL) selectFile: (NSString *) path
         inFileViewerRootedAtPath: (NSString *) rootedAtPath;

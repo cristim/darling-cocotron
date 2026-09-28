@@ -25,12 +25,17 @@
 
 @class NSDictionary;
 
-typedef float NSLayoutPriority;
+// Foundation's NSLayoutConstraint.h, imported above, declares these under the
+// same guards: Swift nests them only into a class of their own module.
+#if !__NSLAYOUT_PRIORITY_SHARED_SECTION__
+#define __NSLAYOUT_PRIORITY_SHARED_SECTION__ 1
+typedef float NSLayoutPriority NS_TYPED_EXTENSIBLE_ENUM NS_SWIFT_NAME(NSLayoutConstraint.Priority);
 
-static const NSLayoutPriority NSLayoutPriorityRequired = 1000;
-static const NSLayoutPriority NSLayoutPriorityDefaultHigh = 750;
-static const NSLayoutPriority NSLayoutPriorityDefaultLow = 250;
-static const NSLayoutPriority NSLayoutPriorityFittingSizeCompression = 50;
+static const NSLayoutPriority NSLayoutPriorityRequired NS_SWIFT_NAME(required) = 1000;
+static const NSLayoutPriority NSLayoutPriorityDefaultHigh NS_SWIFT_NAME(defaultHigh) = 750;
+static const NSLayoutPriority NSLayoutPriorityDefaultLow NS_SWIFT_NAME(defaultLow) = 250;
+static const NSLayoutPriority NSLayoutPriorityFittingSizeCompression NS_SWIFT_NAME(fittingSizeCompression) = 50;
+#endif
 
 typedef NS_ENUM(NSInteger, NSLayoutRelation) {
 	NSLayoutRelationLessThanOrEqual = -1,
@@ -107,10 +112,13 @@ typedef NS_OPTIONS(NSUInteger, NSLayoutFormatOptions) {
                                     views: (NSDictionary *) views;
 @end
 
+#if !__NSLAYOUT_ORIENTATION_SHARED_SECTION__
+#define __NSLAYOUT_ORIENTATION_SHARED_SECTION__ 1
 typedef NS_ENUM(NSInteger, NSLayoutConstraintOrientation) {
-	NSLayoutConstraintOrientationHorizontal = 0,
-	NSLayoutConstraintOrientationVertical = 1,
-};
+    NSLayoutConstraintOrientationHorizontal = 0,
+    NSLayoutConstraintOrientationVertical = 1,
+} NS_SWIFT_NAME(NSLayoutConstraint.Orientation);
+#endif
 
 APPKIT_EXPORT const CGFloat NSViewNoInstrinsicMetric;
 APPKIT_EXPORT const CGFloat NSViewNoIntrinsicMetric NS_SWIFT_NAME(NSView.noIntrinsicMetric);

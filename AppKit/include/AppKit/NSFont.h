@@ -61,7 +61,6 @@ typedef enum {
     NSStringEncoding _encoding;
 
     CGFontRef _cgFont;
-    CTFontRef _ctFont;
 }
 
 + (CGFloat) systemFontSize;

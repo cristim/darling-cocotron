@@ -25,6 +25,7 @@
 @synthesize collapsed = _collapsed;
 @synthesize canCollapse = _canCollapse;
 @synthesize holdingPriority = _holdingPriority;
+@synthesize behavior = _behavior;
 
 + (instancetype) splitViewItemWithViewController: (NSViewController *) viewController {
     NSSplitViewItem *item = [[[self alloc] init] autorelease];
@@ -32,9 +33,40 @@
     return item;
 }
 
++ (instancetype) sidebarWithViewController: (NSViewController *) viewController {
+    NSSplitViewItem *item = [self splitViewItemWithViewController: viewController];
+    item->_behavior = NSSplitViewItemBehaviorSidebar;
+    item->_canCollapse = YES;
+    item->_holdingPriority = NSLayoutPriorityDefaultLow + 10;
+    return item;
+}
+
++ (instancetype) contentListWithViewController: (NSViewController *) viewController {
+    NSSplitViewItem *item = [self splitViewItemWithViewController: viewController];
+    item->_behavior = NSSplitViewItemBehaviorContentList;
+    return item;
+}
+
 - (instancetype) init {
     if ((self = [super init]))
         _holdingPriority = NSLayoutPriorityDefaultLow;
+    return self;
+}
+
+// Key names follow GNUstep's NSSplitViewItem (libs-gui, LGPL-2.1+).
+- (instancetype) initWithCoder: (NSCoder *) coder {
+    if (![coder allowsKeyedCoding])
+        [NSException raise: NSInvalidArgumentException
+                    format: @"-[%@ %@] requires a keyed coder", [self class],
+                            NSStringFromSelector(_cmd)];
+    if ((self = [self init]) == nil)
+        return nil;
+
+    [self setViewController: [coder decodeObjectForKey: @"NSSplitViewItemViewController"]];
+    if ([coder containsValueForKey: @"NSHoldingPriority"])
+        _holdingPriority = [coder decodeFloatForKey: @"NSHoldingPriority"];
+    _collapsed = [coder decodeBoolForKey: @"NSCollapsed"];
+    _behavior = [coder decodeIntegerForKey: @"NSBehavior"];
     return self;
 }
 
