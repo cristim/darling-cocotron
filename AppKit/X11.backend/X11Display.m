@@ -1336,8 +1336,10 @@ static int ignoreBadWindowWhileOrdering(Display *display, XErrorEvent *errorEven
         NSString* strIg = [NSString stringWithCharacters: &ucsCode length: 1];
 
         // If there's an app that uses constants from HIToolbox/Events.h (e.g.
-        // kVK_ANSI_A), this gives it a chance to work.
-        const int carbonKeyCode = x11ToCarbon[ev->xkey.keycode];
+        // kVK_ANSI_A), this gives it a chance to work. x11ToCarbon is 256 wide
+        // and the protocol's keycode is 8 bits, but the field is a full word.
+        const int carbonKeyCode = ev->xkey.keycode < 256
+                ? x11ToCarbon[ev->xkey.keycode] : 0;
 
         BOOL isARepeat = NO;
 
