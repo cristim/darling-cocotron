@@ -34,7 +34,10 @@ along with Darling.  If not, see <http://www.gnu.org/licenses/>.
 
     Atom _receivingProperty;
     Atom _incrAtom;
+    Atom _targetsAtom;
     Atom _awaitingTarget;
+    NSArray<NSPasteboardType> *_remoteTypes;
+    Window _remoteOwner;
     enum { WAITING, SUCCESS, NONE } _selectionNotifyResult;
 }
 

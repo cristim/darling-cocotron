@@ -52,6 +52,7 @@ static const NSTimeInterval SelectionTimeout = 5;
     _selectionName = XInternAtom(_display, [name UTF8String], False);
     _receivingProperty = XInternAtom(_display, "RECEIVING_PROPERTY", False);
     _incrAtom = XInternAtom(_display, "INCR", False);
+    _targetsAtom = XInternAtom(_display, "TARGETS", False);
 
     int screen = DefaultScreen(_display);
     _window = XCreateSimpleWindow(_display, RootWindow(_display, screen), -10,
@@ -63,6 +64,12 @@ static const NSTimeInterval SelectionTimeout = 5;
     [x11Display setWindow: self forID: _window];
 
     return self;
+}
+
+- (void) discardRemoteTypes {
+    [_remoteTypes release];
+    _remoteTypes = nil;
+    _remoteOwner = None;
 }
 
 - (void) ensureSelectionOwner {
@@ -77,6 +84,7 @@ static const NSTimeInterval SelectionTimeout = 5;
 
     _typeToData = [NSMutableDictionary new];
     _typeToOwner = [NSMutableDictionary new];
+    [self discardRemoteTypes];
 
     _changeCount++;
 }
@@ -103,6 +111,8 @@ static const NSTimeInterval SelectionTimeout = 5;
 
     [_typeToData release];
     _typeToData = nil;
+
+    [self discardRemoteTypes];
 }
 
 - (NSString *) name {
@@ -114,6 +124,7 @@ static const NSTimeInterval SelectionTimeout = 5;
     XDestroyWindow(_display, _window);
 
     [self giveUpSelectionOwner];
+    [_remoteTypes release];
     [_name release];
     [super dealloc];
 }
@@ -238,6 +249,11 @@ static const NSTimeInterval SelectionTimeout = 5;
         return _typeToData[type];
     }
 
+    [self observeSelectionOwner];
+    if (_remoteOwner == None)
+        // No owner, no reply, and waiting for one would block the caller.
+        return nil;
+
     for (NSString *target in [X11Pasteboard targetsForType: type]) {
         Atom targetAtom = XInternAtom(_display, [target UTF8String], False);
         NSData *data = [self receiveDataForTarget: targetAtom format: 8];
@@ -297,9 +313,77 @@ static const NSTimeInterval SelectionTimeout = 5;
     return [self setData: data forType: type];
 }
 
+- (NSArray<NSPasteboardType> *) localTypes {
+    NSMutableArray *types = [NSMutableArray array];
+    [types addObjectsFromArray: [_typeToData allKeys]];
+    [types addObjectsFromArray: [_typeToOwner allKeys]];
+    return types;
+}
+
+// X11 sends no notification when the contents of a selection change, so the
+// identity of the owner is the only signal a requestor can get.
+- (void) observeSelectionOwner {
+    if (_typeToOwner != nil)
+        // We own the selection, so what we hold is the answer.
+        return;
+
+    Window owner = XGetSelectionOwner(_display, _selectionName);
+    if (owner == _remoteOwner)
+        return;
+
+    _remoteOwner = owner;
+    [_remoteTypes release];
+    _remoteTypes = nil;
+}
+
+- (NSArray<NSPasteboardType> *) remoteTypes {
+    [self observeSelectionOwner];
+    if (_remoteTypes != nil)
+        return _remoteTypes;
+
+    NSMutableArray *types = [NSMutableArray array];
+
+    // Nothing owns the selection, so no TARGETS reply is ever coming and asking
+    // for one would block the caller for the whole timeout.
+    NSData *targets = _remoteOwner == None ? nil
+            : [self receiveDataForTarget: _targetsAtom format: 32];
+    if (targets != nil) {
+        NSArray *metaTargets = @[
+            @"TARGETS", @"TIMESTAMP", @"MULTIPLE", @"SAVE_TARGETS", @"DELETE"
+        ];
+        // A 32-format property holds 32-bit items, one per atom.
+        const uint32_t *atoms = (const uint32_t *) [targets bytes];
+        for (size_t i = 0; i * sizeof(uint32_t) < [targets length]; i++) {
+            if (atoms[i] == None)
+                continue;
+            char *rawTarget = XGetAtomName(_display, atoms[i]);
+            if (rawTarget == NULL)
+                continue;
+            NSString *target = [NSString stringWithUTF8String: rawTarget];
+            XFree(rawTarget);
+            // The meta targets name a conversion mode, not a flavour.
+            if (target == nil || [metaTargets containsObject: target])
+                continue;
+
+            NSPasteboardType type = [X11Pasteboard typeForTarget: target];
+            if (![types containsObject: type])
+                [types addObject: type];
+        }
+    }
+
+    // Only a real answer is worth remembering: an owner that stayed silent this
+    // time may answer the next.
+    if (targets != nil || _remoteOwner == None)
+        _remoteTypes = [types copy];
+
+    return types;
+}
+
 - (NSArray<NSPasteboardType> *) types {
-    return [[_typeToData allKeys]
-            arrayByAddingObjectsFromArray: [_typeToOwner allKeys]];
+    if (_typeToOwner != nil)
+        return [self localTypes];
+
+    return [self remoteTypes];
 }
 
 - (void) selectionNotify: (XSelectionEvent *) event {
@@ -335,7 +419,9 @@ static const NSTimeInterval SelectionTimeout = 5;
     XFree(rawTarget);
 
     if ([target isEqual: @"TARGETS"]) {
-        NSArray<NSPasteboardType> *types = [self types];
+        // Only what we hold can be served; asking the current owner instead
+        // would nest one selection request inside another client's.
+        NSArray<NSPasteboardType> *types = [self localTypes];
         size_t count = 1;
         for (NSPasteboardType type in types) {
             NSArray<NSString *> *ts = [X11Pasteboard targetsForType: type];
