@@ -124,7 +124,13 @@ size_t CGDisplayPixelsHigh(CGDirectDisplayID displayIndex) {
     if (displayIndex > [screens count] || displayIndex <= 0)
         return 0;
 
-    return NSHeight([[screens objectAtIndex: displayIndex - 1] frame]);
+    // Device pixels, not points. NSScreen.frame is in points, and CGDisplayBounds
+    // reports points, so returning the frame size here halved the value on a 2x
+    // display and any caller sizing a bitmap from CGDisplayPixelsWide got half the
+    // pixels it asked for.
+    NSScreen *screen = [screens objectAtIndex: displayIndex - 1];
+    CGFloat scale = [screen backingScaleFactor];
+    return (size_t) lround(NSHeight([screen frame]) * scale);
 }
 
 size_t CGDisplayPixelsWide(CGDirectDisplayID displayIndex) {
@@ -136,7 +142,10 @@ size_t CGDisplayPixelsWide(CGDirectDisplayID displayIndex) {
     if (displayIndex > [screens count] || displayIndex <= 0)
         return 0;
 
-    return NSWidth([[screens objectAtIndex: displayIndex - 1] frame]);
+    // Device pixels, not points; see CGDisplayPixelsHigh.
+    NSScreen *screen = [screens objectAtIndex: displayIndex - 1];
+    CGFloat scale = [screen backingScaleFactor];
+    return (size_t) lround(NSWidth([screen frame]) * scale);
 }
 
 CGError CGGetActiveDisplayList(uint32_t maxDisplays,
