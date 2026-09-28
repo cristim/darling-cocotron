@@ -25,15 +25,20 @@
 #import <CoreFoundation/CFSocket.h>
 
 @interface CGSConnectionX11 : CGSConnection {
+@public
+	// The X11 display, which the CGS windows and surfaces of this connection draw on.
 	Display *_display;
+
+@protected
 	// We use CFRunLoop directly, without going through any Foundation wrapper,
     // because Apple's Cocoa has none. Unlike Apple's Cocoa, we need to watch
     // over a Unix domain socket, not a Mach port.
     CFSocketRef _cfSocket;
     CFRunLoopSourceRef _source;
 
-	// NOTE: A CGSScreen refers to a 'crtc' in X11 paralance, and *not* to an X11 screen.
-	// In other words, it refers to a physical monitor.
+	// One entry per X11 screen, each describing the root window of that screen, so
+	// that its size is in the coordinate space -mouseLocation reports. Dropped when
+	// XRandR reports a reconfiguration.
 	NSArray<CGSScreen*>* _screens;
 
 	CGSKeyboardLayout* _keyboardLayout;

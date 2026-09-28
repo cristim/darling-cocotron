@@ -17,7 +17,9 @@
  along with Darling.  If not, see <http://www.gnu.org/licenses/>.
 */
 #import "CGSConnectionX11.h"
+#import "CGSWindowX11.h"
 #import <CoreGraphics/CGSKeyboardLayout.h>
+#import <CoreGraphics/CGSScreen.h>
 #include "CarbonKeys.h"
 #import "X11KeySymToUCS.h"
 #import <Foundation/NSDebug.h>
@@ -48,6 +50,21 @@ static void socketCallback(CFSocketRef s, CFSocketCallBackType type, CFDataRef a
 {
     CGSConnectionX11* self = (CGSConnectionX11*) info;
     [self processPendingEvents];
+}
+
+// A RandR screen change arrives as a plain event, but everything the extension added in
+// version 1.2 (a CRTC or output reconfiguration, a changed output property) is sent as
+// event code base + RRNotify with a sub-code, and those come through the Generic Extension:
+// Xlib reports their X event type as GenericEvent and the RandR code in xgeneric.evtype.
+// Testing event->type against base + RRNotify therefore never matches one of them, which is
+// why re-plugging a monitor or switching a mode did not drop the screen cache.
+static BOOL isRandREvent(int xrrEventBase, XEvent* event)
+{
+	if (event->type == xrrEventBase + RRScreenChangeNotify)
+		return YES;
+
+	return event->type == GenericEvent &&
+		event->xgeneric.evtype == xrrEventBase + RRNotify;
 }
 
 -(instancetype) initWithConnectionID:(CGSConnectionID)connId
@@ -107,6 +124,13 @@ static void socketCallback(CFSocketRef s, CFSocketCallBackType type, CFDataRef a
 
 -(void) dealloc
 {
+	// The windows destroy X11 windows on our display, so they have to go first.
+	// -[CGSConnection dealloc] would only release _windows after this body.
+	@synchronized (_windows)
+	{
+		[_windows removeAllObjects];
+	}
+
 	if (_display)
 		XCloseDisplay(_display);
 
@@ -118,6 +142,7 @@ static void socketCallback(CFSocketRef s, CFSocketCallBackType type, CFDataRef a
 		CFRelease(_cfSocket);
 
 	[_keyboardLayout release];
+	[_screens release];
 
 	[super dealloc];
 }
@@ -258,6 +283,12 @@ static void socketCallback(CFSocketRef s, CFSocketCallBackType type, CFDataRef a
 	_keyboardLayoutGroup = state.group;
 }
 
+-(void*) nativeDisplay
+{
+	// EGLNativeDisplayType on X11 is the Display itself.
+	return _display;
+}
+
 -(CGPoint) mouseLocation
 {
 	Window child, root = DefaultRootWindow(_display);
@@ -325,8 +356,11 @@ static void socketCallback(CFSocketRef s, CFSocketCallBackType type, CFDataRef a
 
 			break;
 		}
-		else if (event->type == _xrrEventBase + RRScreenChangeNotify || event->type == _xrrEventBase + RRNotify)
+		else if (isRandREvent(_xrrEventBase, event))
 		{
+			// Nothing is posted to the procs CGSRegisterNotifyProc() collected:
+			// they live in g_cgsNotifyProc, which CGS.m keeps hidden, so a backend
+			// bundle cannot reach them.
 			// Invalidate cached information
 			if (_screens)
 			{
@@ -351,9 +385,38 @@ static void socketCallback(CFSocketRef s, CFSocketCallBackType type, CFDataRef a
 	}
 }
 
+// One CGSScreen per X11 screen, describing that screen's root window rather than a
+// CRTC: -mouseLocation reports root coordinates, and the one reader of this array,
+// CGEventGetUnflippedLocation(), flips a y against the first screen's height, which
+// of two monitors stacked is the root's, not the shorter one's. The mode list is not
+// rebuilt from RandR, because CGDisplayModeGet* reads AppKit's, which already walks it.
 -(void) _doGetScreenInformation
 {
+	NSMutableArray* screens = [NSMutableArray array];
 
+	for (int i = 0; i < ScreenCount(_display); i++)
+	{
+		Screen* screen = XScreenOfDisplay(_display, i);
+
+		CGSScreen* cgScreen = [CGSScreen new];
+		cgScreen.modes = @[ @{
+			@"Width": @(WidthOfScreen(screen)),
+			@"Height": @(HeightOfScreen(screen)),
+			@"Depth": @(DefaultDepthOfScreen(screen)),
+			// Each X11 screen has a root window of its own, all at the origin of the
+			// coordinate space -mouseLocation works in.
+			@"OriginX": @0,
+			@"OriginY": @0,
+		}];
+		cgScreen.currentMode = 0;
+		[screens addObject: cgScreen];
+		[cgScreen release];
+	}
+
+	// CGEventGetUnflippedLocation() reads screens[0] without checking, so an empty
+	// array is worse than the nil it takes for "no answer".
+	if ([screens count] > 0)
+		_screens = [screens copy];
 }
 
 -(NSArray<CGSScreen*>*) createScreens
@@ -368,7 +431,21 @@ static void socketCallback(CFSocketRef s, CFSocketCallBackType type, CFDataRef a
 
 -(CGSWindow*) newWindow:(CGSRegionRef)region
 {
+	CGSWindowID windowID = _nextWindowId++;
+	CGSWindowX11* window = [[CGSWindowX11 alloc] initWithRegion: region
+		connection: self
+		windowID: windowID];
+	// A window that could not be created is reported by -[CGSWindowX11 init...];
+	// CGSNewWindow() turns the nil into kCGErrorIllegalArgument.
+	if (window == nil)
+		return nil;
 
+	@synchronized (_windows)
+	{
+		[_windows setObject: window forKey: [NSNumber numberWithInt: windowID]];
+	}
+	[window release];
+	return window;
 }
 
 +(BOOL) isAvailable
