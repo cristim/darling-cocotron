@@ -154,6 +154,7 @@ static void socketCallback(CFSocketRef s, CFSocketCallBackType type,
         lastFocusedWindow = nil;
         lastClickTimeStamp = 0.0;
         clickCount = 0;
+        _modifierFlags = 0;
     }
     return self;
 }
@@ -1122,6 +1123,77 @@ static int compareFontPatterns(const void *a, const void *b) {
     return ret;
 }
 
+// A modifier key reaches AppKit as an NSFlagsChanged and never as a key down or
+// up, so each modifier keysym is mapped to the virtual keycode the event must
+// carry and the X mask bit it drives. `toggle` marks the lock keys, whose press
+// flips the bit and whose release changes nothing. A carbon keycode of -1 means
+// the keysym is not a modifier at all.
+typedef struct {
+    int carbonKeyCode;
+    unsigned int xMask;
+    BOOL toggle;
+} X11ModifierKey;
+
+static X11ModifierKey modifierKeyForKeysym(KeySym keySym) {
+    X11ModifierKey notAModifier = {-1, 0, NO};
+    switch (keySym) {
+    case XK_Shift_L: return (X11ModifierKey){kVK_Shift, ShiftMask, NO};
+    case XK_Shift_R: return (X11ModifierKey){kVK_RightShift, ShiftMask, NO};
+    case XK_Control_L: return (X11ModifierKey){kVK_Control, ControlMask, NO};
+    case XK_Control_R: return (X11ModifierKey){kVK_RightControl, ControlMask, NO};
+    case XK_Alt_L: return (X11ModifierKey){kVK_Option, Mod1Mask, NO};
+    case XK_Alt_R: return (X11ModifierKey){kVK_RightOption, Mod1Mask, NO};
+    case XK_Super_L: case XK_Meta_L:
+        return (X11ModifierKey){kVK_Command, Mod4Mask, NO};
+    case XK_Super_R: case XK_Meta_R:
+        return (X11ModifierKey){0x36, Mod4Mask, NO};
+    case XK_ISO_Level3_Shift: case XK_Mode_switch:
+        return (X11ModifierKey){kVK_Function, Mod5Mask, NO};
+    case XK_Caps_Lock:
+        return (X11ModifierKey){kVK_CapsLock, LockMask, YES};
+    case XK_Num_Lock:
+        return (X11ModifierKey){kVK_ANSI_KeypadClear, Mod2Mask, NO};
+    default: return notAModifier;
+    }
+}
+
+// The X server fills `state` with the modifier and button state as it was
+// *before* the event, so the key's own contribution has to be applied to reach
+// the state the event leaves behind. Verified against an Xvfb server: a
+// Shift_L press carries state 0 and its release carries ShiftMask.
+static unsigned int x11StateAfterKeyEvent(const X11ModifierKey *key,
+                                          unsigned int state,
+                                          BOOL pressed) {
+    if (pressed)
+        return key->toggle ? (state ^ key->xMask) : (state | key->xMask);
+    if (key->toggle)
+        return state;
+    return state & ~key->xMask;
+}
+
+// Cocoa has no event for "a modifier's aggregate changed without a key": the
+// same flagsChanged carries a sentinel keycode, which is what macOS sends when
+// a modifier is released while another app holds the focus and the next key
+// event is the first this process sees of the new mask.
+- (void) postFlagsChanged: (unsigned short) keyCode
+                    flags: (NSEventModifierFlags) flags
+                 inWindow: (X11Window *) window {
+    NSWindow *delegate = [window delegate];
+    if (delegate == nil)
+        return;
+    [self postEvent: [NSEvent keyEventWithType: NSFlagsChanged
+            location: [window mouseLocationOutsideOfEventStream]
+            modifierFlags: flags
+            timestamp: 0.0
+            windowNumber: [delegate windowNumber]
+            context: nil
+            characters: @""
+            charactersIgnoringModifiers: @""
+            isARepeat: NO
+            keyCode: keyCode]
+             atStart: NO];
+}
+
 // Returns the window numbers of this app's windows, frontmost first, using the X server's stacking
 // order: XQueryTree lists the root's children bottom to top. Under a reparenting window manager our
 // top-level windows are children of frame windows, so each root child is matched against our windows
@@ -1200,6 +1272,29 @@ static int ignoreBadWindowWhileOrdering(Display *display, XErrorEvent *errorEven
         char *text = buf;
         KeySym keySym = NoSymbol;
         int strLen;
+
+        // Ahead of the input method: a modifier is not text, and an IM filter
+        // that swallows it would leave the reported flags permanently stale.
+        // The aggregate mask is also corrected here for the same reason, with
+        // the keycode macOS uses when no single key is responsible.
+        {
+            BOOL pressed = ev->type == KeyPress;
+            X11ModifierKey modifier = modifierKeyForKeysym(
+                    XKeycodeToKeysym(_display, ev->xkey.keycode, 0));
+            NSEventModifierFlags after = modifierFlags;
+            unsigned short keyCode = 0xFFFF;
+            if (modifier.carbonKeyCode >= 0) {
+                after = [self modifierFlagsForState:
+                                 x11StateAfterKeyEvent(&modifier, ev->xkey.state, pressed)];
+                keyCode = (unsigned short) modifier.carbonKeyCode;
+            }
+            if (after != _modifierFlags || modifier.carbonKeyCode >= 0) {
+                _modifierFlags = after;
+                [self postFlagsChanged: keyCode flags: after inWindow: window];
+                if (modifier.carbonKeyCode >= 0)
+                    break; // Modifiers are neither text nor repeatable keys.
+            }
+        }
 
         if (XFilterEvent(ev, None)) // XIM processing
             break;
