@@ -33,6 +33,8 @@ along with Darling.  If not, see <http://www.gnu.org/licenses/>.
     NSInteger _changeCount;
 
     Atom _receivingProperty;
+    Atom _incrAtom;
+    Atom _awaitingTarget;
     enum { WAITING, SUCCESS, NONE } _selectionNotifyResult;
 }
 

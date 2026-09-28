@@ -23,6 +23,8 @@ along with Darling.  If not, see <http://www.gnu.org/licenses/>.
 
 static NSMutableDictionary<NSPasteboardName, X11Pasteboard *> *nameToPboard;
 
+static const NSTimeInterval SelectionTimeout = 5;
+
 + (X11Pasteboard *) pasteboardWithName: (NSPasteboardName) name {
     static dispatch_once_t once;
     dispatch_once(&once, ^{
@@ -49,6 +51,7 @@ static NSMutableDictionary<NSPasteboardName, X11Pasteboard *> *nameToPboard;
     _display = [x11Display display];
     _selectionName = XInternAtom(_display, [name UTF8String], False);
     _receivingProperty = XInternAtom(_display, "RECEIVING_PROPERTY", False);
+    _incrAtom = XInternAtom(_display, "INCR", False);
 
     int screen = DefaultScreen(_display);
     _window = XCreateSimpleWindow(_display, RootWindow(_display, screen), -10,
@@ -145,35 +148,85 @@ static NSMutableDictionary<NSPasteboardName, X11Pasteboard *> *nameToPboard;
     return target;
 }
 
-- (NSData *) readDataFromReceivingProperty {
+- (NSData *) readReceivingPropertyForTarget: (Atom) target format: (int) format {
     Atom type;
-    unsigned char *propValue = NULL;
-    int format;
+    int actualFormat;
     unsigned long num_items, remaining;
+    unsigned char *propValue = NULL;
 
     XGetWindowProperty(_display, _window, _receivingProperty, 0, ~0L, True,
-                       AnyPropertyType, &type, &format, &num_items, &remaining,
-                       &propValue);
+                       AnyPropertyType, &type, &actualFormat, &num_items,
+                       &remaining, &propValue);
 
     if (type == None) {
         return nil;
     }
 
-    if (type == XInternAtom(_display, "INCR", False)) {
+    if (type == _incrAtom) {
         NSLog(@"Unimplemented: INCR support");
-        return nil;
-    }
-
-    if (format != 8) {
-        // ???
         XFree(propValue);
         return nil;
     }
 
-    NSData *data = [NSData dataWithBytes: propValue length: num_items];
+    if (actualFormat != format) {
+        NSLog(@"X11 pasteboard: the selection owner answered with format %d, "
+              "expected %d", actualFormat, format);
+        XFree(propValue);
+        return nil;
+    }
+
+    if (type != target) {
+        // The bytes would be read as a flavour nobody asked for.
+        NSLog(@"X11 pasteboard: the selection owner answered one target with the "
+              "type of another");
+    }
+
+    NSData *data = [NSData dataWithBytes: propValue
+                                  length: num_items * (format / 8)];
     XFree(propValue);
 
     return data;
+}
+
+// An owner that is gone, or that ignores the request, never answers at all, so
+// every wait is bounded instead of hanging the caller forever.
+- (NSData *) receiveDataForTarget: (Atom) target format: (int) format {
+    XDeleteProperty(_display, _window, _receivingProperty);
+    _awaitingTarget = target;
+    _selectionNotifyResult = WAITING;
+
+    XConvertSelection(_display, _selectionName, target, _receivingProperty,
+                      _window, CurrentTime); // FIXME: don't use CurrentTime
+    XFlush(_display);
+
+    NSTimeInterval deadline = [NSDate timeIntervalSinceReferenceDate]
+            + SelectionTimeout;
+    while (_selectionNotifyResult == WAITING) {
+        NSTimeInterval remaining = deadline
+                - [NSDate timeIntervalSinceReferenceDate];
+        if (remaining <= 0)
+            break;
+
+        [[NSDisplay currentDisplay]
+                nextEventMatchingMask: NSAnyEventMask
+                            untilDate: [NSDate dateWithTimeIntervalSinceNow: remaining]
+                               inMode: NSDefaultRunLoopMode
+                              dequeue: NO];
+    }
+    _awaitingTarget = None;
+
+    if (_selectionNotifyResult != SUCCESS) {
+        if (_selectionNotifyResult == WAITING) {
+            char *rawTarget = XGetAtomName(_display, target);
+            NSLog(@"X11 pasteboard: the owner of %@ did not answer a request for "
+                  "target %s", _name, rawTarget ? rawTarget : "?");
+            if (rawTarget != NULL)
+                XFree(rawTarget);
+        }
+        return nil;
+    }
+
+    return [self readReceivingPropertyForTarget: target format: format];
 }
 
 - (NSData *) dataForType: (NSPasteboardType) type {
@@ -185,21 +238,14 @@ static NSMutableDictionary<NSPasteboardName, X11Pasteboard *> *nameToPboard;
         return _typeToData[type];
     }
 
-    NSString *target = [X11Pasteboard targetsForType: type][0];
-    Atom targetAtom = XInternAtom(_display, [target UTF8String], False);
-    XConvertSelection(_display, _selectionName, targetAtom, _receivingProperty,
-                      _window, CurrentTime); // FIXME: don't use CurrentTime
-
-    _selectionNotifyResult = WAITING;
-    while (_selectionNotifyResult == WAITING) {
-        [[NSDisplay currentDisplay]
-                nextEventMatchingMask: NSAnyEventMask
-                            untilDate: [NSDate distantFuture]
-                               inMode: NSDefaultRunLoopMode
-                              dequeue: NO];
+    for (NSString *target in [X11Pasteboard targetsForType: type]) {
+        Atom targetAtom = XInternAtom(_display, [target UTF8String], False);
+        NSData *data = [self receiveDataForTarget: targetAtom format: 8];
+        if (data != nil)
+            return data;
     }
 
-    return [self readDataFromReceivingProperty];
+    return nil;
 }
 
 - (NSString *) stringForType: (NSPasteboardType) type {
@@ -257,11 +303,12 @@ static NSMutableDictionary<NSPasteboardName, X11Pasteboard *> *nameToPboard;
 }
 
 - (void) selectionNotify: (XSelectionEvent *) event {
-    if (event->property == None) {
-        _selectionNotifyResult = NONE;
-    } else {
-        _selectionNotifyResult = SUCCESS;
-    }
+    // The reply to a request we are waiting for is the only one that says so.
+    if (event->selection != _selectionName || event->target != _awaitingTarget)
+        return;
+
+    _selectionNotifyResult = event->property == _receivingProperty
+            ? SUCCESS : NONE;
 }
 
 - (void) selectionRequest: (XSelectionRequestEvent *) event {
