@@ -24,4 +24,10 @@ CGGradientRef CGGradientCreateWithColors(CGColorSpaceRef colorSpace,
 void CGGradientRelease(CGGradientRef self);
 CGGradientRef CGGradientRetain(CGGradientRef self);
 
+CF_EXPORT CFTypeID CGGradientGetTypeID(void);
+CF_EXPORT size_t CGGradientGetCount(CGGradientRef self);
+CF_EXPORT const CGFloat *CGGradientGetLocations(CGGradientRef self);
+CF_EXPORT const CGFloat *CGGradientGetColors(CGGradientRef self);
+CF_EXPORT CGColorSpaceRef CGGradientGetColorSpace(CGGradientRef self);
+
 #endif /* CGGRADIENT_H */

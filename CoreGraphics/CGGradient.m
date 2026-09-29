@@ -23,23 +23,28 @@
 #include <CoreGraphics/CGColor.h>
 #include <CoreGraphics/CGGradient.h>
 #include <Foundation/NSString.h>
+#include <Onyx2D/O2Color.h>
+#include <pthread.h>
 #include <stdlib.h>
 #include <string.h>
 #include "CGGradientPrivate.h"
 
 static CFTypeID gradientTypeID;
 static CFRuntimeClass gradientClass;
+static pthread_once_t registerGradientOnce = PTHREAD_ONCE_INIT;
 
 static void CGGradientFinalize(CFTypeRef cf);
 
+static void RegisterCGGradient(void) {
+    memset(&gradientClass, 0, sizeof(gradientClass));
+    gradientClass.version = 0;
+    gradientClass.className = "CGGradient";
+    gradientClass.finalize = CGGradientFinalize;
+    gradientTypeID = _CFRuntimeRegisterClass(&gradientClass);
+}
+
 CFTypeID CGGradientGetTypeID(void) {
-    if (gradientTypeID == 0) {
-        memset(&gradientClass, 0, sizeof(gradientClass));
-        gradientClass.version = 0;
-        gradientClass.className = "CGGradient";
-        gradientClass.finalize = CGGradientFinalize;
-        gradientTypeID = _CFRuntimeRegisterClass(&gradientClass);
-    }
+    pthread_once(&registerGradientOnce, RegisterCGGradient);
     return gradientTypeID;
 }
 
@@ -77,9 +82,12 @@ static CFTypeRef CGGradientCreate(CGColorSpaceRef colorSpace,
     if (numberOfComponents == 0 || numberOfComponents > CGGradientMaximumComponents)
         return NULL;
 
+    /* _CFRuntimeCreateInstance lays down a CFRuntimeBase itself and takes the
+     * remaining size as extraBytes, so the base is subtracted here; passing the
+     * whole struct size would count it twice. */
     gradient = (CGGradientRef)_CFRuntimeCreateInstance(
-            NULL, CGGradientGetTypeID(), sizeof(struct CGGradient),
-            NULL);
+            NULL, CGGradientGetTypeID(),
+            sizeof(struct CGGradient) - sizeof(CFRuntimeBase), NULL);
     if (gradient == NULL)
         return NULL;
 
@@ -162,10 +170,21 @@ CGGradientRef CGGradientCreateWithColors(CGColorSpaceRef colorSpace,
         CGColorRef color = (CGColorRef)CFArrayGetValueAtIndex(colors, i);
         size_t checkNumberOfComponents, j;
 
-        if (color == NULL ||
-            CGColorGetColorSpace(color) == NULL) {
-            NSLog(@"CGGradientCreateWithColors, colour %ld is null or has no "
-                  @"colour space", (long)i);
+        /* A CFArray can hold anything, so the element has to be checked before it
+         * is sent to CGColor's accessors, or a non-colour object is read as one.
+         * CoreGraphics builds colours as O2Color here, which is an NSObject and
+         * not a CFRuntimeBase object, so CFGetTypeID does not apply to it; the
+         * class is what identifies a colour. */
+        if (color == NULL || ![(id) color isKindOfClass: [O2Color class]]) {
+            NSLog(@"CGGradientCreateWithColors, colour %ld is not a CGColor",
+                  (long)i);
+            free(components);
+            return NULL;
+        }
+
+        if (CGColorGetColorSpace(color) == NULL) {
+            NSLog(@"CGGradientCreateWithColors, colour %ld has no colour space",
+                  (long)i);
             free(components);
             return NULL;
         }
@@ -195,6 +214,22 @@ CGGradientRef CGGradientCreateWithColors(CGColorSpaceRef colorSpace,
                                                numberOfComponents);
     free(components);
     return gradient;
+}
+
+size_t CGGradientGetCount(CGGradientRef self) {
+    return self->count;
+}
+
+const CGFloat *CGGradientGetLocations(CGGradientRef self) {
+    return self->locations;
+}
+
+const CGFloat *CGGradientGetColors(CGGradientRef self) {
+    return self->components;
+}
+
+CGColorSpaceRef CGGradientGetColorSpace(CGGradientRef self) {
+    return self->colorSpace;
 }
 
 void CGGradientColorAtLocation(CGGradientRef gradient, CGFloat t,

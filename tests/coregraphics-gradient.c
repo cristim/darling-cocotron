@@ -17,6 +17,8 @@
  *
  * Exit codes are distinct per failure so a run identifies what broke.
  */
+#include <CoreFoundation/CFArray.h>
+#include <CoreFoundation/CFString.h>
 #include <CoreGraphics/CoreGraphics.h>
 #include <math.h>
 #include <stdio.h>
@@ -186,6 +188,25 @@ static int testColors(void) {
     CGContextRef context;
     Pixel start, end;
     int status = 0;
+
+    /* An array element that is not a colour must be refused, not read as one:
+     * the accessor would be handed something that is not a colour and would
+     * read whatever happens to be at that address. */
+    {
+        CFTypeRef notAColor = (CFTypeRef)CFStringCreateWithCString(
+                NULL, "not a colour", kCFStringEncodingUTF8);
+        const void *mixed[] = { colorFirst, notAColor };
+        CFArrayRef mixedArray = CFArrayCreate(NULL, mixed, 2, NULL);
+        CGGradientRef refused = CGGradientCreateWithColors(space, mixedArray, NULL);
+
+        if (refused != NULL) {
+            fprintf(stderr, "a non-colour in the array was accepted\n");
+            status = 3;
+            CGGradientRelease(refused);
+        }
+        CFRelease(mixedArray);
+        CFRelease(notAColor);
+    }
 
     gradient = CGGradientCreateWithColors(space, array, NULL);
     if (gradient == NULL) {
@@ -552,6 +573,75 @@ static int testClip(void) {
     return status;
 }
 
+/* The public accessors have to report what the gradient actually holds, and the
+ * TypeID has to be a real, registered CF type: the drawing path and any client
+ * that wants to store a gradient in a CF container both go through them. */
+static int testAccessors(void) {
+    static const CGFloat components[] = {
+        1.0f, 0.0f, 0.0f, 1.0f,
+        0.0f, 0.0f, 1.0f, 1.0f,
+    };
+    static const CGFloat locations[] = { 0.25f, 0.75f };
+    CGColorSpaceRef space = CGColorSpaceCreateDeviceRGB();
+    CGGradientRef gradient;
+    const CGFloat *got;
+    int status = 0;
+
+    if (space == NULL) {
+        fprintf(stderr, "accessors: no device RGB colour space\n");
+        return 11;
+    }
+
+    if (CGGradientGetTypeID() == 0) {
+        fprintf(stderr, "accessors: CGGradientGetTypeID returned 0\n");
+        CGColorSpaceRelease(space);
+        return 11;
+    }
+
+    gradient = CGGradientCreateWithColorComponents(space, components, locations, 2);
+    if (gradient == NULL) {
+        fprintf(stderr, "accessors: could not create a gradient\n");
+        CGColorSpaceRelease(space);
+        return 11;
+    }
+
+    if (CGGradientGetCount(gradient) != 2) {
+        fprintf(stderr, "accessors: count is %zu, want 2\n",
+                CGGradientGetCount(gradient));
+        status = 11;
+    }
+
+    got = CGGradientGetLocations(gradient);
+    if (got == NULL || got[0] != 0.25f || got[1] != 0.75f) {
+        fprintf(stderr, "accessors: locations are %g,%g, want 0.25,0.75\n",
+                got != NULL ? (double) got[0] : -1.0,
+                got != NULL ? (double) got[1] : -1.0);
+        status = 11;
+    }
+
+    got = CGGradientGetColors(gradient);
+    if (got == NULL || got[0] != 1.0f || got[3] != 1.0f || got[4] != 0.0f ||
+        got[6] != 1.0f) {
+        fprintf(stderr, "accessors: components do not match what was passed in\n");
+        status = 11;
+    }
+
+    if (CGGradientGetColorSpace(gradient) != space) {
+        fprintf(stderr, "accessors: colour space is not the one the gradient "
+                        "was created with\n");
+        status = 11;
+    }
+
+    fprintf(stderr, "accessors: count %zu, locations %g,%g\n",
+            CGGradientGetCount(gradient),
+            (double) CGGradientGetLocations(gradient)[0],
+            (double) CGGradientGetLocations(gradient)[1]);
+
+    CGGradientRelease(gradient);
+    CGColorSpaceRelease(space);
+    return status;
+}
+
 int main(void) {
     int status = 0;
     int failed = 0;
@@ -568,6 +658,7 @@ int main(void) {
         { "radial falloff", testRadial, 8 },
         { "extend options", testExtendOptions, 9 },
         { "clip", testClip, 10 },
+        { "accessors", testAccessors, 11 },
     };
     size_t i;
 

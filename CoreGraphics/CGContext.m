@@ -672,7 +672,10 @@ static CGShadingRef CGGradientCreateShading(CGGradientRef gradient,
                 (options & kCGGradientDrawsBeforeStartLocation) != 0,
                 (options & kCGGradientDrawsAfterEndLocation) != 0);
 
-    /* The shading retains the function. */
+    /* The shading retains the function, but the function does not retain the
+     * gradient it was handed as its info (O2FunctionInit stores the pointer as
+     * is). The gradient therefore only has to outlive the shading, which both
+     * callers keep to this call: they draw and then release it below. */
     CGFunctionRelease(function);
     return shading;
 }
