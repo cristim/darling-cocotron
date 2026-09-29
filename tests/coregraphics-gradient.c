@@ -190,9 +190,11 @@ static int testColors(void) {
     Pixel start, end;
     int status = 0;
 
-    /* An array element that is not a colour must be refused, not read as one:
-     * the accessor would be handed something that is not a colour and would
-     * read whatever happens to be at that address. */
+    /* A non-colour element must be refused rather than read as one, or the
+     * accessors would be handed an object that is not a colour and would read
+     * whatever happens to be at that address. Which check refuses it is not
+     * established by this case on its own; the controls below bound it down, and
+     * the limitation is stated where they are. */
     {
         CFTypeRef notAColor = (CFTypeRef)CFStringCreateWithCString(
                 NULL, "not a colour", kCFStringEncodingUTF8);
@@ -204,8 +206,8 @@ static int testColors(void) {
         CGGradientRef control = CGGradientCreateWithColors(space, goodArray, NULL);
 
         /* Differential: the same array with the string removed has to be
-         * accepted, so a refusal above is attributable to the element's type
-         * rather than to the array, the count or the space. */
+         * accepted, so a refusal above is attributable to the element rather than
+         * to the array, the count or the colour space. */
         if (control == NULL) {
             fprintf(stderr, "the control array of two colours was refused, so "
                             "the mixed-array result proves nothing\n");
@@ -215,9 +217,58 @@ static int testColors(void) {
         }
 
         if (refused != NULL) {
-            fprintf(stderr, "a non-colour in the array was accepted\n");
+            fprintf(stderr, "a non-colour element was accepted\n");
             status = 3;
             CGGradientRelease(refused);
+        }
+
+        /* A second control, this time a real colour whose component count does not
+         * match the gradient's space: a CMYK colour has four components, so with
+         * alpha it is five where the gradient's device RGB expects four. It is
+         * accepted by the type check and refused by the component-count check
+         * instead, which is what makes the mixed-array refusal above attributable
+         * to the class check rather than to either check happening to fire.
+         *
+         * This does not fully separate the two. A non-colour element is refused
+         * by whichever check comes first, and the component-count check reads the
+         * component count off an object that is not a colour, so on this
+         * implementation a run with the class check removed still refuses the
+         * string. What the two controls do establish is that the type check lets a
+         * real colour through and lets a real colour with the wrong shape fail for
+         * the shape, so the class check is not what refuses a well-formed colour.
+         */
+        {
+            CGColorSpaceRef cmykSpace = CGColorSpaceCreateDeviceCMYK();
+            CGFloat cmyk[] = { 0.0, 0.0, 0.0, 1.0, 1.0 };
+            const void *cmykArray[1];
+
+            if (cmykSpace == NULL) {
+                fprintf(stderr, "no device CMYK colour space, so the wrong-shape "
+                                "control could not be built\n");
+                status = 3;
+            } else {
+                CGColorRef cmykColor = CGColorCreate(cmykSpace, cmyk);
+                CGGradientRef refused2 = NULL;
+
+                if (cmykColor == NULL) {
+                    fprintf(stderr, "could not create a CMYK colour, so the "
+                                    "wrong-shape control could not be built\n");
+                    status = 3;
+                } else {
+                    cmykArray[0] = cmykColor;
+                    CFArrayRef cmykOnly = CFArrayCreate(NULL, cmykArray, 1, NULL);
+                    refused2 = CGGradientCreateWithColors(space, cmykOnly, NULL);
+                    if (refused2 != NULL) {
+                        fprintf(stderr, "a CMYK colour was accepted into a device "
+                                        "RGB gradient\n");
+                        status = 3;
+                        CGGradientRelease(refused2);
+                    }
+                    CFRelease(cmykOnly);
+                    CGColorRelease(cmykColor);
+                }
+                CGColorSpaceRelease(cmykSpace);
+            }
         }
         CFRelease(goodArray);
         CFRelease(mixedArray);
@@ -668,9 +719,16 @@ static int testAccessors(void) {
  * resolve at all, fails here rather than in the pixel comparisons.
  */
 static int testAccessorBinding(const char *library) {
+    /* The five accessors, plus the four entry points the rest of this program
+     * actually paints through. Without the creators and the two draw calls in
+     * this list, a library that implemented the accessors but not the drawing
+     * would pass the binding check and then fail every pixel comparison for a
+     * reason that has nothing to do with gradients. */
     static const char *names[] = {
         "CGGradientGetTypeID", "CGGradientGetCount", "CGGradientGetLocations",
         "CGGradientGetColors", "CGGradientGetColorSpace",
+        "CGGradientCreateWithColorComponents", "CGGradientCreateWithColors",
+        "CGContextDrawLinearGradient", "CGContextDrawRadialGradient",
     };
     void *handle;
     size_t i;

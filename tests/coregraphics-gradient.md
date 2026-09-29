@@ -71,7 +71,22 @@ the gradient implementation all of them fail, because
 `CGGradientCreateWithColorComponents` returns NULL. Representative output with the
 implementation loaded:
 
+Abridged: the per-case pixel lines below are the ones worth reading, and the list is
+not the program's complete output. The nine checks it runs, in order, are:
+
     ok   accessors bound to the library under test
+    ok   components
+    ok   colors
+    ok   linear interpolation
+    ok   locations
+    ok   radial falloff
+    ok   extend options
+    ok   clip
+    ok   accessors
+    all gradient tests passed
+
+The pixel detail those checks print:
+
     single stop, centre: 0,0,255,255
     colours: start: 255,0,0,255
     colours: end: 0,255,0,255
@@ -104,3 +119,38 @@ already relies on.
 The colours are interpolated per stop, at the locations the caller gave, and are not
 sampled at a fixed rate: a two-stop gradient with locations 0.5 and 1.0 holds the
 first colour from the axis start to its midpoint and blends only above it.
+
+## Known limitations
+
+**The test runs against an injected library, not a full CoreGraphics build.**
+cocotron's CoreGraphics cannot be rebuilt from this checkout: the private build's
+ninja reads its headers from a tree outside the reachable paths, and those headers
+are not copied anywhere available. So the implementation under test is loaded as
+`libAZGradientFix.dylib`, built from this repository's `CoreGraphics/CGGradient.m`
+plus the two `CGContextDraw*Gradient` entry points extracted from `CGContext.m`, and
+its symbols take precedence over the installed `CoreGraphics.framework` in the
+prefix. What that does and does not cover:
+
+- It does cover the gradient code itself: the CF object, the accessors, the stop
+  clamping, the interpolation, the CGFunction over the stops, the shading geometry,
+  the extend flags and the class check, all of which come from this repository.
+- It does not cover the framework around it. Anything the drawing path reaches that
+  is not in those two files is the *installed* framework's, so a regression in
+  `CGShadingCreateAxial`, in `O2Paint_ramp`, in `CGFunctionCreate` or in
+  `NSApplication`'s bitmap-context path would not be attributed correctly by a run of
+  this test. The gradient changes would be blamed for a failure that is actually
+  upstream of them.
+- A full build is the only way to close that. Until one is possible, treat a green
+  run here as evidence about the gradient code and not about the framework.
+
+**The non-colour refusal is over-determined.** `CGGradientCreateWithColors` refuses
+an element that is not a colour, and the test shows it does, but it cannot show
+*which* check refused it: the type check and the component-count check both fire on
+the same input, because the latter reads a component count off an object that is not
+a colour. Measured: removing the type check leaves all nine checks passing, so the
+string is still refused by the component-count check. The two controls in the case
+bound this down as far as they can, a two-colour array and a real CMYK colour with
+the wrong component count are both handled as expected, which shows the type check
+does not refuse a well-formed colour, but they do not separate the two refusals.
+Separating them would need a colour whose component count happens to match, built
+somewhere the check cannot inspect, which this CoreGraphics cannot express.
