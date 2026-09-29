@@ -25,12 +25,9 @@
 
 @class NSDictionary;
 
+#ifndef NSLayoutPriority
 typedef float NSLayoutPriority;
-
-static const NSLayoutPriority NSLayoutPriorityRequired = 1000;
-static const NSLayoutPriority NSLayoutPriorityDefaultHigh = 750;
-static const NSLayoutPriority NSLayoutPriorityDefaultLow = 250;
-static const NSLayoutPriority NSLayoutPriorityFittingSizeCompression = 50;
+#endif
 
 typedef NS_ENUM(NSInteger, NSLayoutRelation) {
 	NSLayoutRelationLessThanOrEqual = -1,
@@ -106,11 +103,6 @@ typedef NS_OPTIONS(NSUInteger, NSLayoutFormatOptions) {
                                   metrics: (NSDictionary *) metrics
                                     views: (NSDictionary *) views;
 @end
-
-typedef NS_ENUM(NSInteger, NSLayoutConstraintOrientation) {
-	NSLayoutConstraintOrientationHorizontal = 0,
-	NSLayoutConstraintOrientationVertical = 1,
-};
 
 APPKIT_EXPORT const CGFloat NSViewNoInstrinsicMetric;
 APPKIT_EXPORT const CGFloat NSViewNoIntrinsicMetric NS_SWIFT_NAME(NSView.noIntrinsicMetric);
