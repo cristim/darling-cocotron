@@ -20,6 +20,7 @@
 #include <CoreFoundation/CFArray.h>
 #include <CoreFoundation/CFString.h>
 #include <CoreGraphics/CoreGraphics.h>
+#include <dlfcn.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -196,14 +197,29 @@ static int testColors(void) {
         CFTypeRef notAColor = (CFTypeRef)CFStringCreateWithCString(
                 NULL, "not a colour", kCFStringEncodingUTF8);
         const void *mixed[] = { colorFirst, notAColor };
+        const void *allColours[] = { colorFirst, colorSecond };
         CFArrayRef mixedArray = CFArrayCreate(NULL, mixed, 2, NULL);
+        CFArrayRef goodArray = CFArrayCreate(NULL, allColours, 2, NULL);
         CGGradientRef refused = CGGradientCreateWithColors(space, mixedArray, NULL);
+        CGGradientRef control = CGGradientCreateWithColors(space, goodArray, NULL);
+
+        /* Differential: the same array with the string removed has to be
+         * accepted, so a refusal above is attributable to the element's type
+         * rather than to the array, the count or the space. */
+        if (control == NULL) {
+            fprintf(stderr, "the control array of two colours was refused, so "
+                            "the mixed-array result proves nothing\n");
+            status = 3;
+        } else {
+            CGGradientRelease(control);
+        }
 
         if (refused != NULL) {
             fprintf(stderr, "a non-colour in the array was accepted\n");
             status = 3;
             CGGradientRelease(refused);
         }
+        CFRelease(goodArray);
         CFRelease(mixedArray);
         CFRelease(notAColor);
     }
@@ -642,7 +658,66 @@ static int testAccessors(void) {
     return status;
 }
 
-int main(void) {
+
+/* The accessors have to come from the library under test. A link with
+ * -undefined suppress will happily leave one unresolved and turn it into a null
+ * call, and the framework in the prefix predates the accessors, so merely linking
+ * proves nothing. This resolves each one twice: from the library this run was
+ * pointed at, and from the process itself, and requires both to be the same
+ * non-null address. A symbol that came from the system framework, or that did not
+ * resolve at all, fails here rather than in the pixel comparisons.
+ */
+static int testAccessorBinding(const char *library) {
+    static const char *names[] = {
+        "CGGradientGetTypeID", "CGGradientGetCount", "CGGradientGetLocations",
+        "CGGradientGetColors", "CGGradientGetColorSpace",
+    };
+    void *handle;
+    size_t i;
+    int status = 0;
+
+    if (library == NULL) {
+        fprintf(stderr, "binding: no library given; pass the built gradient "
+                        "library as the first argument\n");
+        return 12;
+    }
+
+    handle = dlopen(library, RTLD_NOW | RTLD_LOCAL);
+    if (handle == NULL) {
+        fprintf(stderr, "binding: could not load %s: %s\n", library, dlerror());
+        return 12;
+    }
+
+    for (i = 0; i < sizeof(names) / sizeof(names[0]); i++) {
+        void *fromLibrary = dlsym(handle, names[i]);
+        void *fromProcess = dlsym(RTLD_DEFAULT, names[i]);
+
+        if (fromLibrary == NULL) {
+            fprintf(stderr, "binding: %s is not in %s\n", names[i], library);
+            status = 12;
+            continue;
+        }
+        if (fromProcess == NULL) {
+            fprintf(stderr, "binding: %s does not resolve in the process\n",
+                    names[i]);
+            status = 12;
+            continue;
+        }
+        if (fromLibrary != fromProcess) {
+            fprintf(stderr, "binding: %s resolves to %p in the library but %p "
+                            "in the process, so the library under test is not "
+                            "the one being used\n",
+                    names[i], fromLibrary, fromProcess);
+            status = 12;
+            continue;
+        }
+    }
+
+    dlclose(handle);
+    return status;
+}
+
+int main(int argc, char **argv) {
     int status = 0;
     int failed = 0;
 
@@ -661,6 +736,19 @@ int main(void) {
         { "accessors", testAccessors, 11 },
     };
     size_t i;
+
+    /* Resolving the accessors is the precondition for the rest: if the library
+     * under test is not the one in use, every colour comparison below would be
+     * reading somebody else's CoreGraphics. */
+    {
+        int bound = testAccessorBinding(argc > 1 ? argv[1] : NULL);
+        if (bound != 0) {
+            fprintf(stderr, "FAIL accessors are not bound to the library under "
+                            "test (code %d)\n", bound);
+            return bound;
+        }
+        fprintf(stderr, "ok   accessors bound to the library under test\n");
+    }
 
     for (i = 0; i < sizeof(tests) / sizeof(tests[0]); i++) {
         int result = tests[i].run();

@@ -14,27 +14,55 @@ painting is limited to the current clip.
 ## Running it
 
 cocotron has no wired test target, so this is a standalone program, like the rest of
-`tests/`. It is a C file, so it has to be built without ARC, and it has to link and
-load a CoreGraphics that actually exports the gradient API. The three steps below are
-the ones the recorded output below came from; `SDK` is an SDK whose
-`CoreGraphics.framework/Headers/CGGradient.h` is this repository's header, so the
-accessors the last case calls are declared.
+`tests/`. It has to be built without ARC, and it has to link and load a CoreGraphics
+that exports the accessors, because the framework in the prefix predates them.
+
+### Prerequisites
+
+- `SDK` is an SDK whose `CoreGraphics.framework/Headers/CGGradient.h` is this
+  repository's header, since the accessors the last case calls have to be declared
+  before the test will compile. Copy the header in rather than using a stale one:
+
+      cp CoreGraphics/include/CoreGraphics/CGGradient.h \
+         "$SDK/System/Library/Frameworks/CoreGraphics.framework/Headers/CGGradient.h"
+
+  run from the repository root; only the destination path matters.
+
+- The library under test has to exist before the test is linked, or the link cannot
+  resolve the accessors. It is built from this repository's `CoreGraphics/CGGradient.m`
+  and the two `CGContextDraw*Gradient` entry points extracted from `CGContext.m`, and
+  installed into the prefix as `usr/local/lib/libAZGradientFix.dylib`. Building the
+  real CoreGraphics.framework is not possible from this checkout, so the
+  implementation under test is loaded as that library, whose symbols take precedence
+  over the installed framework. Whatever build step produces it is a prerequisite of
+  the run below, not part of it.
+
+### Build, link, run
 
     clang -c -target arm64-apple-macos13.0 -isysroot "$SDK" \
         -F "$SDK/System/Library/Frameworks" -o test.o tests/coregraphics-gradient.c
     ld -e _main -arch arm64 -platform_version macos 13.0 13.0 -syslibroot "$PREFIX" \
         -F "$PREFIX/System/Library/Frameworks" -rpath /usr/lib -flat_namespace \
-        -undefined suppress "$PREFIX/usr/local/lib/libAZGradientFix.dylib" \
+        "$PREFIX/usr/local/lib/libAZGradientFix.dylib" \
         -framework Foundation -framework AppKit -framework QuartzCore \
         -framework CoreGraphics "$PREFIX/usr/lib/libSystem.B.dylib" -o test test.o
-    DYLD_INSERT_LIBRARIES=/usr/local/lib/libAZGradientFix.dylib test
+    DYLD_INSERT_LIBRARIES=/usr/local/lib/libAZGradientFix.dylib \
+        test /usr/local/lib/libAZGradientFix.dylib
 
-The test verifies the second and third steps itself rather than trusting them: the
-`accessors` case calls `CGGradientGetTypeID`, and the program only links if
-`CGGradientGetCount`, `CGGradientGetLocations`, `CGGradientGetColors` and
-`CGGradientGetColorSpace` resolve. A CoreGraphics without them fails to link, and one
-whose `CGGradientGetTypeID` returns 0 fails at runtime, so a green run cannot come
-from a framework that never had the accessors.
+**The link must not pass `-undefined suppress`.** That flag turns an unresolved
+accessor into a null symbol instead of a link error, so a CoreGraphics without the
+accessors links cleanly and then calls through a null pointer. Measured here: with
+the flag the link succeeds even though all five accessors are unresolvable, and
+without it the same link fails with "Undefined symbols". Dropping the flag is what
+makes the link part of the test.
+
+The library path is passed to the program as its first argument, and the program
+checks that it is really the library being used: each of the five accessors is
+resolved once from that library with `dlopen`/`dlsym` and once from the process with
+`dlsym(RTLD_DEFAULT, ...)`, and both have to be the same non-null address. A symbol
+that came from the system framework, or that did not resolve, fails the run before
+any pixel is compared, rather than being discovered as a null call. A run whose
+accessors are not bound this way exits 12.
 
 The `colors` case also covers that an array element which is not a colour is refused
 rather than read as one, and the `accessors` case covers that the public getters
@@ -43,6 +71,7 @@ the gradient implementation all of them fail, because
 `CGGradientCreateWithColorComponents` returns NULL. Representative output with the
 implementation loaded:
 
+    ok   accessors bound to the library under test
     single stop, centre: 0,0,255,255
     colours: start: 255,0,0,255
     colours: end: 0,255,0,255
