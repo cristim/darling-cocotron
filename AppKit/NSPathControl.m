@@ -2,6 +2,14 @@
 
 #import "AppKit/NSRaise.h"
 
+// A path control asks its delegate for the contents of each component, so
+// without this the control shows nothing.
+@interface NSPathControl ()
+{
+    id<NSPathControlDelegate> _delegate;
+}
+@end
+
 @implementation NSPathControl
 
 - (BOOL) isFlipped {
@@ -63,12 +71,14 @@
 }
 
 - (id<NSPathControlDelegate>) delegate; {
-    NSUnimplementedMethod();
-    return nil;
+    return _delegate;
 }
 
 - (void) setDelegate: (id<NSPathControlDelegate>) delegate; {
-    NSUnimplementedMethod();
+    if (_delegate == delegate)
+        return;
+    [_delegate release];
+    _delegate = [delegate retain];
 }
 
 - (void) setDraggingSourceOperationMask: (NSDragOperation) mask
