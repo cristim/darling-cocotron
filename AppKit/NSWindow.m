@@ -241,6 +241,27 @@ NSInteger NSBitsPerPixelFromDepth(NSWindowDepth depth) {
 
 @end
 
+@interface NSWindowDisplayLink : NSObject {
+    NSTimer *_timer;
+    id _target;
+    SEL _selector;
+    CAFrameRateRange _preferredFrameRateRange;
+    BOOL _paused;
+}
+
+- (id) initWithTarget: (id) target selector: (SEL) selector;
+- (void) start;
+- (void) invalidate;
+- (void) pause;
+- (BOOL) isPaused;
+- (void) resume;
+- (void) addToRunLoop: (NSRunLoop *) runLoop forMode: (NSRunLoopMode) mode;
+- (void) removeFromRunLoop: (NSRunLoop *) runLoop forMode: (NSRunLoopMode) mode;
+- (CAFrameRateRange) preferredFrameRateRange;
+- (void) setPreferredFrameRateRange: (CAFrameRateRange) range;
+
+@end
+
 @implementation NSWindow
 
 @synthesize appearance = _appearance;
@@ -1143,6 +1164,29 @@ static BOOL _allowsAutomaticWindowTabbing;
         [NSApp changeWindowsItem: self title: filename filename: YES];
 }
 
+- (NSViewController *) contentViewController {
+    return _contentViewController;
+}
+
+- (void) setContentViewController: (NSViewController *) controller {
+    [_contentViewController release];
+    _contentViewController = [controller retain];
+
+    // As on macOS, installing a controller also installs its view.
+    if ([controller isKindOfClass: [NSViewController class]] && [controller view])
+    {
+        [self setContentView: [controller view]];
+    }
+}
+
+- (BOOL) automaticallyWaitsToMinimizeStalling {
+    return _automaticallyWaitsToMinimizeStalling;
+}
+
+- (void) setAutomaticallyWaitsToMinimizeStalling: (BOOL) flag {
+    _automaticallyWaitsToMinimizeStalling = flag;
+}
+
 - (void) setContentView: (NSView *) view {
     view = [view retain];
     [view setFrame: [_contentView frame]];
@@ -1462,6 +1506,18 @@ static BOOL _allowsAutomaticWindowTabbing;
 
 - (NSButtonCell *) defaultButtonCell {
     return _defaultButtonCell;
+}
+
+- (id) animator {
+    // Animations are not run here (see NSAnimationContext).
+    return self;
+}
+
+- (NSArray *) sheets {
+    NSWindow *sheet = [self attachedSheet];
+    if (sheet == nil)
+        return [NSArray array];
+    return [NSArray arrayWithObject: sheet];
 }
 
 - (NSWindow *) attachedSheet {
@@ -3635,3 +3691,97 @@ static BOOL _allowsAutomaticWindowTabbing;
 }
 
 @end
+- (NSWindowTitleVisibility) titleVisibility {
+    return _titleVisibility;
+}
+
+- (void) setTitleVisibility: (NSWindowTitleVisibility) visibility {
+    _titleVisibility = visibility;
+}
+
+- (id) displayLinkWithTarget: (id) target selector: (SEL) selector {
+    return [[[NSWindowDisplayLink alloc] initWithTarget: target
+                                               selector: selector] autorelease];
+}
+
+@end
+
+// Windows are composited by the Wayland backend rather than by a display link, so
+// the "link" is a run-loop timer at the display's refresh interval. That is enough
+// for the animations apps drive through it.
+@implementation NSWindowDisplayLink
+
+- (id) initWithTarget: (id) target selector: (SEL) selector {
+    self = [super init];
+    if (self) {
+        _target = [target retain];
+        _selector = selector;
+    }
+    return self;
+}
+
+- (void) dealloc {
+    [_timer invalidate];
+    [_timer release];
+    [_target release];
+    [super dealloc];
+}
+
+- (void) tick: (NSTimer *) timer {
+    if (!_paused)
+        [_target performSelector: _selector withObject: nil];
+}
+
+- (void) scheduleInRunLoop: (NSRunLoop *) runLoop forMode: (NSRunLoopMode) mode {
+    if (!_timer)
+    {
+        _timer = [[NSTimer timerWithTimeInterval: 1.0 / 60.0
+                                          target: self
+                                        selector: @selector(tick:)
+                                        userInfo: nil
+                                         repeats: YES] retain];
+    }
+    [runLoop addTimer: _timer forMode: mode];
+}
+
+- (void) start {
+    [self scheduleInRunLoop: [NSRunLoop mainRunLoop] forMode: NSDefaultRunLoopMode];
+}
+
+- (void) addToRunLoop: (NSRunLoop *) runLoop forMode: (NSRunLoopMode) mode {
+    [self scheduleInRunLoop: runLoop forMode: mode];
+}
+
+- (void) removeFromRunLoop: (NSRunLoop *) runLoop forMode: (NSRunLoopMode) mode {
+    [_timer invalidate];
+}
+
+- (void) invalidate {
+    [_timer invalidate];
+    [_timer release];
+    _timer = nil;
+}
+
+- (void) pause {
+    _paused = YES;
+    [_timer setFireDate: [NSDate distantFuture]];
+}
+
+- (BOOL) isPaused {
+    return _paused;
+}
+
+- (void) resume {
+    _paused = NO;
+    [_timer setFireDate: [NSDate date]];
+}
+
+// Stored only: the refresh rate is whatever the compositor runs at.
+- (CAFrameRateRange) preferredFrameRateRange {
+    return _preferredFrameRateRange;
+}
+
+- (void) setPreferredFrameRateRange: (CAFrameRateRange) range {
+    _preferredFrameRateRange = range;
+}
+

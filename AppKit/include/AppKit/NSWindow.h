@@ -97,6 +97,12 @@ typedef NS_ENUM(NSInteger, NSWindowToolbarStyle) {
     NSWindowToolbarStyleUnifiedCompact,
 };
 
+typedef NS_ENUM(NSInteger, NSWindowTitleVisibility) {
+    NSWindowTitleVisible,
+    NSWindowTitleHidden,
+    NSWindowTitleHiddenSeparator,
+};
+
 enum {
     NSNormalWindowLevel = kCGNormalWindowLevel,
     NSFloatingWindowLevel = kCGFloatingWindowLevel,
@@ -109,6 +115,13 @@ enum {
     NSScreenSaverWindowLevel = kCGScreenSaverWindowLevel,
 };
 typedef NSInteger NSWindowLevel;
+
+// Mirrors CoreAnimation's CAFrameRateRange, which cocotron's QuartzCore does not
+// declare but clients compiled against the macOS SDK pass by value.
+typedef struct {
+    float minimum;
+    float maximum;
+} CAFrameRateRange;
 
 typedef NS_OPTIONS(NSUInteger, NSWindowCollectionBehavior) {
     NSWindowCollectionBehaviorDefault = 0x00,
@@ -205,6 +218,8 @@ APPKIT_EXPORT const NSNotificationName NSWindowDidExposeNotification
     NSMenu *_menu;
     NSView *_menuView;
     NSView *_contentView;
+    NSViewController *_contentViewController;
+    BOOL _automaticallyWaitsToMinimizeStalling;
     NSColor *_backgroundColor;
 
     id<NSWindowDelegate> _delegate;
@@ -289,6 +304,7 @@ APPKIT_EXPORT const NSNotificationName NSWindowDidExposeNotification
     NSMutableArray *_titlebarAccessoryViewControllers;
     NSWindowToolbarStyle _toolbarStyle;
     BOOL _titlebarAppearsTransparent;
+    NSWindowTitleVisibility _titleVisibility;
 }
 
 @property(class) BOOL allowsAutomaticWindowTabbing;
@@ -333,6 +349,9 @@ APPKIT_EXPORT const NSNotificationName NSWindowDidExposeNotification
 - (void) setAllowsConcurrentViewDrawing: (BOOL) allows;
 
 @property (retain) NSView *contentView;
+// Setting it also installs the controller's view as the content view, as on macOS.
+@property (retain) NSViewController *contentViewController;
+@property BOOL automaticallyWaitsToMinimizeStalling;
 @property (weak) id<NSWindowDelegate> delegate;
 
 - (NSString *) title;
@@ -465,6 +484,7 @@ APPKIT_EXPORT const NSNotificationName NSWindowDidExposeNotification
 - (NSButton *) standardWindowButton: (NSWindowButton) value;
 - (NSButtonCell *) defaultButtonCell;
 - (NSWindow *) attachedSheet;
+@property (readonly) NSArray *sheets;
 - (NSWindow *) sheetParent;
 
 - (id) windowController;
@@ -684,6 +704,12 @@ APPKIT_EXPORT const NSNotificationName NSWindowDidExposeNotification
         (NSTitlebarAccessoryViewController *) controller;
 @property NSWindowToolbarStyle toolbarStyle;
 @property BOOL titlebarAppearsTransparent;
+// Stored only: the compositor draws the title bar, so hiding it here changes nothing.
+@property NSWindowTitleVisibility titleVisibility;
+
+// Returns an object that calls the selector on the target once per frame while
+// started; the caller owns it and is responsible for releasing it.
+- (id) displayLinkWithTarget: (id) target selector: (SEL) selector;
 @end
 
 @interface NSWindow (Darling)
