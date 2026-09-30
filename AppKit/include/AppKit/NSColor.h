@@ -30,6 +30,7 @@ typedef NSString *NSColorSpaceName;
 @class NSImage;
 @class NSPasteboard;
 
+@class NSAppearance;
 @class NSColorSpace;
 
 @interface NSColor : NSObject <NSCopying, NSCoding> {
@@ -249,6 +250,8 @@ typedef NSString *NSColorSpaceName;
                          colorName: (NSString *) colorName;
 
 + (NSColor *) colorNamed: (NSColorName) name;
+// Resolves the provider now, for the application's effective appearance.
++ (NSColor *) colorWithName: (NSString *) name dynamicProvider: (NSColor *(^)(NSAppearance * appearance)) provider;
 + (NSColor *) colorNamed: (NSColorName) name bundle: (NSBundle *) bundle;
 
 + (NSColor *) colorFromPasteboard: (NSPasteboard *) pasteboard;

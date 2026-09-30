@@ -163,6 +163,14 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
     [self setNeedsDisplay: YES];
 }
 
+- (BOOL) imageHugsTitle {
+    return _imageHugsTitle;
+}
+
+- (void) setImageHugsTitle: (BOOL) value {
+    _imageHugsTitle = value;
+}
+
 - (void) setImagePosition: (NSCellImagePosition) value {
     [_cell setImagePosition: value];
     [self setNeedsDisplay: YES];

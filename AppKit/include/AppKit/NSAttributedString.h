@@ -163,6 +163,8 @@ enum {
     NSUnderlinePatternDashDotDot = 0x400,
 };
 
+@class NSStringDrawingContext;
+
 @interface NSAttributedString (NSAttributedString_AppKit)
 
 #pragma mark -
@@ -259,6 +261,10 @@ enum {
 
 - (NSRect) boundingRectWithSize: (NSSize) size
                         options: (NSStringDrawingOptions) options;
+
+- (NSRect) boundingRectWithSize: (NSSize) size
+                        options: (NSStringDrawingOptions) options
+                        context: (NSStringDrawingContext * _Nullable) context;
 
 #pragma mark -
 #pragma mark Getting Attribute Data

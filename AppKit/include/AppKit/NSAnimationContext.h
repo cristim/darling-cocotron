@@ -21,14 +21,18 @@
 #import <Foundation/NSObject.h>
 
 // Animations aren't run: changes made in a group take effect immediately.
+@class CAMediaTimingFunction;
+
 @interface NSAnimationContext : NSObject <NSCopying> {
     NSTimeInterval _duration;
     BOOL _allowsImplicitAnimation;
+    CAMediaTimingFunction *_timingFunction;
 }
 
 // Stored only, like -duration: nothing in this context animates, so the value
 // is never consulted. NO, AppKit's default, is what the context behaves as.
 @property BOOL allowsImplicitAnimation;
+@property (retain) CAMediaTimingFunction *timingFunction;
 
 + (void) runAnimationGroup:
                 (void (^)(NSAnimationContext *_Nonnull context)) changes

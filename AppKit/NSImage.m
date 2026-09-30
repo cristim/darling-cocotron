@@ -289,7 +289,60 @@ NSImageName const NSImageNameTouchBarVolumeUpTemplate =
 }
 @end
 
+// A representation whose only job is to run the caller's block, so lazily drawn
+// images go through the same cache and draw path as every other representation.
+@interface NSImageDrawingHandlerRep : NSImageRep {
+    void (^_handler)(NSRect rect);
+}
+
+- (id) initWithSize: (NSSize) size drawingHandler: (void (^)(NSRect rect)) drawingHandler;
+
+@end
+
+@implementation NSImageDrawingHandlerRep
+
+- (id) initWithSize: (NSSize) size drawingHandler: (void (^)(NSRect rect)) drawingHandler {
+    self = [super init];
+    if (self)
+    {
+        [self setSize: size];
+        _handler = [drawingHandler copy];
+    }
+    return self;
+}
+
+- (void) dealloc {
+    [_handler release];
+    [super dealloc];
+}
+
+- (BOOL) drawInRect: (NSRect) rect {
+    if (_handler)
+        _handler(rect);
+    return YES;
+}
+
+@end
+
 @implementation NSImage
++ (NSImage *) imageWithSize: (NSSize) size
+                    flipped: (BOOL) flipped
+             drawingHandler: (void (^)(NSRect rect)) drawingHandler {
+    NSImage *image = [[[self alloc] initWithSize: size] autorelease];
+    [image setFlipped: flipped];
+    [image addRepresentation:
+            [[[NSImageDrawingHandlerRep alloc] initWithSize: size
+                                             drawingHandler: drawingHandler] autorelease]];
+    return image;
+}
+
+- initWithSize: (NSSize) size
+         flipped: (BOOL) flipped
+  drawingHandler: (void (^)(NSRect rect)) drawingHandler {
+    return [[NSImage imageWithSize: size flipped: flipped drawingHandler: drawingHandler] retain];
+}
+
+
 
 + (NSArray *) imageFileTypes {
     return [self imageUnfilteredFileTypes];

@@ -872,6 +872,10 @@ static NSColor *systemCatalogColor(NSColorName name, NSColor *fallback) {
 
 + (NSColor *) colorWithCatalogName: (NSColorListName) catalogName
                          colorName: (NSColorName) colorName
++ (NSColor *) colorWithName: (NSString *) name dynamicProvider: (NSColor *(^)(NSAppearance *)) provider {
+    return provider([NSApp effectiveAppearance]);
+}
+
 {
     return [NSColor_catalog colorWithCatalogName: catalogName
                                        colorName: colorName];

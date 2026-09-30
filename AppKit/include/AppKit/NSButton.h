@@ -23,6 +23,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 @interface NSButton : NSControl {
     BOOL _hasDestructiveAction;
     NSColor *_contentTintColor;
+    BOOL _imageHugsTitle;
 }
 
 + (instancetype) buttonWithImage: (NSImage *) image target: (id) target action: (SEL) action;
@@ -43,6 +44,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 - (NSAttributedString *) attributedTitle;
 - (NSAttributedString *) attributedAlternateTitle;
 - (BOOL) showsBorderOnlyWhileMouseInside;
+- (BOOL) imageHugsTitle;
 - (void) getPeriodicDelay: (float *) delay interval: (float *) interval;
 
 - (void) setTransparent: (BOOL) value;
