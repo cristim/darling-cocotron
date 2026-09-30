@@ -95,6 +95,7 @@ CA_EXPORT CAToneMapMode const CAToneMapModeIfSupported;
     CGPoint _position;
     CGRect _bounds;
     CGFloat _opacity;
+    NSUInteger _edgeAntialiasingMask;
     BOOL _opaque;
     id _contents;
     CGFloat _contentsScale;
@@ -143,6 +144,8 @@ CA_EXPORT CAToneMapMode const CAToneMapModeIfSupported;
 @property CGRect bounds;
 @property CGRect frame;
 @property CGFloat opacity;
+// Stored: the rasterizer here always antialiases, so there is nothing to switch.
+@property NSUInteger edgeAntialiasingMask;
 @property(getter=isOpaque) BOOL opaque;
 @property(retain) id contents;
 
