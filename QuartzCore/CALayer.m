@@ -168,6 +168,18 @@ NSString *const CAToneMapModeIfSupported = @"ifSupported";
 }
 
 - (CGFloat) opacity {
+- (NSUInteger) edgeAntialiasingMask {
+    return _edgeAntialiasingMask;
+}
+
+- (void) setEdgeAntialiasingMask: (NSUInteger) mask {
+    if (_edgeAntialiasingMask == mask) {
+        return;
+    }
+    _edgeAntialiasingMask = mask;
+    [self setNeedsDisplay];
+}
+
     return _opacity;
 }
 
