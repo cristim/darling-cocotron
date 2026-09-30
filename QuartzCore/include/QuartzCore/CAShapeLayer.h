@@ -19,6 +19,10 @@
 
 #import <QuartzCore/CALayer.h>
 
+// CGGradientRef is declared in CoreGraphics/CGGradient.h, which cannot be pulled in
+// from here without dragging in geometry types this header does not otherwise need.
+typedef struct CGGradient *CGGradientRef;
+
 typedef NSString *CAShapeLayerFillRule NS_TYPED_ENUM;
 typedef NSString *CAShapeLayerLineJoin NS_TYPED_ENUM;
 typedef NSString *CAShapeLayerLineCap NS_TYPED_ENUM;
@@ -46,6 +50,9 @@ CA_EXPORT CAShapeLayerLineCap const kCALineCapSquare NS_SWIFT_NAME(CAShapeLayerL
     NSString *_lineJoin;
     CGFloat _lineDashPhase;
     NSArray *_lineDashPattern;
+    CGGradientRef _gradient;
+    CGPoint _startPoint;
+    CGPoint _endPoint;
 }
 
 @property CGPathRef path;
@@ -60,5 +67,11 @@ CA_EXPORT CAShapeLayerLineCap const kCALineCapSquare NS_SWIFT_NAME(CAShapeLayerL
 @property(copy) CAShapeLayerLineJoin lineJoin; // default kCALineJoinMiter
 @property CGFloat lineDashPhase;
 @property(copy) NSArray *lineDashPattern;
+// Fills the path with a gradient instead of fillColor, which is left alone. The
+// gradient runs from startPoint to endPoint in the layer's own coordinates and
+// paints beyond both of them. A NULL gradient means fillColor is used.
+@property CGGradientRef gradient;
+@property CGPoint startPoint;
+@property CGPoint endPoint;
 
 @end

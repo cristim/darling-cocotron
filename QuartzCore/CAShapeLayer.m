@@ -49,6 +49,8 @@ static void replaceColor(CGColorRef *slot, CGColorRef value) {
     _miterLimit = 10;
     _lineCap = [kCALineCapButt copy];
     _lineJoin = [kCALineJoinMiter copy];
+    _startPoint = CGPointZero;
+    _endPoint = CGPointMake(1, 1);
     _needsDisplay = YES;
 }
 
@@ -266,7 +268,17 @@ static void replaceColor(CGColorRef *slot, CGColorRef value) {
 
     CGContextSaveGState(context);
 
-    if (_fillColor != NULL) {
+    if (_gradient != NULL) {
+        // The gradient replaces the fill, so the path becomes a clip and the
+        // gradient is painted into it rather than the path being filled with a colour.
+        CGContextAddPath(context, _path);
+        CGContextClip(context);
+        CGContextDrawLinearGradient(context, _gradient,
+                                    _startPoint, _endPoint,
+                                    kCGGradientDrawsBeforeStartLocation |
+                                    kCGGradientDrawsAfterEndLocation);
+    }
+    else if (_fillColor != NULL) {
         CGContextAddPath(context, _path);
         CGContextSetFillColorWithColor(context, _fillColor);
         if ([_fillRule isEqualToString: kCAFillRuleEvenOdd])
