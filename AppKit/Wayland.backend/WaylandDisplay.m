@@ -850,6 +850,8 @@ static NSString *stringWithCodepoint(uint32_t codepoint) {
 #pragma mark - Pointer
 
 - (void) pointerEvent: (uint32_t) opcode arguments: (union wl_argument *) args {
+    if (getenv("DARLING_WL_POINTER_TRACE"))
+        NSLog(@"wl-trace opcode=%u", opcode);
     if (opcode != WP_POINTER_EV_AXIS && opcode != WP_POINTER_EV_FRAME)
         [self postPendingScroll];
     [self flushPendingModifier];
