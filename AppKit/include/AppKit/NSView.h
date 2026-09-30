@@ -115,6 +115,7 @@ APPKIT_EXPORT const NSViewFullScreenModeOptionKey NSFullScreenModeApplicationPre
     CGFloat _boundsRotation;
     BOOL _translatesAutoresizingMaskIntoConstraints;
 
+    CGFloat _alphaValue;
     BOOL _validTrackingAreas;
     BOOL _validTransforms;
     CGAffineTransform _transformFromWindow;
@@ -133,6 +134,7 @@ APPKIT_EXPORT const NSViewFullScreenModeOptionKey NSFullScreenModeApplicationPre
     NSDictionary *_animations;
 
     CALayerContext *_layerContext;
+    NSView *_maskView;
     id __remove;
     NSUserInterfaceItemIdentifier _identifier;
     NSLayoutPriority _horizontalContentHuggingPriority;
@@ -202,6 +204,9 @@ APPKIT_EXPORT const NSViewFullScreenModeOptionKey NSFullScreenModeApplicationPre
            toBitmapImageRep: (NSBitmapImageRep *) imageRep;
 
 @property (getter=isHidden) BOOL hidden;
+// Stored, and kept in the view hierarchy so it is positioned and drawn. The
+// pixels it covers are not masked: there is no compositor feature for that here.
+@property (retain) NSView *maskView;
 @property (readonly) BOOL isHiddenOrHasHiddenAncestor;
 - (void) viewDidHide;
 - (void) viewDidUnhide;

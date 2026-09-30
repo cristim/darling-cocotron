@@ -736,8 +736,7 @@ static inline void buildTransformsIfNeeded(NSView *self) {
 }
 
 - (CGFloat) alphaValue {
-    NSUnimplementedMethod();
-    return 0.;
+    return _alphaValue;
 }
 
 - (void) setAlphaValue: (CGFloat) alpha {
@@ -767,7 +766,10 @@ static inline void buildTransformsIfNeeded(NSView *self) {
 - (void) cacheDisplayInRect: (NSRect) rect
            toBitmapImageRep: (NSBitmapImageRep *) imageRep
 {
-    NSUnimplementedMethod();
+    _alphaValue = alpha;
+    // Views are layer-backed, so the layer's opacity is what drawing attenuates.
+    [self layer].opacity = alpha;
+    [self setNeedsDisplay: YES];
 }
 
 - (BOOL) isHidden {
@@ -806,6 +808,21 @@ static inline void buildTransformsIfNeeded(NSView *self) {
 
 - (void) viewDidHide {
     // do nothing?
+- (NSView *) maskView {
+    return _maskView;
+}
+
+- (void) setMaskView: (NSView *) view {
+    if (view == _maskView)
+        return;
+    [_maskView removeFromSuperview];
+    [_maskView release];
+    _maskView = [view retain];
+    if (_maskView)
+        [self addSubview: _maskView];
+    [self setNeedsDisplay: YES];
+}
+
 }
 
 - (void) viewDidUnhide {
@@ -2957,8 +2974,8 @@ static CGFloat backingScaleFactor(NSView *view) {
 }
 
 - animator {
-    NSUnimplementedMethod();
-    // should return animating proxy. returning self does not animate.
+    // Animations are not run here (see NSAnimationContext), so the proxy would
+    // forward to exactly these messages anyway.
     return self;
 }
 

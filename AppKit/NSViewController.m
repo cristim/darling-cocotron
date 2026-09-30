@@ -5,6 +5,12 @@
 
 @implementation NSViewController
 
+- (id) animator {
+    // Animations are not run here (see NSAnimationContext).
+    return self;
+}
+
+
 @synthesize identifier = _identifier;
 
 - initWithNibName: (NSString *) name bundle: (NSBundle *) bundle {
