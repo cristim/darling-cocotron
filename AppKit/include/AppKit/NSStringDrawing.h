@@ -28,7 +28,7 @@ enum {
     NSStringDrawingTruncatesLastVisibleLine = 0x20,
 };
 
-typedef NSInteger NSStringDrawingOptions;
+typedef NSInteger NSStringDrawingOptions NS_SWIFT_NAME(NSString.DrawingOptions);
 
 @interface NSString (NSStringDrawing)
 - (void) drawAtPoint: (NSPoint) point
