@@ -219,7 +219,14 @@ static NSMutableDictionary<NSPasteboardName, X11Pasteboard *> *nameToPboard;
     [self ensureSelectionOwner];
     for (NSPasteboardType type in types) {
         [_typeToData removeObjectForKey: type];
-        _typeToOwner[type] = owner;
+        // A nil owner is valid: an object that does not want pasteboardChangedOwner: callbacks
+        // declares its types with none, which is what -[NSTextView copy:] does. Storing nil in
+        // _typeToOwner would raise "Cannot set nil objects nor nil keys", so drop any stale
+        // entry instead. The Wayland backend guards this the same way.
+        if (owner != nil)
+            _typeToOwner[type] = owner;
+        else
+            [_typeToOwner removeObjectForKey: type];
     }
     return _changeCount;
 }
