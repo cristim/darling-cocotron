@@ -487,10 +487,17 @@ static void roundedRectOutline(CGRect r, CGFloat radius, GLfloat *xy) {
     [self _drawContentsOfLayer: layer bounds: bounds opacity: opacity];
     [self _drawBorderOfLayer: layer bounds: bounds opacity: opacity];
 
+    // A child is positioned in this layer's coordinate system, whose origin is
+    // bounds.origin, so it belongs that much further left and down than the matrix above
+    // puts it. Only the recursion is offset: this layer's own contents already have the
+    // origin removed from their image, so translating them too would double-count it.
+    glPushMatrix();
+    glTranslatef(-bounds.origin.x, -bounds.origin.y, 0);
     for (CALayer *child in layer.sublayers)
         [self _renderLayer: child
                 currentTime: currentTime
               parentOpacity: opacity];
+    glPopMatrix();
 
     glPopMatrix();
 }
