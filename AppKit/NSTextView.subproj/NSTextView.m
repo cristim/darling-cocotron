@@ -106,39 +106,44 @@ NSString *const NSAllRomanInputSourcesLocaleIdentifier =
 
     if (menu == nil) {
         menu = [[NSMenu alloc] initWithTitle: @""];
-        [menu addItemWithTitle: NSLocalizedStringFromTableInBundle(
-                                        @"Cut", nil,
-                                        [NSBundle
-                                                bundleForClass: [NSTextView
-                                                                        class]],
-                                        @"Cut the selection")
-                        action: @selector(cut:)
-                 keyEquivalent: @""];
-        [menu addItemWithTitle: NSLocalizedStringFromTableInBundle(
-                                        @"Copy", nil,
-                                        [NSBundle
-                                                bundleForClass: [NSTextView
-                                                                        class]],
-                                        @"Copy the selection")
-                        action: @selector(copy:)
-                 keyEquivalent: @""];
-        [menu addItemWithTitle: NSLocalizedStringFromTableInBundle(
-                                        @"Paste", nil,
-                                        [NSBundle
-                                                bundleForClass: [NSTextView
-                                                                        class]],
-                                        @"Paste the selection")
-                        action: @selector(paste:)
-                 keyEquivalent: @""];
+        Class cls = [NSTextView class];
+        NSBundle *bundle = [NSBundle bundleForClass: cls];
+
+        // The classic Mac editing bindings are Control-based (Ctrl-C/X/V/A). They are
+        // declared here with an explicit Control modifier mask; without a key equivalent
+        // the items only responded to the mouse, so Ctrl-C typed a control character
+        // instead of copying.
+        NSMenuItem *item;
+
+        item = [menu addItemWithTitle: NSLocalizedStringFromTableInBundle(@"Cut", nil,
+                                                                          bundle,
+                                                                          @"Cut the selection")
+                                 action: @selector(cut:)
+                          keyEquivalent: @"x"];
+        [item setKeyEquivalentModifierMask: NSControlKeyMask];
+
+        item = [menu addItemWithTitle: NSLocalizedStringFromTableInBundle(@"Copy", nil,
+                                                                          bundle,
+                                                                          @"Copy the selection")
+                                 action: @selector(copy:)
+                          keyEquivalent: @"c"];
+        [item setKeyEquivalentModifierMask: NSControlKeyMask];
+
+        item = [menu addItemWithTitle: NSLocalizedStringFromTableInBundle(@"Paste", nil,
+                                                                          bundle,
+                                                                          @"Paste the selection")
+                                 action: @selector(paste:)
+                          keyEquivalent: @"v"];
+        [item setKeyEquivalentModifierMask: NSControlKeyMask];
+
         [menu addItem: [NSMenuItem separatorItem]];
-        [menu addItemWithTitle: NSLocalizedStringFromTableInBundle(
-                                        @"Select All", nil,
-                                        [NSBundle
-                                                bundleForClass: [NSTextView
-                                                                        class]],
-                                        @"Select all the content")
-                        action: @selector(selectAll:)
-                 keyEquivalent: @""];
+
+        item = [menu addItemWithTitle: NSLocalizedStringFromTableInBundle(@"Select All", nil,
+                                                                          bundle,
+                                                                          @"Select all the content")
+                                 action: @selector(selectAll:)
+                          keyEquivalent: @"a"];
+        [item setKeyEquivalentModifierMask: NSControlKeyMask];
     }
     [self setMenu: menu];
 }
@@ -3090,6 +3095,37 @@ NSString *const NSAllRomanInputSourcesLocaleIdentifier =
     [self scrollRangeToVisible: [self selectedRange]];
 }
 
+- (void) insertText: (id) object replacementRange: (NSRange) replacementRange {
+    if (![self isEditable])
+        return;
+    if (replacementRange.location == NSNotFound) {
+        [self insertText: object];
+        return;
+    }
+
+    NSUInteger length = [_textStorage length];
+    if (replacementRange.location > length ||
+        replacementRange.length > length - replacementRange.location)
+        [NSException raise: NSRangeException
+                    format: @"Text replacement range is outside the text storage"];
+
+    NSString *replacementString = [object isKindOfClass: [NSAttributedString class]]
+            ? [object string] : object;
+    if (![self shouldChangeTextInRange: replacementRange
+                    replacementString: replacementString])
+        return;
+
+    if (_rangeForUserCompletion.location != NSNotFound)
+        [self endUserCompletion];
+    // Do not set the selection to the replacement range: selection delegates
+    // may rewrite it. The existing replacement helper updates the caret later.
+    [self _replaceCharactersInRange: replacementRange
+                         withString: object
+             allowsTypingCoalescing: YES];
+    [self didChangeText];
+    [self scrollRangeToVisible: [self selectedRange]];
+}
+
 - (void) keyDown: (NSEvent *) event {
     if ([event type] == NSKeyDown && [self isEditable]) {
         _processingKeyEvent = YES;
@@ -3158,6 +3194,10 @@ NSString *const NSAllRomanInputSourcesLocaleIdentifier =
     NSRange firstRange, lastRange, selection;
     NSSelectionAffinity affinity = NSSelectionAffinityUpstream;
     NSSelectionGranularity granularity = [event clickCount] - 1;
+    // Set when the press carries Shift, so the tracking loop keeps extending from the existing
+    // selection's anchor instead of unioning with the press point.
+    BOOL shiftExtend = NO;
+    NSUInteger anchor = 0;
 
     if (![self isSelectable])
         return;
@@ -3175,12 +3215,56 @@ NSString *const NSAllRomanInputSourcesLocaleIdentifier =
         firstRange = [self selectionRangeForProposedRange: firstRange
                                               granularity: granularity];
 
-    _selectionOrigin = firstRange.location;
+    // Shift-click extends the existing selection instead of collapsing it to a caret under
+    // the pointer. The anchor is the far edge of the current selection, so growing it past
+    // either end keeps the whole selection (select 2..6, shift-click 9 -> 2..9; select 4..8,
+    // shift-click 1 -> 1..8); with an empty selection the anchor is the caret, so it extends
+    // from where it already is.
+    //
+    // The same arithmetic serves shift-drag, so this does not return: it records the anchor and
+    // falls into the tracking loop below, which keeps extending from that anchor while the
+    // button is held. Returning here made a shift-drag select only up to the press point.
+    if ([event modifierFlags] & NSEventModifierFlagShift) {
+        NSRange existing = [self selectedRange];
+        NSUInteger click = firstRange.location;
+        NSUInteger shiftAnchor;
+
+        if (existing.length == 0) {
+            shiftAnchor = existing.location;
+        } else {
+            NSUInteger start = existing.location;
+            NSUInteger end = NSMaxRange(existing);
+            if (click > end)
+                shiftAnchor = start;   // growing right: keep the left edge
+            else if (click < start)
+                shiftAnchor = end;     // growing left: keep the right edge
+            else
+                shiftAnchor = start;   // inside the selection: anchor at the left edge
+        }
+
+        if (click >= shiftAnchor)
+            selection = NSMakeRange(shiftAnchor, click - shiftAnchor);
+        else
+            selection = NSMakeRange(click, shiftAnchor - click);
+        affinity = click >= shiftAnchor ? NSSelectionAffinityUpstream
+                                        : NSSelectionAffinityDownstream;
+        [self setSelectedRange: selection affinity: affinity stillSelecting: YES];
+        [self updateInsertionPointStateAndRestartTimer: YES];
+        [self setNeedsDisplay: YES];
+
+        // Fall through into the tracking loop so a shift-drag keeps extending from this anchor
+        // while the button is held. Returning here made a shift-drag stop at the press point.
+        shiftExtend = YES;
+        anchor = shiftAnchor;
+    } else {
+        // Plain drag: the press point is the anchor, same as before.
+        anchor = firstRange.location;
+        selection = NSUnionRange(firstRange, lastRange);
+        [self setSelectedRange: selection affinity: affinity stillSelecting: YES];
+    }
+
+    _selectionOrigin = anchor;
     lastRange = firstRange;
-
-    selection = NSUnionRange(firstRange, lastRange);
-
-    [self setSelectedRange: selection affinity: affinity stillSelecting: YES];
 
     [NSEvent startPeriodicEventsAfterDelay: 0.1 withPeriod: 0.2];
     do {
@@ -3209,11 +3293,23 @@ NSString *const NSAllRomanInputSourcesLocaleIdentifier =
             lastRange = [self selectionRangeForProposedRange: lastRange
                                                  granularity: granularity];
 
-        selection = NSUnionRange(firstRange, lastRange);
-        if (firstRange.location <= lastRange.location)
-            affinity = NSSelectionAffinityUpstream;
-        else
-            affinity = NSSelectionAffinityDownstream;
+        if (shiftExtend) {
+            // Keep growing the range between the anchor and the current pointer position, so a
+            // shift-drag behaves like a drag that never loses what was already selected.
+            NSUInteger cur = lastRange.location;
+            if (cur >= anchor)
+                selection = NSMakeRange(anchor, cur - anchor);
+            else
+                selection = NSMakeRange(cur, anchor - cur);
+            affinity = cur >= anchor ? NSSelectionAffinityUpstream
+                                     : NSSelectionAffinityDownstream;
+        } else {
+            selection = NSUnionRange(firstRange, lastRange);
+            if (firstRange.location <= lastRange.location)
+                affinity = NSSelectionAffinityUpstream;
+            else
+                affinity = NSSelectionAffinityDownstream;
+        }
 
         [self setSelectedRange: selection
                       affinity: affinity
@@ -3320,8 +3416,34 @@ NSString *const NSAllRomanInputSourcesLocaleIdentifier =
 }
 
 - (NSUInteger) characterIndexForPoint: (NSPoint) point {
-    NSUnimplementedMethod();
-    return 0;
+    NSWindow *window = [self window];
+    NSUInteger length = [[self string] length];
+    if (window == nil || length == 0)
+        return NSNotFound;
+
+    point = [self convertPoint: [window convertScreenToBase: point]
+                     fromView: nil];
+    NSPoint origin = [self textContainerOrigin];
+    point.x -= origin.x;
+    point.y -= origin.y;
+
+    NSLayoutManager *manager = [self layoutManager];
+    NSTextContainer *container = [self textContainer];
+    CGFloat fraction = 0;
+    NSUInteger glyph = [manager glyphIndexForPoint: point
+                                  inTextContainer: container
+                   fractionOfDistanceThroughGlyph: &fraction];
+    if (glyph >= [manager numberOfGlyphs])
+        return NSNotFound;
+
+    // Glyph lookup also returns nearby insertion positions for padding. Text
+    // input hit testing requires an actual character under the screen point.
+    NSRect bounds = [manager boundingRectForGlyphRange: NSMakeRange(glyph, 1)
+                                      inTextContainer: container];
+    if (!NSPointInRect(point, bounds))
+        return NSNotFound;
+    NSUInteger character = [manager characterIndexForGlyphAtIndex: glyph];
+    return character < length ? character : NSNotFound;
 }
 
 - (void) _setFieldEditorUndoManager: (NSUndoManager *) undoManager {
