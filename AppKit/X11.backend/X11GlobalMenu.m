@@ -134,6 +134,10 @@ static DBusHandlerResult dbusFilterCallback(DBusConnection *connection,
     NSString *rawTitle = [item title];
     if (!rawTitle) rawTitle = @"";
     const char *labelVal = [rawTitle UTF8String];
+    // -[NSString UTF8String] returns NULL when the string has no UTF-8
+    // representation. The nil check above guards the NSString, not this, and
+    // dbus_message_iter_append_basic asserts on a NULL value.
+    if (!labelVal) labelVal = "";
 
     dbus_message_iter_open_container(dictIter, DBUS_TYPE_DICT_ENTRY, NULL, &entryIter);
     dbus_message_iter_append_basic(&entryIter, DBUS_TYPE_STRING, &keyLabel);
