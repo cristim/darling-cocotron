@@ -59,11 +59,31 @@ void NSColorSetCatalogColor(NSColorListName catalogName, NSColorName colorName, 
 
 @implementation X11Display
 
+#ifdef DARLING
+static CFRunLoopTimerRef _darlingPumpTimer = NULL;
+#endif
+
 static int errorHandler(Display *display, XErrorEvent *errorEvent) {
     return [(X11Display *) [X11Display currentDisplay] handleError: errorEvent];
 }
 
 #ifdef DARLING
+#ifdef DARLING
+// On Darwin the CFSocket callback below is driven by kqueue. Under Darling nothing ever fires it: the
+// socket source is created and added to the main run loop correctly (verified: the display is
+// initialised on the main thread and main == current), but the callback is never invoked, so
+// -processPendingEvents never runs and no X event ever reaches AppKit. That is why clicks and keys do
+// nothing on X11 while the window manager still processes them.
+//
+// -processPendingEvents is non-blocking: it drains XPending/XNextEvent in a loop and posts each event,
+// so driving it from a short run-loop timer is safe and restores delivery. Polling is the pragmatic fix
+// here rather than making CFSocket itself signal on Linux, which is a CoreFoundation concern far outside
+// this file. One display per process, so a file-static timer is sufficient.
+static void darlingPumpTimerCallback(CFRunLoopTimerRef timer, void *info) {
+    [(X11Display *)info processPendingEvents];
+}
+#endif
+
 static void socketCallback(CFSocketRef s, CFSocketCallBackType type,
                            CFDataRef address, const void *data, void *info)
 {
@@ -115,6 +135,13 @@ static void socketCallback(CFSocketRef s, CFSocketCallBackType type,
         _source =
                 CFSocketCreateRunLoopSource(kCFAllocatorDefault, _cfSocket, 0);
         CFRunLoopAddSource(CFRunLoopGetMain(), _source, kCFRunLoopCommonModes);
+        // See darlingPumpTimerCallback: this is what actually pumps events under Darling.
+        CFRunLoopTimerContext pumpContext = {0, self, NULL, NULL, NULL};
+        _darlingPumpTimer = CFRunLoopTimerCreate(kCFAllocatorDefault,
+                                                 CFAbsoluteTimeGetCurrent() + 0.01,
+                                                 0.01, 0, 0,
+                                                 darlingPumpTimerCallback, &pumpContext);
+        CFRunLoopAddTimer(CFRunLoopGetMain(), _darlingPumpTimer, kCFRunLoopCommonModes);
 
         CGLRegisterNativeDisplay(_display);
 #endif
