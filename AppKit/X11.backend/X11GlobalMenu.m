@@ -22,6 +22,37 @@ static void dbusSocketCallback(CFSocketRef s, CFSocketCallBackType type,
     [self processPendingDBusEvents];
 }
 
+// dbus_message_append_args is variadic, and a variadic call from guest code crosses into the host
+// with the wrong argument layout: Apple arm64 passes the variadic tail on the stack, AAPCS64 (which
+// the host libdbus is built for) passes it in registers x2-x7. The type survives because both ABIs
+// agree named arguments go in registers, so libdbus sees a correct type and a garbage value pointer
+// and aborts on it. Every call below therefore builds its message with the non-variadic iterator API
+// instead. See STATUS.md for the two-compiler reproducer.
+static void appendUint32(DBusMessageIter *iter, uint32_t value)
+{
+    dbus_message_iter_append_basic(iter, DBUS_TYPE_UINT32, &value);
+}
+
+static void appendInt32(DBusMessageIter *iter, int32_t value)
+{
+    dbus_message_iter_append_basic(iter, DBUS_TYPE_INT32, &value);
+}
+
+static void appendString(DBusMessageIter *iter, const char *value)
+{
+    dbus_message_iter_append_basic(iter, DBUS_TYPE_STRING, &value);
+}
+
+static void appendBool(DBusMessageIter *iter, dbus_bool_t value)
+{
+    dbus_message_iter_append_basic(iter, DBUS_TYPE_BOOLEAN, &value);
+}
+
+static void appendObjectPath(DBusMessageIter *iter, const char *value)
+{
+    dbus_message_iter_append_basic(iter, DBUS_TYPE_OBJECT_PATH, &value);
+}
+
 static DBusHandlerResult dbusFilterCallback(DBusConnection *connection,
                                             DBusMessage *message,
                                             void *user_data) {
@@ -291,7 +322,9 @@ static DBusHandlerResult dbusFilterCallback(DBusConnection *connection,
             "</node>\n";
 
         DBusMessage *reply = dbus_message_new_method_return(message);
-        dbus_message_append_args(reply, DBUS_TYPE_STRING, &kIntrospectXML, DBUS_TYPE_INVALID);
+        DBusMessageIter introspectIter;
+        dbus_message_iter_init_append(reply, &introspectIter);
+        appendString(&introspectIter, kIntrospectXML);
         dbus_connection_send(connection, reply, NULL);
         dbus_message_unref(reply);
         return DBUS_HANDLER_RESULT_HANDLED;
@@ -398,7 +431,9 @@ static DBusHandlerResult dbusFilterCallback(DBusConnection *connection,
     } else if (strcmp(member, "AboutToShow") == 0) {
         DBusMessage *reply = dbus_message_new_method_return(message);
         dbus_bool_t needUpdate = FALSE;
-        dbus_message_append_args(reply, DBUS_TYPE_BOOLEAN, &needUpdate, DBUS_TYPE_INVALID);
+        DBusMessageIter aboutIter;
+        dbus_message_iter_init_append(reply, &aboutIter);
+        appendBool(&aboutIter, needUpdate);
         dbus_connection_send(connection, reply, NULL);
         dbus_message_unref(reply);
         return DBUS_HANDLER_RESULT_HANDLED;
@@ -438,9 +473,10 @@ static DBusHandlerResult dbusFilterCallback(DBusConnection *connection,
     DBusMessage *sig = dbus_message_new_signal("/MenuBar", "com.canonical.dbusmenu", "LayoutUpdated");
     if (sig) {
         int32_t rootId = 0;
-        dbus_message_append_args(sig, DBUS_TYPE_UINT32, &_revision,
-                                      DBUS_TYPE_INT32, &rootId,
-                                      DBUS_TYPE_INVALID);
+        DBusMessageIter sigIter;
+        dbus_message_iter_init_append(sig, &sigIter);
+        appendUint32(&sigIter, _revision);
+        appendInt32(&sigIter, rootId);
         dbus_connection_send(_connection, sig, NULL);
         dbus_message_unref(sig);
     }
@@ -478,9 +514,10 @@ static DBusHandlerResult dbusFilterCallback(DBusConnection *connection,
                                                     "RegisterWindow");
     if (msg) {
         uint32_t winId = (uint32_t)x11Window;
-        dbus_message_append_args(msg, DBUS_TYPE_UINT32, &winId,
-                                      DBUS_TYPE_OBJECT_PATH, &objPath,
-                                      DBUS_TYPE_INVALID);
+        DBusMessageIter regIter;
+        dbus_message_iter_init_append(msg, &regIter);
+        appendUint32(&regIter, winId);
+        appendObjectPath(&regIter, objPath);
         dbus_connection_send(_connection, msg, NULL);
         dbus_message_unref(msg);
     }
@@ -497,7 +534,9 @@ static DBusHandlerResult dbusFilterCallback(DBusConnection *connection,
                                                     "UnregisterWindow");
     if (msg) {
         uint32_t winId = (uint32_t)x11Window;
-        dbus_message_append_args(msg, DBUS_TYPE_UINT32, &winId, DBUS_TYPE_INVALID);
+        DBusMessageIter unregIter;
+        dbus_message_iter_init_append(msg, &unregIter);
+        appendUint32(&unregIter, winId);
         dbus_connection_send(_connection, msg, NULL);
         dbus_message_unref(msg);
     }
