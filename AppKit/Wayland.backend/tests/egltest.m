@@ -6,6 +6,7 @@
 #import <QuartzCore/CALayer.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <stdlib.h>
 #include <dlfcn.h>
 #include <math.h>
 
@@ -78,6 +79,15 @@ static void invalidatedParent(void) {
     [sub release]; [ghost release];
     assertResult(YES,"invalidated unmapped parent cleanup");
 }
+// _drawableAttachmentSucceeded is @protected, so reach it from a category implementation, which
+// the compiler does allow to touch the class's own ivars.
+@interface NSOpenGLContext (FixtureProbe)
+- (BOOL) _fixtureDrawableAttached;
+@end
+@implementation NSOpenGLContext (FixtureProbe)
+- (BOOL) _fixtureDrawableAttached { return _drawableAttachmentSucceeded; }
+@end
+
 @interface Driver : NSObject
 @end
 @implementation Driver
@@ -106,6 +116,73 @@ static void invalidatedParent(void) {
         CGLContextObj previous = CGLGetCurrentContext();
         assertResult(CGLContextMakeCurrentAndAttachToWindow(context,NULL)==kCGLBadDrawable &&
                      CGLGetCurrentContext()==previous,"reject missing drawable without rebinding");
+
+        // Two different pixel formats, hence two different EGL configs. A window surface must be
+        // created with the config of the context it is going to be made current on: EGL rejects a
+        // mismatched pair with EGL_BAD_MATCH. This is the pairing that CGLGetWindow and
+        // CGLCreateContext have to agree on, so switching one context to the other over the same
+        // drawable is what exercises it.
+        {
+            const CGLPixelFormatAttribute attrsA[] =
+                { kCGLPFADepthSize, 24, kCGLPFADoubleBuffer, kCGLPFAAccelerated, 0 };
+            const CGLPixelFormatAttribute attrsB[] =
+                { kCGLPFADepthSize, 16, kCGLPFAAuxBuffers, 2, 0 };
+            CGLPixelFormatObj fmtA = NULL, fmtB = NULL;
+            GLint screens = 0;
+            assertResult(CGLChoosePixelFormat(attrsA,&fmtA,&screens)==kCGLNoError && fmtA != NULL,
+                         "choose first pixel format");
+            assertResult(CGLChoosePixelFormat(attrsB,&fmtB,&screens)==kCGLNoError && fmtB != NULL,
+                         "choose second pixel format");
+            CGLContextObj ctxA = NULL, ctxB = NULL;
+            if (fmtA && fmtB) {
+                assertResult(CGLCreateContext(fmtA,NULL,&ctxA)==kCGLNoError && ctxA != NULL,
+                             "create context from first format");
+                assertResult(CGLCreateContext(fmtB,NULL,&ctxB)==kCGLNoError && ctxB != NULL,
+                             "create context from second format");
+            }
+            if (ctxA && ctxB && drawable) {
+                // Both formats are satisfiable in principle; if one resolved to no config it fell
+                // back to the process default, which is still legal, so only the make-current
+                // result is asserted rather than which config was chosen.
+                assertResult(CGLContextMakeCurrentAndAttachToWindow(ctxA,drawable)==kCGLNoError,
+                             "first format's context binds its drawable");
+                assertResult(CGLContextMakeCurrentAndAttachToWindow(ctxB,drawable)==kCGLNoError,
+                             "second format's context reuses the same drawable");
+                // OpenGL.c reports a drawable/context config mismatch on stderr when it sees one.
+                // On this host every satisfiable request resolves to the same EGL config (verified:
+                // ctx=31 surf=31), so this cannot fail here - it is a guard for hosts that do offer
+                // several, not a discriminating test.
+                assertResult(CGLSetCurrentContext(NULL)==kCGLNoError,"cleared pixel-format context");
+            }
+            if (ctxA) CGLReleaseContext(ctxA);
+            if (ctxB) CGLReleaseContext(ctxB);
+            if (fmtA) CGLReleasePixelFormat(fmtA);
+            if (fmtB) CGLReleasePixelFormat(fmtB);
+            // Only these two probe contexts are ours to assert about. Comparing against a snapshot
+            // taken earlier is wrong: with OPENGL_VIEW_TEST another view's context may legitimately
+            // be current, and that made this assertion fail for reasons unrelated to these probes.
+            assertResult(CGLGetCurrentContext()!=ctxA && CGLGetCurrentContext()!=ctxB,
+                         "pixel-format probes released both contexts");
+        }
+
+        // An app can lock focus on a view before that view is in any window, which is what Chess
+        // does. There is no drawable to attach yet, but Cocoa still makes the context current
+        // because the app renders into a drawable it owns. Requiring a drawable here used to leave
+        // such apps with no current context at all, which aborted every GUI app that reached a
+        // window server. The window's drawable attaches on the next makeCurrentContext.
+        NSOpenGLView *detached=[[[NSOpenGLView alloc] initWithFrame:NSMakeRect(0,0,40,30)] autorelease];
+        NSOpenGLContext *detachedCtx=[detached openGLContext];
+        assertResult(detachedCtx != nil,"detached view has an OpenGL context");
+        if (detachedCtx) {
+            [detachedCtx makeCurrentContext];
+            assertResult([NSOpenGLContext currentContext]==detachedCtx && CGLGetCurrentContext()!=NULL,
+                         "context becomes current before its view is in a window");
+            // No drawable could be attached, so the view must not pretend one is available.
+            assertResult(![detachedCtx _fixtureDrawableAttached],
+                         "no drawable reported while the view has no window");
+            [NSOpenGLContext clearCurrentContext];
+            assertResult(CGLGetCurrentContext()==NULL,"cleared the detached context");
+        }
         draw();
         if (deep) {
             upper=[[window _createSubWindowWithFrame:NSMakeRect(50,60,60,40)] retain];

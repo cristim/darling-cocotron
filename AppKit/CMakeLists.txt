@@ -752,6 +752,39 @@ if (WAYLAND_CLIENT_FOUND AND WAYLAND_CURSOR_FOUND AND XKBCOMMON_FOUND
 		${WAYLAND_CURSOR_INCLUDE_DIRS}
 		${XKBCOMMON_INCLUDE_DIRS}
 	)
+
+	# The EGL/GL fixture has existed under tests/ but was never referenced by any build
+	# target, so nothing in this subsystem was covered by a test. It asserts the contracts
+	# this backend relies on: CGLGetWindow returning a usable drawable, the default
+	# non-blocking swap interval, and CGLContextMakeCurrentAndAttachToWindow rejecting a
+	# missing drawable without rebinding the current context. EXCLUDE_FROM_ALL so a normal
+	# build is unaffected; build it explicitly with
+	#   ninja eglfixture && <darling> shell ./eglfixture
+	add_executable(eglfixture EXCLUDE_FROM_ALL
+		Wayland.backend/tests/egltest.m
+	)
+	set_property(TARGET eglfixture APPEND_STRING PROPERTY
+		LINK_FLAGS " ${CMAKE_EXE_LINKER_FLAGS} -nostdlib ${CMAKE_BINARY_DIR}/src/external/csu/CMakeFiles/crt1.10.6.dir/start.S.o ")
+	target_compile_options(eglfixture PRIVATE -arch ${APPLE_ARCH_64BIT})
+	use_ld64(eglfixture)
+	add_dependencies(eglfixture crt1.10.6)
+	target_include_directories(eglfixture PRIVATE
+		Wayland.backend
+		${CMAKE_SOURCE_DIR}/src/startup/mldr/elfcalls
+		${WAYLAND_CLIENT_INCLUDE_DIRS}
+		${WAYLAND_CURSOR_INCLUDE_DIRS}
+		${XKBCOMMON_INCLUDE_DIRS}
+	)
+	target_link_libraries(eglfixture PRIVATE
+		system
+		objc
+		AppKit
+		Foundation
+		CoreFoundation
+		CoreGraphics
+		QuartzCore
+		OpenGL
+	)
 else ()
 	message(STATUS "AppKit: not building the Wayland backend (needs wayland-client >= 1.20, "
 		"wayland-cursor, xkbcommon and wayland-protocols headers and wayland-scanner)")
