@@ -33,6 +33,23 @@ NSSpeechPropertyKey const NSSpeechVolumeProperty = @"volm";
 
 @implementation NSSpeechSynthesizer
 
+/*
+ * Chess.app sends +availableVoices while opening its untitled board window, from
+ * -[NSDocumentController openUntitledDocumentAndDisplay:error:]. It died with
+ * "+[NSSpeechSynthesizer availableVoices]: unrecognized selector sent to instance", because
+ * the class existed but nothing implemented that class method, and the two forwarding methods
+ * below only cover instance messages: a class message goes to the metaclass, which inherits
+ * NSObject's unimplemented-selector path.
+ *
+ * There is no speech synthesis here, so the accurate answer is that there are no voices. An
+ * empty array rather than nil, because a caller that indexes into the result is then correct
+ * instead of crashing, and a caller that only counts sees zero either way.
+ */
++ (NSArray *)availableVoices
+{
+    return [NSArray array];
+}
+
 - (NSMethodSignature *)methodSignatureForSelector:(SEL)aSelector
 {
     return [NSMethodSignature signatureWithObjCTypes: "v@:"];

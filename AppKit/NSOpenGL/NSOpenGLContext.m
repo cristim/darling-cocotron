@@ -188,8 +188,20 @@ static inline void _clearCurrentContext() {
         NSLog(@"This window backend requires OpenGL rendering on the main thread");
         return;
     }
-    if ((error = CGLContextMakeCurrentAndAttachToWindow(
-                 _glContext, _cglWindow)) != kCGLNoError) {
+    if (_cglWindow == NULL) {
+        // The view is not in a window yet, so there is no drawable to attach.
+        // Cocoa still makes the context current here: the app renders into a
+        // drawable it creates itself, and the window's drawable is attached by
+        // the next makeCurrentContext once updateViewParameters can build one.
+        // Reporting kCGLBadDrawable here instead left apps that lock focus
+        // before adding their view to a window with no current context at all.
+        if ((error = CGLSetCurrentContext(_glContext)) != kCGLNoError) {
+            NSLog(@"CGLSetCurrentContext failed with %d in %s %d", error, __FILE__,
+                  __LINE__);
+            return;
+        }
+    } else if ((error = CGLContextMakeCurrentAndAttachToWindow(
+                    _glContext, _cglWindow)) != kCGLNoError) {
         NSLog(@"CGLSetCurrentContext failed with %d in %s %d", error, __FILE__,
               __LINE__);
         // A swap-interval error may occur after EGL successfully switched.
@@ -198,7 +210,8 @@ static inline void _clearCurrentContext() {
     }
 
     _setCurrentContext(self);
-    _drawableAttachmentSucceeded = YES;
+    // Only a real drawable makes drawing into the view's surface possible.
+    _drawableAttachmentSucceeded = _cglWindow != NULL;
 
     if (!_hasPrepared) {
         _hasPrepared = YES;
