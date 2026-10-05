@@ -36,6 +36,39 @@ static void reportGLErrors(void) {
 	drainAndReportGLErrors("CAMetalLayer");
 }
 
+// Create or re-create the layer's GL texture at the layer's current drawable size.
+// glTextureStorage2D rejects a zero width or height with GL_INVALID_VALUE, and a layer can be given
+// a context before it has a non-zero size: -[CAMetalLayer _setContext:] created the texture
+// unconditionally, so any layer sized only afterwards got GL_INVALID_VALUE. -[CAMetalLayer
+// nextDrawable] already refused a zero size; this applies the same rule in both places and defers
+// creation until a size exists.
+@interface CAMetalLayerInternal (DrawableTexture)
+- (bool)createDrawableTexture;
+@end
+
+@implementation CAMetalLayerInternal (DrawableTexture)
+- (bool)createDrawableTexture
+{
+	if (_drawableSize.width <= 0 || _drawableSize.height <= 0)
+		return false;
+	if (_tex != 0) {
+		reportGLErrors();
+		glDeleteTextures(1, &_tex);
+	}
+	reportGLErrors();
+	glCreateTextures(GL_TEXTURE_2D, 1, &_tex);
+	reportGLErrors();
+	glTextureStorage2D(_tex, 1, GL_RGBA8, _drawableSize.width, _drawableSize.height);
+	reportGLErrors();
+	glTextureParameteri(_tex, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTextureParameteri(_tex, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTextureParameteri(_tex, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	glTextureParameteri(_tex, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	reportGLErrors();
+	return true;
+}
+@end
+
 @implementation CAMetalLayer
 
 // The device, drawables and the rest of the Metal state have no archived form.
@@ -521,21 +554,8 @@ static void reportGLErrors(void) {
 	[_drawableCondition unlock];
 
 	@synchronized(self) {
-		// resize the render texture
-		if (_tex != 0) {
-			reportGLErrors();
-			glDeleteTextures(1, &_tex);
-			reportGLErrors();
-			glCreateTextures(GL_TEXTURE_2D, 1, &_tex);
-			reportGLErrors();
-			glTextureStorage2D(_tex, 1, GL_RGBA8, _drawableSize.width, _drawableSize.height);
-			reportGLErrors();
-			glTextureParameteri(_tex, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-			glTextureParameteri(_tex, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-			glTextureParameteri(_tex, GL_TEXTURE_WRAP_S, GL_REPEAT);
-			glTextureParameteri(_tex, GL_TEXTURE_WRAP_T, GL_REPEAT);
-			reportGLErrors();
-		}
+		// resize the render texture, or create it if a size arrived after the context was set
+		[self createDrawableTexture];
 	}
 
 	CGLSetCurrentContext(prev);
@@ -666,18 +686,7 @@ static void reportGLErrors(void) {
 		// create our textures now using the context's CGLContext
 		CGLContextObj prev = CGLGetCurrentContext();
 		CGLSetCurrentContext(context.glContext);
-
-		reportGLErrors();
-		glCreateTextures(GL_TEXTURE_2D, 1, &_tex);
-		reportGLErrors();
-		glTextureStorage2D(_tex, 1, GL_RGBA8, _drawableSize.width, _drawableSize.height);
-		reportGLErrors();
-		glTextureParameteri(_tex, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		glTextureParameteri(_tex, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-		glTextureParameteri(_tex, GL_TEXTURE_WRAP_S, GL_REPEAT);
-		glTextureParameteri(_tex, GL_TEXTURE_WRAP_T, GL_REPEAT);
-		reportGLErrors();
-
+		[self createDrawableTexture];
 		CGLSetCurrentContext(prev);
 	}
 }
