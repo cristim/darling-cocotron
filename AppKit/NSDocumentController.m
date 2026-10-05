@@ -968,3 +968,24 @@ static BOOL actionIsDocumentController(SEL selector) {
 }
 
 @end
+
+
+/* -[NSApplication openFiles] routes document opening to the application delegate and falls back to the shared
+ * document controller when the delegate does not implement application:openFile:. This class implemented neither
+ * selector, so that fallback sent an unrecognised message and the document was silently dropped: an app launched
+ * with a file argument came up with no windows and no error. */
+@implementation NSDocumentController (DocumentOpening)
+
+- (BOOL) application: (id) sender openFile: (NSString *) path {
+    if ([path length] == 0)
+        return NO;
+
+    return [self openDocumentWithContentsOfFile: path display: YES] != nil;
+}
+
+- (void) application: (id) sender openFiles: (NSArray *) paths {
+    for (NSString *path in paths)
+        [self application: sender openFile: path];
+}
+
+@end

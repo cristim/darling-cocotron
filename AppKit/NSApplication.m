@@ -573,12 +573,45 @@ NSApplication *NSApp = nil;
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
 
     id nsOpen = [defaults objectForKey: @"NSOpen"];
-    NSArray *openFiles = nil;
+    NSMutableArray *openFiles = [NSMutableArray array];
 
     if ([nsOpen isKindOfClass: [NSString class]] && [nsOpen length]) {
-        openFiles = [NSArray arrayWithObject: nsOpen];
+        [openFiles addObject: nsOpen];
     } else if ([nsOpen isKindOfClass: [NSArray class]]) {
-        openFiles = nsOpen;
+        [openFiles addObjectsFromArray: nsOpen];
+    }
+
+    if ([openFiles count] == 0) {
+        /* Launch Services passes documents to open in the NSOpen user default. Apps launched directly,
+         * which is how Darling launches them, never get NSOpen set, so every document named on the command
+         * line was dropped and the app came up with no windows and no error. Fall back to the process
+         * arguments so "App file" opens the file. NSProcessInfo has no argv accessor, so read procfs. */
+        NSMutableArray *arguments = [NSMutableArray array];
+        FILE *cmdline = fopen("/proc/self/cmdline", "rb");
+        if (cmdline != NULL) {
+            char buffer[4096];
+            size_t got = fread(buffer, 1, sizeof(buffer) - 1, cmdline);
+            fclose(cmdline);
+            buffer[got] = '\0';
+            size_t start = 0;
+            for (size_t i = 0; i <= got; i++) {
+                if (buffer[i] == '\0' || i == got) {
+                    if (i > start)
+                        [arguments addObject: [[NSString alloc] initWithBytes: buffer + start
+                                                                      length: i - start
+                                                                    encoding: NSUTF8StringEncoding]];
+                    start = i + 1;
+                }
+            }
+        }
+
+        // argv[0] is the executable; anything starting with "-" is a switch, not a document.
+        for (NSUInteger i = 1; i < [arguments count]; i++) {
+            NSString *argument = [arguments objectAtIndex: i];
+            if ([argument length] > 0 && ![argument hasPrefix: @"-"])
+                [openFiles addObject: argument];
+        }
+        [arguments release];
     }
 
     if ([openFiles count] == 0) {
