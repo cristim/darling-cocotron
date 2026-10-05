@@ -110,6 +110,7 @@ typedef enum {
 - (NSWindow *) windowForSheet;
 
 - (BOOL) isDocumentEdited;
+- (BOOL) isDraft;
 - (void) updateChangeCount: (NSDocumentChangeType) changeType;
 
 - (BOOL) readFromData: (NSData *) data

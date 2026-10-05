@@ -410,6 +410,13 @@ static int untitled_document_number = 0;
     return _changeCount != 0 || [_activeEditors count] > 0;
 }
 
+// A document with no file URL has never been saved, which is the condition every autosave-aware
+// caller is asking about when it reaches for isDraft. Chess subclasses NSDocument and calls this
+// during document setup; the selector is absent from cocotron's headers entirely.
+- (BOOL) isDraft {
+    return _fileURL == nil;
+}
+
 - (void) updateChangeCount: (NSDocumentChangeType) changeType {
     int count = [_windowControllers count];
 

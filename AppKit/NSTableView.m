@@ -735,6 +735,18 @@ static CGFloat rowHeightAtIndex(NSTableView *self, NSInteger index) {
     [self setNeedsDisplay: YES];
 }
 
+// Deprecated AppKit API that apps still call: NSTableViewStyle was removed from the headers but the
+// selectors remain on the real class, and Terminal sends setStyle: during window setup. Cocotron is
+// cell-based and has no full-width/plain distinction to honour, so the value is stored and returned
+// unchanged rather than invented.
+- (NSInteger) style {
+    return _style;
+}
+
+- (void) setStyle: (NSInteger) style {
+    _style = style;
+}
+
 - (void) setSelectionHighlightStyle: (NSTableViewSelectionHighlightStyle) value
 {
     _selectionHighlightStyle = value;

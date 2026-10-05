@@ -247,6 +247,7 @@ APPKIT_EXPORT const NSNotificationName NSWindowDidExposeNotification
     BOOL _isAutodisplay;
     BOOL _canHide;
     BOOL _displaysWhenScreenProfileChanges;
+    NSWindowCollectionBehavior _collectionBehavior;
 
     CGFloat _alphaValue;
     BOOL _hasShadow;

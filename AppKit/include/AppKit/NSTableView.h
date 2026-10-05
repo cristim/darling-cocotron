@@ -115,6 +115,7 @@ typedef enum {
     BOOL _floatsGroupRows;
     NSTableViewRowSizeStyle _rowSizeStyle;
     CGFloat _styledRowHeight;
+    NSInteger _style;
 
     // temp ivars
     NSMutableArray *_selectedColumns;
@@ -207,6 +208,8 @@ typedef enum {
 - (void) setUsesAlternatingRowBackgroundColors: (BOOL) flag;
 - (void) setGridStyleMask: (unsigned int) gridStyle;
 - (void) setSelectionHighlightStyle: (NSTableViewSelectionHighlightStyle) value;
+- (NSInteger) style;
+- (void) setStyle: (NSInteger) style;
 - (void) setFloatsGroupRows: (BOOL) flag;
 - (void) setRowSizeStyle: (NSTableViewRowSizeStyle) style;
 

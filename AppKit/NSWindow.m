@@ -1337,8 +1337,12 @@ static BOOL _allowsAutomaticWindowTabbing;
     //   NSUnimplementedMethod();
 }
 
+// Collection behaviour tells the window manager how a window participates in spaces and full screen.
+// Cocotron has no window manager to negotiate with, so the value is stored and handed back
+// unchanged. It is not ignored: callers read it back, and Chess sets it on every window during
+// document setup, which logged an unimplemented-method warning for each one.
 - (void) setCollectionBehavior: (NSWindowCollectionBehavior) behavior {
-    NSUnimplementedMethod();
+    _collectionBehavior = behavior;
 }
 
 - (BOOL) bottomCornerRounded {
@@ -1664,8 +1668,7 @@ static BOOL _allowsAutomaticWindowTabbing;
 }
 
 - (NSWindowCollectionBehavior) collectionBehavior {
-    NSUnimplementedMethod();
-    return 0;
+    return _collectionBehavior;
 }
 
 - (NSPoint) convertBaseToScreen: (NSPoint) point {
