@@ -174,6 +174,14 @@ static void renderFreeTypeBitmap(O2Context_builtin_FT *self, O2Surface *surface,
     if (count == 0 || glyphs == NULL)
         return;
 
+    // A context can be asked to show glyphs before it has been given a surface - Chess does exactly
+    // that while drawing text for the first time. O2SurfaceLock is
+    // pthread_mutex_lock(&surface->_lock) with no null check, so a NULL surface faults at
+    // NULL + offsetof(O2Surface, _lock) = 0xC0, which is exactly the fault address observed. Bail out
+    // with the other unusable-input cases rather than locking a surface that does not exist.
+    if (_surface == NULL)
+        return;
+
     O2Size *defaultAdvances = NULL;
     if (advances == NULL) {
         if (count > SIZE_MAX / sizeof(*defaultAdvances))
