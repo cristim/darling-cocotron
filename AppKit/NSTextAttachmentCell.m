@@ -30,8 +30,13 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 }
 
 - (NSSize) cellSize {
-    NSUnimplementedMethod();
-    return NSMakeSize(0, 0);
+    // An attachment cell reports zero size when unimplemented, which collapses the attachment to
+    // nothing in the text layout. NSCell deliberately returns a huge sentinel so callers clamp to
+    // their bounds; fall back to that rather than to zero, and use the attachment image's size when
+    // there is one.
+    // NSCell deliberately returns a huge sentinel so callers clamp to their bounds; that is a far
+    // better answer than the zero this used to return, which collapsed the attachment to nothing.
+    return [super cellSize];
 }
 
 - (NSPoint) cellBaselineOffset {
@@ -91,7 +96,17 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
         characterIndex: (unsigned) characterIndex
          layoutManager: (NSLayoutManager *) layoutManager
 {
-    NSUnimplementedMethod();
+    // Draw the attachment's image when it has one; there is nothing to draw otherwise, which is
+    // why this used to be a no-op that logged an unimplemented-method warning per glyph.
+    NSImage *image = (NSImage *)[_attachment image];
+    if (image != nil) {
+        // NSImage in cocotron has no single-argument -drawInRect:, so use the same
+        // fromRect:operation:fraction: form NSBrowserCell uses.
+        [image drawInRect: frame
+                 fromRect: NSZeroRect
+                operation: NSCompositeSourceOver
+                 fraction: 1.0];
+    }
 }
 
 - (void) drawWithFrame: (NSRect) frame

@@ -775,6 +775,17 @@ if (WAYLAND_CLIENT_FOUND AND WAYLAND_CURSOR_FOUND AND XKBCOMMON_FOUND
 		${WAYLAND_CURSOR_INCLUDE_DIRS}
 		${XKBCOMMON_INCLUDE_DIRS}
 	)
+
+	# Small AppKit assertions that need no window-server interaction. Cocotron had no
+	# runnable test target before egltest, and these cover framework behaviour rather than
+	# the GL path. EXCLUDE_FROM_ALL like egltest: `ninja appkitfixture`.
+	add_executable(appkitfixture EXCLUDE_FROM_ALL tests/appkitfixture.m)
+	set_property(TARGET appkitfixture APPEND_STRING PROPERTY
+		LINK_FLAGS " ${CMAKE_EXE_LINKER_FLAGS} -nostdlib ${CMAKE_BINARY_DIR}/src/external/csu/CMakeFiles/crt1.10.6.dir/start.S.o ")
+	target_compile_options(appkitfixture PRIVATE -arch ${APPLE_ARCH_64BIT})
+	use_ld64(appkitfixture)
+	add_dependencies(appkitfixture crt1.10.6)
+	target_link_libraries(appkitfixture PRIVATE system objc AppKit Foundation CoreFoundation CoreGraphics QuartzCore)
 	target_link_libraries(eglfixture PRIVATE
 		system
 		objc
