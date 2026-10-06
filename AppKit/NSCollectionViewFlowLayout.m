@@ -43,4 +43,14 @@ NSString *const NSCollectionElementKindSectionFooter =
     return self;
 }
 
+- (instancetype) initWithCoder: (NSCoder *) coder {
+    // NSCollectionViewLayout does not implement initWithCoder:, so -initWithCoder: used to fall
+    // through to -forwardInvocation: above and decode to nil. Any nib containing a flow layout then
+    // failed in NSKeyedUnarchiver with "Failed to decode element N in array for key NS.objects",
+    // which took the whole window down: Automator could not load its main window at all.
+    // This class is still a stub, so decode to the same defaults -init uses rather than inventing a
+    // key mapping; only the nil return was breaking nib loading.
+    return [self init];
+}
+
 @end
