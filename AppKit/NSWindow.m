@@ -141,6 +141,8 @@ NSInteger NSBitsPerPixelFromDepth(NSWindowDepth depth) {
     // Plain window state. Terminal reads and writes collectionBehavior on every
     // window it creates, so both accessors must work rather than raise.
     NSWindowCollectionBehavior _collectionBehavior;
+    // Terminal asks its window for the tab group it belongs to.
+    id _tabGroup;
 }
 
 - (NSRect) zoomedFrame;
@@ -1666,6 +1668,14 @@ static BOOL _allowsAutomaticWindowTabbing;
 
 - (NSWindowCollectionBehavior) collectionBehavior {
     return _collectionBehavior;
+}
+
+- (id) tabGroup {
+    return _tabGroup;
+}
+
+- (void) setTabGroup: (id) tabGroup {
+    _tabGroup = tabGroup;
 }
 
 - (void) setCollectionBehavior: (NSWindowCollectionBehavior) behavior {
