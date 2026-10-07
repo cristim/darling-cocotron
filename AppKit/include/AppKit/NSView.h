@@ -32,7 +32,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSAppearance.h>
 #import <AppKit/NSUserInterfaceLayoutDirection.h>
 
-@class NSWindow, NSMenu, NSMenuItem, NSCursor, NSClipView, NSPasteboard,
+@class CADisplayLink, NSWindow, NSMenu, NSMenuItem, NSCursor, NSClipView, NSPasteboard,
         NSTextInputContext, NSImage, NSBitmapImageRep, NSScrollView,
         NSTrackingArea, NSShadow, NSScreen, CALayer, CIFilter, CALayerContext,
         NSLayoutDimension, NSLayoutXAxisAnchor, NSLayoutYAxisAnchor,
@@ -394,6 +394,7 @@ APPKIT_EXPORT const NSViewFullScreenModeOptionKey NSFullScreenModeApplicationPre
 
 - (NSView *) opaqueAncestor;
 - (void) display;
+- (CADisplayLink *)displayLinkWithTarget:(id)target selector:(SEL)selector;
 - (void) displayIfNeeded;
 - (void) displayIfNeededIgnoringOpacity;
 - (void) displayIfNeededInRect: (NSRect) rect;
