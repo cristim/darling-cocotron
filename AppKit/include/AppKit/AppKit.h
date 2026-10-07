@@ -152,6 +152,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSSearchField.h>
 #import <AppKit/NSSearchFieldCell.h>
 #import <AppKit/NSSearchToolbarItem.h>
+#import <AppKit/NSMenuToolbarItem.h>
 #import <AppKit/NSSecureTextField.h>
 #import <AppKit/NSSecureTextFieldCell.h>
 #import <AppKit/NSSegmentedCell.h>

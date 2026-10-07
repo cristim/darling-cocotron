@@ -25,6 +25,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSStringDrawer.h>
 #import <AppKit/NSToolbar.h>
 #import <AppKit/NSToolbarItem.h>
+#import <AppKit/NSMenuToolbarItem.h>
 #import <AppKit/NSWindow.h>
 
 @interface NSToolbarItem (private)
@@ -34,6 +35,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 @interface NSToolbar (private)
 - (void) didSelectToolbarItem: (NSString *) identifier;
+@end
+
+@interface NSMenuToolbarItem (NSToolbarItemViewTracking)
+- (BOOL)_trackMenuWithEvent: (NSEvent *)event inView: (NSToolbarItemView *)view;
 @end
 
 @implementation NSToolbarItemView
@@ -51,6 +56,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 - (void) setToolbarItem: (NSToolbarItem *) item {
     _toolbarItem = item;
+}
+
+- (NSToolbarItem *) toolbarItem {
+    return _toolbarItem;
 }
 
 - (void) setSubview: (NSView *) view {
@@ -153,6 +162,10 @@ const CGFloat kEdgeThickness = 2.f;
     BOOL sendAction = NO;
 
     if (![_toolbarItem isEnabled])
+        return;
+
+    if ([_toolbarItem isKindOfClass: [NSMenuToolbarItem class]] &&
+        [(NSMenuToolbarItem *)_toolbarItem _trackMenuWithEvent: event inView: self])
         return;
 
     do {

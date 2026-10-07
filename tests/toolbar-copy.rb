@@ -18,6 +18,15 @@ methods = [/^- \(instancetype\) initWithItemIdentifier:.*?^\}/m,
            /^- \(void\) setToolTip:.*?^\}/m].map do |pattern|
   source[pattern] or abort "missing method #{pattern}"
 end.join("\n")
+# On the menu-toolbar integration branch, also compose its actual copy and
+# teardown methods with the actual superclass methods (no synthesized getter).
+menu_path = "#{root}/AppKit/NSMenuToolbarItem.m"
+menu_methods = if File.exist?(menu_path)
+  menu_source = File.read(menu_path)
+  [/^- \(id\)copyWithZone:.*?^\}/m, /^- \(void\)dealloc.*?^\}/m].map do |pattern|
+    menu_source[pattern] or abort "missing menu method #{pattern}"
+  end.join("\n").gsub('NSMenuToolbarItem', 'ProbeMenuToolbarItem')
+end
 program = <<~'OBJC'
   #import <Foundation/Foundation.h>
   #include <assert.h>
@@ -63,6 +72,7 @@ program = <<~'OBJC'
   - (void)_configureAsStandardItemIfNeeded {}
   METHODS
   @end
+  MENU_CLASS
   int main(void) {
     @autoreleasepool {
       for (int custom=0; custom<2; custom++) {
@@ -108,10 +118,44 @@ program = <<~'OBJC'
         }
       }
     }
+    MENU_TEST
     puts("PASS: independent copy views, owner rebinding, custom child, tooltip ownership, both destruction orders");
   }
 OBJC
 program.sub!('METHODS') { methods }
+program.sub!('MENU_CLASS') do
+  menu_methods ? <<~OBJC : ''
+    @interface ProbeMenuToolbarItem : NSToolbarItem {
+      @public id _menu; BOOL _trackingMenu;
+    }
+    @end
+    @implementation ProbeMenuToolbarItem
+    #{menu_methods}
+    @end
+  OBJC
+end
+program.sub!('MENU_TEST') do
+  menu_methods ? <<~'OBJC' : ''
+    @autoreleasepool {
+      for (int originalFirst=0; originalFirst<2; originalFirst++) {
+        ProbeMenuToolbarItem *item=[[ProbeMenuToolbarItem alloc] initWithItemIdentifier:@"menu"];
+        id menu=[NSObject new];
+        item->_menu=[menu retain]; item->_trackingMenu=YES;
+        NSUInteger before=[menu retainCount];
+        ProbeMenuToolbarItem *copy=[item copy];
+        assert(copy->_menu==menu && [menu retainCount]==before+1);
+        assert(!copy->_trackingMenu && item->_trackingMenu);
+        assert(copy->_enclosingView!=item->_enclosingView);
+        assert(copy->_enclosingView->owner==copy && item->_enclosingView->owner==item);
+        if (originalFirst) { [item release]; [copy release]; }
+        else { [copy release]; [item release]; }
+        assert([menu retainCount]==1 && liveViews==0);
+        [menu release];
+      }
+    }
+    puts("PASS: actual menu subclass copy/dealloc composed with actual base methods, menu ownership and transient state");
+  OBJC
+end
 gcc, status = Open3.capture2('gcc', '-print-file-name=include'); abort unless status.success?
 Dir.mktmpdir('toolbar-copy') do |dir|
   input="#{dir}/probe.m"; output="#{dir}/probe"; File.write(input,program)
