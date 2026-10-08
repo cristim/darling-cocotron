@@ -2,6 +2,7 @@
 xcuserdata
 xcshareddata
 build
+.private-test/
 system
 .DS_Store
 
