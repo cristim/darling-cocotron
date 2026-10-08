@@ -115,7 +115,7 @@ The probe now enables undo and escapes newlines in state logs. The Python input
 runner waits for asynchronous state updates and asserts the resulting text,
 selection, and clipboard rather than merely checking command dispatch.
 
-### Final verification — 2026-10-08
+### Original candidate verification — 2026-10-08
 
 | Check | X11 (private Xvfb) | Native Wayland (private headless Sway) |
 | --- | --- | --- |
@@ -151,8 +151,7 @@ Evidence under `.private-test/`:
   `stickies-fixed4-selected-crop.png` after correction.
 
 `git diff --check` and Python syntax parsing passed. Builds completed with
-pre-existing macro and duplicate NSStringDrawing category warnings. No full
-clean framework rebuild or unrelated application suite was run.
+pre-existing macro and duplicate NSStringDrawing category warnings. The original candidate used a focused build; no unrelated application suite was run.
 
 ## Context-menu follow-up — 2026-10-08
 
@@ -206,19 +205,86 @@ Actual-app dyld logs confirm this private binary loaded. Evidence:
 
 No CoreText, typesetter, font-metric, or bitmap-dimension files were touched.
 
-## Publication on current upstream
+## Rebased candidate and complete framework build
 
-The original private runtime results above used base `3326fbfed` and the listed
-candidate binaries. The publication commit is rebased onto `ec245a01f`; its
-runtime has not been rerun. Upstream already contains the X11 nil-owner guard
-and modifier-aware menu dispatch, so the PR retains those implementations and
-adds only case normalization for shifted uppercase equivalents. Upstream's
-existing Control-Z binding is retained without duplication. Prior runtime
-results are evidence for the original candidate, not a full verification of
-this rebased source. A full clean build and fresh app runs remain required.
+The original results above used base `3326fbfed`. The publication branch is based
+on `ec245a01f`; it retains upstream's X11 nil-owner guard and modifier-aware menu
+dispatch and avoids duplicating the existing Control-Z binding.
 
-Publication checks: all five edited AppKit Objective-C sources compile against
-the available SDK, with `NSEventModifierFlagShift=NSShiftKeyMask` supplied only
-for the private NSTextView compile because the installed SDK predates that
-upstream constant. This is a compile check, not a new runtime result.
-`git diff --check` and the automation script's Python syntax check pass.
+Fresh runtime testing found two upstream prerequisites, each in a separate commit:
+
+- `99667e1f`: preserve `NSIBObjectData` as an NSCoding object with direct named
+  fields when converting NIBArchive. Treating it as NSDictionary removed the
+  fields read by the loader. An authored archive regression failed before the
+  fix and passes afterward, including top-level object instantiation. Actual
+  TextEdit then opened its window. No imported archive is used by the test.
+- `72afa844`: scan the display queue once when searching an event mask. The old
+  outer loop never exited when only preserved, unmatched events remained. This
+  stalled actual Wayland menu Escape and clipboard requests. The authored queue
+  test exits 1 under a three-second alarm before the fix, and passes afterward,
+  checking peek/dequeue order and preservation of unmatched events.
+
+All runtime implementation sources were committed before the final build.
+A fresh private CMake project uses the current AppKit CMake source lists and
+read-only dependency-seed compiler/link rules. Every framework and backend
+object is compiled from scratch: **346 AppKit, 11 X11, 17 Wayland translation
+units; 377 build steps including links**. A subsequent Ninja dry run reports
+`no work to do`. No donor AppKit/backend objects are reused. Local AppKit headers
+are used; no compile-time Shift constant alias is required.
+
+The installed runtime predates APIs required by current AppKit. Unchanged
+matching CoreText (17 translation units) and QuartzCore (34) were therefore
+rebuilt privately from the same Cocotron checkout. Unchanged OpenGL (1) was
+rebuilt from the read-only Darling seed `d6347fd73`. Other SDK headers and
+runtime dependency libraries remain seed inputs; this is a complete framework
+build, not a rebuild of the whole Darling runtime. Existing macro/category
+warnings remain.
+
+Final AppKit UUID: `37DBCD11-FDBA-39F2-B94C-B8DD1336102F`.
+SHA256: `057c176f15085f59d6c2688e0c86da9c4eb45f3b99242dc0469c041c57c3246b`.
+Private dyld logs identify this binary in the probe, TextEdit and Stickies.
+The native Wayland backend UUID is `1CEB83E9-6FFC-35EC-867C-84C83CD078D9`;
+X11 is `0B07DB87-255B-3E2E-9253-88CD26888523`.
+
+### Measured runtime results for `72afa844`
+
+| Check | X11 / private Xvfb | Native Wayland / private Sway |
+| --- | --- | --- |
+| Five focused regressions (binding, menu, context, NIB, event queue) | PASS | PASS |
+| Real-input fixture assertions | 42 PASS | 42 PASS |
+| Actual TextEdit/Stickies shortcut and clipboard assertions | 24 PASS | 24 PASS |
+| Actual TextEdit/Stickies context-menu assertions | 12 PASS | 12 PASS |
+
+The final context results are `verified-context-x11.log` and
+`verified-context-wayland-final.log`; focused context regressions are separately
+retained as `verified-unit-context-{wayland,x11}.log`. Both apps passed Escape
+preservation, menu Copy, verified Cut deletion, Paste restoration, outside
+dismissal and further editing/copying. No app crash or missing-symbol abort
+occurred during these final suites. These results supersede the original
+focused-build results.
+
+Private evidence:
+
+- `verified-manifest.json`: source revisions/hashes, compiler/link command hashes,
+  and all six binary hashes/UUIDs; `clean-verification-build/manifest.json`,
+  `commands.json`, `configure.log`, `build.log`, `dry-run.log`.
+- `verified-{binding,menu,context,nib}-{wayland,x11}.log`,
+  `event-mask-{red,green}.log`, `verified-event-mask-x11.log`,
+  `nib-object-data-{red-final,green}.log`.
+- `verified-automation-{wayland,x11}.log`,
+  `verified-apps-{wayland,x11}.log`, actual-app dyld logs,
+  and final context-menu logs/screenshots.
+
+Tests use only private prefixes and dedicated Xvfb/headless Sway displays.
+Backends run serially in the owned copied prefix. Context automation sizes its
+private windows to keep dismissal clicks inside the tested app; the borderless
+Stickies text hit uses a 15-pixel first-line offset. Earlier failed coordinate
+attempts and the initial parallel-prefix startup timeout remain in private logs.
+No backend coordinate fix or host lifecycle fix is claimed.
+
+The reported process crash during contextual actions was not reproduced.
+Startup dependency mismatches were observed and resolved only in the private
+runtime overlay. Other applications, keyboard layouts/IME, bidi/wrapped-text
+navigation, clipboard owner-exit behavior and a full Darling dependency rebuild
+remain outside this verification. No CoreText, QuartzCore, OpenGL, constraint
+layout, shared configuration or live runtime source changes are in this PR.
