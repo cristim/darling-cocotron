@@ -2,6 +2,8 @@
 #import <CoreText/CTLine.h>
 #import <CoreText/CTRun.h>
 
+void KTCoreTextFinalizeObject(CFTypeRef object);
+CFTypeRef KTCoreTextCreateObject(CFTypeID type, CFDictionaryRef storage);
 CFTypeID KTCoreTextRunGetTypeID(void);
 CFDictionaryRef KTCoreTextObjectDictionary(CFTypeRef object);
 
