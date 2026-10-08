@@ -576,7 +576,8 @@ static void replaceColor(CGColorRef *slot, CGColorRef value) {
 // layer's contents, which the renderer uploads as a texture. A delegate that
 // implements -displayLayer: sets the contents itself instead.
 - (void) display {
-    if ([_delegate respondsToSelector: @selector(displayLayer:)]) {
+    if (![self _drawsOwnContent] &&
+        [_delegate respondsToSelector: @selector(displayLayer:)]) {
         [_delegate displayLayer: self];
         return;
     }
@@ -646,6 +647,10 @@ static void replaceColor(CGColorRef *slot, CGColorRef value) {
 
 - (void) setNeedsDisplayOnBoundsChange: (BOOL) value {
     _needsDisplayOnBoundsChange = value;
+}
+
+- (BOOL) _drawsOwnContent {
+    return NO;
 }
 
 - (void) drawInContext: (CGContextRef) context {

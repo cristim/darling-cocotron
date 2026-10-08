@@ -26,4 +26,7 @@
 // The contents object last uploaded to the layer's texture.
 - (id) _textureContents;
 - (void) _setTextureContents: (id) value;
+// YES for a layer whose content is its own state (a path), which a delegate's
+// -displayLayer: must not replace.
+- (BOOL) _drawsOwnContent;
 @end

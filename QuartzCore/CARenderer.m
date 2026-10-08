@@ -464,13 +464,24 @@ static void roundedRectOutline(CGRect r, CGFloat radius, GLfloat *xy) {
         return;
 
     glPushMatrix();
-    glTranslatef(position.x - (bounds.size.width * anchorPoint.x),
-                 position.y - (bounds.size.height * anchorPoint.y), 0);
+    // The transform acts about the anchor point.
+    CATransform3D t = layer.transform;
+    glTranslatef(position.x, position.y, 0);
+    if (!CATransform3DIsIdentity(t)) {
+        GLfloat m[16] = {t.m11, t.m12, t.m13, t.m14, t.m21, t.m22, t.m23, t.m24,
+                         t.m31, t.m32, t.m33, t.m34, t.m41, t.m42, t.m43, t.m44};
+        glMultMatrixf(m);
+    }
+    glTranslatef(-(bounds.size.width * anchorPoint.x),
+                 -(bounds.size.height * anchorPoint.y), 0);
 
     [self _drawBackgroundOfLayer: layer bounds: bounds opacity: opacity];
     [self _drawContentsOfLayer: layer bounds: bounds opacity: opacity];
     [self _drawBorderOfLayer: layer bounds: bounds opacity: opacity];
 
+    // Sublayer positions are expressed in the parent's bounds coordinates.
+    // Its own contents already start at the bounds origin in their texture.
+    glTranslatef(-bounds.origin.x, -bounds.origin.y, 0);
     for (CALayer *child in layer.sublayers)
         [self _renderLayer: child
                 currentTime: currentTime
