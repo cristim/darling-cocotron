@@ -379,13 +379,9 @@ static CFTypeRef createConvertedObject(Converter *c, CFIndex index)
     static const char *const dataClasses[] = { "NSData", "NSMutableData", NULL };
     static const char *const numberClasses[] = { "NSNumber", NULL };
     static const char *const listClasses[] = { "NSArray", "NSMutableArray", "NSSet", "NSMutableSet", "NSOrderedSet", "NSMutableOrderedSet", NULL };
-    /* NSIBObjectData is the nib's root metadata dictionary: NSRoot, NSConnections,
-     * NSObjectsKeys/Values, NSOidsKeys/Values, NSVisibleWindows and the accessibility triples --
-     * everything -[NSIBObjectData initWithCoder:] reads to build connections and substitute custom
-     * objects. It was absent here, so it was emitted as a generic object and its contents dropped,
-     * leaving NSConnections nil and no connections ever built. */
-    static const char *const dictionaryClasses[] = { "NSDictionary", "NSMutableDictionary",
-                                                     "NSIBObjectData", NULL };
+    // NSIBObjectData is an NSCoding object, not an NSDictionary. Its loader
+    // decodes named fields such as NSRoot and NSConnections directly.
+    static const char *const dictionaryClasses[] = { "NSDictionary", "NSMutableDictionary", NULL };
 
     // Strings, data and numbers are stored inline in a keyed archive.
     if (classIsOneOf(className, stringClasses)) {
@@ -430,26 +426,6 @@ static CFTypeRef createConvertedObject(Converter *c, CFIndex index)
         }
         if (CFEqual(key, CFSTR("NSInlinedValue")))
             continue;
-
-        /* Scoped deliberately to NSIBObjectData rather than to every dictionary. Its values carry real
-         * key names (NSRoot, NSConnections, NSObjectsKeys, ...) rather than the repeated
-         * UINibEncoderEmptyKey sentinel that collections use, so the alternating branch above never
-         * applies and elementKeys stayed empty -- the emitted object had NS.keys = 0, and
-         * -[NSIBObjectData] decoded nil for everything it needs.
-         *
-         * Other dictionaries with real keys keep the existing behaviour of being emitted flat
-         * (key -> value directly on the object), which is what this function has always done for
-         * them. Widening this to all dictionaries would change the encoding of every nib dictionary
-         * in the tree, which is well beyond what has been measured. */
-        if (isDictionary && CFEqual(className, CFSTR("NSIBObjectData"))) {
-            CFTypeRef member = createMember(value);
-            if (member != NULL) {
-                CFArrayAppendValue(elementKeys, key);
-                CFArrayAppendValue(elements, member);
-                CFRelease(member);
-            }
-            continue;
-        }
 
         CFTypeRef member = createMember(value);
         if (member) {
