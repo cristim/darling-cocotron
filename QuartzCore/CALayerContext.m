@@ -53,6 +53,7 @@
 }
 
 - (void) dealloc {
+    [_subwindow hide];
     [_timer invalidate];
     [_timer release];
     // Layers can outlive their context. Clear the borrowed pointer while the
@@ -107,6 +108,7 @@
         CGLDestroyWindow(_cglWindow);
     }
 
+    [oldSubwindow hide];
     _subwindow = [subwindow retain];
     _cglWindow = CGLGetWindowForContext(_glContext, [_subwindow nativeWindow]);
 
@@ -118,6 +120,7 @@
 }
 
 - (void) invalidate {
+    [_subwindow hide];
     [_timer invalidate];
     [_timer release];
     _timer = nil;
