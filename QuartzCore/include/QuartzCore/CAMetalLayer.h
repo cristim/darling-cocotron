@@ -22,7 +22,7 @@
 #import <CoreGraphics/CoreGraphics.h>
 #import <Foundation/Foundation.h>
 
-@protocol CAMetalDrawable;
+#import <QuartzCore/CAMetalDrawable.h>
 
 @class CAEDRMetadata;
 
