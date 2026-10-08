@@ -39,7 +39,7 @@ static NSData *fixture(void) {
     object(objects, 2, 6, 1); // top-level objects
     object(objects, 2, 7, 1); // corresponding parents
     object(objects, 2, 8, 0); // connections
-    object(objects, 0, 8, 0); // top-level NSObject
+    object(objects, 0, 8, 0); // top-level authored NSCoding object
     NSArray *names = @[@"IB.objectdata", @"NSRoot", @"NSObjectsKeys",
                        @"NSObjectsValues", @"NSConnections", @"NSNextOid",
                        @"UINibEncoderEmptyKey"];
