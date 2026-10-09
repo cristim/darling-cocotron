@@ -103,7 +103,10 @@
 - (NSInteger) changeCount { return _sequence; }
 - (NSData *) convertedData: (NSData *) raw type: (NSString *) type mime: (NSString *) mime {
     NSData *data = [WaylandPasteboard decodeData:raw forType:type mime:mime];
-    if (!data) { _transferFailed = YES; return nil; }
+    if (!data) {
+        if ([WaylandPasteboard failedConversionBlocksDrop:raw forType:type]) _transferFailed = YES;
+        return nil;
+    }
     [_cache setObject:data forKey:type];
     return data;
 }
@@ -164,7 +167,7 @@
 - (NSString *) stringForType: (NSString *) type {
     NSData *data = [self dataForType: type];
     return data ? [[[NSString alloc] initWithData: data encoding:
-        [type isEqual: NSStringPboardType] ? NSUTF8StringEncoding : NSUnicodeStringEncoding] autorelease] : nil;
+        [WaylandPasteboard stringEncodingForType: type]] autorelease] : nil;
 }
 - (void) motion: (CGPoint) point {
     if (!_offer || _dropped) return;

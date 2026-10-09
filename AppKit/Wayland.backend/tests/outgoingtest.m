@@ -98,11 +98,26 @@ static BOOL noStartExpected(void) { return getenv("INVALID_PROVIDER") || getenv(
         NSArray *types=getenv("FILE_RAW") ? (getenv("REVERSE_RAW")
             ? @[@"text/uri-list",NSFilenamesPboardType] : @[NSFilenamesPboardType,@"text/uri-list"])
             : @[NSStringPboardType,NSFilenamesPboardType];
+        // FILE_URL_FIRST declares the single-file URL type ahead of the full list;
+        // the multi-file NSFilenamesPboardType must still win text/uri-list.
+        if(getenv("FILE_URL_FIRST")) types=@[NSPasteboardTypeFileURL,NSFilenamesPboardType];
         [pb declareTypes:types owner:getenv("FILE_NIL") ? self : nil];
+        if(getenv("FILE_URL_FIRST")) [pb setString:fileEnv("FILE_URL_ONE") forType:NSPasteboardTypeFileURL];
         [pb setString:@"fallback must not authorize lost files" forType:NSStringPboardType];
         if(!getenv("FILE_NIL")) [pb setPropertyList:getenv("FILE_BAD")
             ? @[fileEnv("FILE_ONE"),@"/guest-only-not-exportable"] : filePaths() forType:NSFilenamesPboardType];
         if(getenv("FILE_RAW")) [pb setData:[fileEnv("FILE_WIRE") dataUsingEncoding:NSUTF8StringEncoding] forType:@"text/uri-list"];
+    } else if(getenv("URL_BAD")) {
+        // URL_ONE holds a value the exporter refuses (non-ASCII, space or a file URL
+        // outside the host root); the drag must still start and offer the text.
+        [pb declareTypes:@[NSPasteboardTypeURL,NSStringPboardType] owner:nil];
+        [pb setString:fileEnv("URL_ONE") forType:NSPasteboardTypeURL];
+        [pb setString:@"Darling outgoing — café" forType:NSStringPboardType];
+    } else if(getenv("URL_DRAG")) {
+        // FILE_WIRE is the expected URI list; URL_ONE is set through the string accessor.
+        [pb declareTypes:@[NSPasteboardTypeURL,NSStringPboardType] owner:nil];
+        [pb setString:fileEnv("URL_ONE") forType:NSPasteboardTypeURL];
+        [pb setString:@"fallback text" forType:NSStringPboardType];
     } else {
         [pb declareTypes:@[NSStringPboardType] owner:getenv("INVALID_PROVIDER") ? self : nil];
         if (!getenv("INVALID_PROVIDER")) [pb setString:@"Darling outgoing — café" forType:NSStringPboardType];

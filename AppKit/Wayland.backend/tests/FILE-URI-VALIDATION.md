@@ -28,7 +28,35 @@ General guest-file export needs a separate design and is not implemented here.
 - Invalid or nil advertised filename data aborts the outgoing drag snapshot;
   a text fallback cannot authorize MOVE of an undelivered file selection.
 
-`NSURLPboardType` serialization, arbitrary guest-only files, promised files and
+## Single-URL and HTML types
+
+`text/uri-list` is also exposed as `NSPasteboardTypeFileURL` (`public.file-url`,
+the first file as a guest-visible `file://` URL string, UTF-8) and
+`NSPasteboardTypeURL` (`public.url`, the first record; non-file URIs pass through).
+`text/html` maps to `NSPasteboardTypeHTML`, `NSHTMLPboardType` and `public.html`.
+`text/rtf` is deliberately not mapped: it would change `NSTextView` paste on
+Wayland only, and X11 does not do it.
+
+- URL and HTML strings are UTF-8 through `setString:forType:` and `stringForType:`.
+- Outgoing, a file URL must name a path under the host root, and
+  `NSFilenamesPboardType` takes `text/uri-list` over the URL types in any
+  declaration order, so a multi-file drag keeps every file.
+- Outgoing, a URL value the exporter refuses skips only that type (logged); the drag
+  starts with the rest. A refused file URL or filename list still rejects the drag.
+- Incoming, the URL types are advertised for every `text/uri-list`. Reading them
+  from a list without `file:` records (a browser link) returns nil and does not
+  fail the drop; a list that contains a file record, or cannot be parsed (over 4096 records, NUL,
+  invalid UTF-8), still fails atomically; run `FILE_BAD=1` with such a `FILE_WIRE`
+  as well as the remote-URI one. This also holds when
+  `NSFilenamesPboardType` is read first, as generic readers do.
+
+Modes: `droptest.m` with `FILE_URL_DRAG=1` (also `FILE_URL_ONE`), `LINK_DRAG=1`
+(`LINK_WIRE` is the URI list, `LINK_URL` the URL) and `HTML_DRAG=1` (`HTML_WIRE`),
+all against `drop-source.c`; `outgoingtest.m` with `URL_BAD=1` (`URL_ONE` unexportable; text must still drop), `URL_DRAG=1` (`URL_ONE`, with
+`FILE_WIRE` the expected list) and `FILE_DRAG=1 FILE_URL_FIRST=1 FILE_URL_ONE=...`
+against `outgoing-target.c`.
+
+`NSURLPboardType` serialization (its wire format is not documented), arbitrary guest-only files, promised files and
 modern pasteboard/session APIs remain follow-ups. Unsupported schemes remain
 available through raw URI data but cannot masquerade as local filenames.
 

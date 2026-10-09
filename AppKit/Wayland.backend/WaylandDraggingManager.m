@@ -157,14 +157,21 @@ static BOOL monotonicSeconds(double *seconds) {
         _localOnly = !_offeredActions && WaylandActionsFromOperations(_localOperations);
         if (_localOnly) _offeredActions = WaylandActionsFromOperations(_localOperations);
         if (_offeredActions) {
-            for (NSString *type in [[[pasteboard types] copy] autorelease]) {
+            for (NSString *type in [WaylandPasteboard typesInPublishOrder: [pasteboard types]]) {
                 if ([type isEqual:@"DELETE"]) continue;
                 NSData *data = [pasteboard dataForType: type];
                 if (!data) {
-                    if ([type isEqual:NSFilenamesPboardType]) { [snapshot removeAllObjects]; break; }
+                    if ([type isEqual:NSFilenamesPboardType] || [type isEqual:NSPasteboardTypeFileURL]) {
+                        [snapshot removeAllObjects]; break;
+                    }
                     continue;
                 }
                 if (!_localOnly) data = [WaylandPasteboard encodeData:data forType:type];
+                if (!data && [type isEqual:NSPasteboardTypeURL]) {
+                    // An unexportable URL costs only itself; the other types still go out.
+                    NSLog(@"Wayland drag: not offering %@, its value cannot be exported", type);
+                    continue;
+                }
                 // A partial filename selection could make a MOVE source remove
                 // files that were never delivered. Reject that drag atomically.
                 if (!data) { [snapshot removeAllObjects]; break; }
