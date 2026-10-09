@@ -3,6 +3,7 @@
 #include <CoreGraphics/CoreGraphics.h>
 #include <IOKit/hidsystem/IOLLEvent.h>
 #include <CoreFoundation/CoreFoundation.h>
+#include <CoreGraphics/CGSServerSPI.h>
 
 __BEGIN_DECLS
 
