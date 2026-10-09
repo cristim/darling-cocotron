@@ -755,7 +755,8 @@ static NSString *X11PropertyAtomName(Display *xdpy, Atom atom) {
 
 - (void) handleEnter: (XClientMessageEvent *) message toWindow: (X11Window *) window {
     Window source = (Window) message->data.l[0];
-    unsigned version = (unsigned) (message->data.l[1] & 0xFF);
+    // The version is bits 24-31 of data.l[1]; bit 0 there is the more-than-3-types flag.
+    unsigned version = (unsigned) (((unsigned long) message->data.l[1] >> 24) & 0xFF);
     // A version this target does not speak cannot be negotiated. A new offer is
     // also refused while a drop is being performed, because the receiver's own
     // callbacks can pump the X connection and the running session must survive.
