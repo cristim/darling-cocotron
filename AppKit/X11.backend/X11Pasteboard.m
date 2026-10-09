@@ -749,7 +749,6 @@ static size_t MaximumPropertyBytes(Display *display) {
         transfer->_property != event->atom)
         return;
 
-    [_incrTransfers removeObjectForKey: requestor];
     NSUInteger left = [transfer->_data length] - transfer->_offset;
     NSUInteger chunk = left > X11IncrChunkSize ? X11IncrChunkSize : left;
     if (chunk == 0) {
@@ -759,13 +758,16 @@ static size_t MaximumPropertyBytes(Display *display) {
         // receiver would wait for data that never comes.
         XChangeProperty(_display, event->window, event->atom, transfer->_type, 8,
                         PropModeReplace, NULL, 0);
+        [_incrTransfers removeObjectForKey: requestor];
     } else {
         XChangeProperty(_display, event->window, event->atom, transfer->_type, 8,
                         PropModeReplace, [transfer->_data bytes] + transfer->_offset,
                         chunk);
+        // The transfer stays in the table until the zero-length write above: each
+        // later deletion has to find it, at the offset after this chunk.
+        transfer->_offset += chunk;
     }
     XFlush(_display);
-    [transfer release];
 }
 
 // Start handing a selection over as INCR, because it is larger than one property
