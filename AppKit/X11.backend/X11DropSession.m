@@ -196,7 +196,10 @@
         return data;
     NSArray *files = NSPasteboardFilenamesFromURIList(data);
     if (!files) {
-        _transferFailed = YES;
+        // A list that cannot hold files is not a partial file selection. Only
+        // ever set the flag: an earlier failure must survive.
+        if (NSPasteboardURIListMayHoldFiles(data))
+            _transferFailed = YES;
         return nil;
     }
     return [NSPropertyListSerialization dataFromPropertyList: files

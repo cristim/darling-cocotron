@@ -17,9 +17,14 @@ COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
+#import <AppKit/NSAttributedString.h>
 #import <AppKit/NSDisplay.h>
+#import <AppKit/NSImage.h>
 #import <AppKit/NSPasteboard.h>
 #import <AppKit/NSRaise.h>
+#import <AppKit/NSWorkspace.h>
+#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
+#import <dispatch/dispatch.h>
 
 const NSPasteboardType NSPasteboardTypeString = @"NSStringPboardType";
 const NSPasteboardType NSPasteboardTypePDF = @"NSPDFPboardType";
@@ -75,6 +80,35 @@ const NSPasteboardName NSPasteboardNameGeneral = @"Apple CFPasteboard general";
 const NSPasteboardReadingOptionKey
         NSPasteboardURLReadingContentsConformToTypesKey =
                 @"NSPasteboardURLReadingContentsConformToTypesKey";
+
+// Legacy Cocotron type names are not UTIs; conformance needs the UTI spelling.
+static NSString *UTIForPasteboardType(NSString *type) {
+    static NSDictionary *map = nil;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+      map = [@{
+          NSStringPboardType : @"public.utf8-plain-text",
+          NSTabularTextPboardType : @"public.utf8-tab-separated-values-text",
+          NSRTFPboardType : @"public.rtf",
+          NSRTFDPboardType : @"com.apple.rtfd",
+          NSPasteboardTypeHTML : @"public.html",
+          NSHTMLPboardType : @"public.html",
+          NSPDFPboardType : @"com.adobe.pdf",
+          NSTIFFPboardType : @"public.tiff",
+          NSURLPboardType : @"public.url",
+          NSFilenamesPboardType : NSPasteboardTypeFileURL,
+      } retain];
+    });
+    return [map objectForKey: type] ?: type;
+}
+
+static BOOL PasteboardTypeConformsTo(NSString *type, NSString *uti) {
+    type = UTIForPasteboardType(type);
+    uti = UTIForPasteboardType(uti);
+    if ([type isEqualToString: uti])
+        return YES;
+    return [[NSWorkspace sharedWorkspace] type: type conformsToType: uti];
+}
 
 @implementation NSPasteboard
 
@@ -186,14 +220,144 @@ const NSPasteboardReadingOptionKey
     return NO;
 }
 
-- (BOOL) canReadItemWithDataConformingToTypes:(NSArray<NSString *> *) types {
-    printf("STUB %s\n", __PRETTY_FUNCTION__);
+// URL types carry UTF-8 text on the wire; -stringForType: decodes other types
+// as UTF-16 in the backends, so decode the raw bytes here.
+- (NSURL *) _urlForType: (NSPasteboardType) type {
+    NSData *data = [self dataForType: type];
+    NSString *string =
+            data ? [[[NSString alloc] initWithData: data
+                                          encoding: NSUTF8StringEncoding]
+                           autorelease]
+                 : nil;
+    return [string length] ? [NSURL URLWithString: string] : nil;
+}
+
+// Entries that are not strings come from the other process; ignore them.
+- (NSArray *) _fileURLs {
+    NSArray *types = [self types];
+    NSMutableArray *urls = [NSMutableArray array];
+    if ([types containsObject: NSFilenamesPboardType]) {
+        id paths = [self propertyListForType: NSFilenamesPboardType];
+        for (id path in [paths isKindOfClass: [NSArray class]] ? paths : nil)
+            if ([path isKindOfClass: [NSString class]] && [path length])
+                [urls addObject: [NSURL fileURLWithPath: path]];
+    } else if ([types containsObject: NSPasteboardTypeFileURL]) {
+        NSURL *url = [self _urlForType: NSPasteboardTypeFileURL];
+        if ([url isFileURL])
+            [urls addObject: url];
+    }
+    return urls;
+}
+
+- (BOOL) _fileURL: (NSURL *) url conformsToAnyOf: (NSArray *) utis {
+    NSString *extension = [[url path] pathExtension];
+    if ([extension length] == 0)
+        return NO;
+    NSString *type =
+            [[UTType typeWithFilenameExtension: extension] identifier];
+    for (NSString *uti in utis)
+        if (type && PasteboardTypeConformsTo(type, uti))
+            return YES;
     return NO;
 }
 
-- (nullable NSArray *)readObjectsForClasses:(NSArray<Class> *)classArray options:(nullable NSDictionary<NSPasteboardReadingOptionKey, id> *) options {
-    printf("STUB %s\n", __PRETTY_FUNCTION__);
+// Builds an object of exactly cls from the non-file item, or returns nil when
+// the pasteboard cannot supply one.
+- (id) _readContentOfClass: (Class) cls options: (NSDictionary *) options {
+    NSArray *types = [self types];
+
+    if (cls == [NSString class]) {
+        if ([types containsObject: NSStringPboardType])
+            return [self stringForType: NSStringPboardType];
+    } else if (cls == [NSURL class]) {
+        if (![[options objectForKey: NSPasteboardURLReadingFileURLsOnlyKey]
+                    boolValue] &&
+            [options objectForKey:
+                             NSPasteboardURLReadingContentsConformToTypesKey] == nil &&
+            [types containsObject: NSPasteboardTypeURL])
+            return [self _urlForType: NSPasteboardTypeURL];
+    } else if (cls == [NSAttributedString class]) {
+        if ([types containsObject: NSRTFPboardType]) {
+            NSData *rtf = [self dataForType: NSRTFPboardType];
+            NSAttributedString *string = [[[NSAttributedString alloc]
+                    initWithRTF: rtf
+             documentAttributes: NULL] autorelease];
+            if (string)
+                return string;
+        }
+        if ([types containsObject: NSStringPboardType]) {
+            NSString *plain = [self stringForType: NSStringPboardType];
+            return plain ? [[[NSAttributedString alloc] initWithString: plain]
+                                   autorelease]
+                         : nil;
+        }
+    } else if (cls == [NSImage class]) {
+        if ([NSImage canInitWithPasteboard: self])
+            return [[[NSImage alloc] initWithPasteboard: self] autorelease];
+    } else {
+        // NSPasteboardItem, NSColor, NSSound and NSPasteboardReading
+        // implementations are not available here; skip the class like a class
+        // with no matching data rather than failing the caller's handler.
+        static NSMutableSet *warned = nil;
+        @synchronized([NSPasteboard class]) {
+            if (warned == nil)
+                warned = [NSMutableSet new];
+            if (![warned containsObject: cls]) {
+                [warned addObject: cls];
+                NSLog(@"NSPasteboard: reading %@ objects is not supported; "
+                      @"skipping that class",
+                      NSStringFromClass(cls));
+            }
+        }
+    }
     return nil;
+}
+
+- (BOOL) canReadObjectForClasses: (NSArray<Class> *) classArray
+                         options: (nullable NSDictionary<NSPasteboardReadingOptionKey, id> *)
+                                          options
+{
+    return [[self readObjectsForClasses: classArray options: options] count] >
+           0;
+}
+
+- (nullable NSArray *)
+        readObjectsForClasses: (NSArray<Class> *) classArray
+                      options: (nullable NSDictionary<NSPasteboardReadingOptionKey, id> *)
+                                       options
+{
+    NSArray *conformTo = [options
+            objectForKey: NSPasteboardURLReadingContentsConformToTypesKey];
+    BOOL wantsURL = NO;
+    for (Class cls in classArray)
+        wantsURL = wantsURL || cls == [NSURL class];
+
+    NSMutableArray *objects = [NSMutableArray array];
+    NSArray *files = wantsURL ? [self _fileURLs] : @[];
+    // Each file is its own item, readable only as a file NSURL.
+    for (NSURL *url in files)
+        if (conformTo == nil || [self _fileURL: url conformsToAnyOf: conformTo])
+            [objects addObject: url];
+    // The remaining content is one item; the first class that reads it wins.
+    // Files filtered out by conformance do not fall through to it.
+    if ([files count] == 0) {
+        for (Class cls in classArray) {
+            id object = [self _readContentOfClass: cls options: options];
+            if (object != nil) {
+                [objects addObject: object];
+                break;
+            }
+        }
+    }
+    return [objects count] ? objects : nil;
+}
+
+- (BOOL) canReadItemWithDataConformingToTypes: (NSArray<NSString *> *) types {
+    for (NSPasteboardType have in [self types])
+        for (NSString *want in types)
+            if (PasteboardTypeConformsTo(have, want))
+                return YES;
+    return NO;
 }
 
 @end
