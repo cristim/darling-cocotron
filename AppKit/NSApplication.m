@@ -42,6 +42,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSSystemInfoPanel.h>
 #import <AppKit/NSWindow-Private.h>
 #import <AppKit/NSWorkspace.h>
+#import <CoreGraphics/CGSServerSPI.h>
 #import <CoreGraphics/CGWindowPrivate.h>
 #import <objc/message.h>
 #import <pthread.h>
