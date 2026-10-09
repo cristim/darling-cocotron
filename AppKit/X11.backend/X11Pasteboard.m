@@ -27,6 +27,7 @@ static const NSUInteger X11IncrChunkSize = 64 * 1024;
     Atom _type;
     NSData *_data;
     NSUInteger _offset;
+    NSTimeInterval _deadline;
 }
 
 - (id) initWithProperty: (Atom) property
@@ -766,8 +767,40 @@ static size_t MaximumPropertyBytes(Display *display) {
         // The transfer stays in the table until the zero-length write above: each
         // later deletion has to find it, at the offset after this chunk.
         transfer->_offset += chunk;
+        // The requestor is alive and reading, so the deadline bounds the wait for
+        // the next acknowledgement rather than the whole transfer.
+        transfer->_deadline = [NSDate timeIntervalSinceReferenceDate] + SelectionTimeout;
     }
     XFlush(_display);
+}
+
+// A requestor that walked away sends no further event, so nothing else would ever
+// notice its transfer: the entry, the payload it retains and our PropertyChangeMask on
+// its window would stay for the life of the pasteboard. The run loop has to come back.
+- (void) scheduleIncrementalTransferExpiry {
+    // One pending check covers every transfer; without this each start adds a chain.
+    [NSObject cancelPreviousPerformRequestsWithTarget: self
+                                             selector: @selector(expireIncrementalTransfers:)
+                                               object: nil];
+    [[NSRunLoop currentRunLoop] performSelector: @selector(expireIncrementalTransfers:)
+                                      withObject: nil
+                                      afterDelay: SelectionTimeout
+                                         inModes: @[NSDefaultRunLoopMode]];
+}
+
+- (void) expireIncrementalTransfers: (id) unused {
+    NSTimeInterval now = [NSDate timeIntervalSinceReferenceDate];
+    // -allValues is a snapshot, so removing an entry does not disturb the walk.
+    for (NSNumber *requestor in [_incrTransfers allKeys]) {
+        X11IncrTransfer *transfer = _incrTransfers[requestor];
+        if (transfer->_deadline > now)
+            continue;
+        NSLog(@"X11 pasteboard: abandoning an incremental transfer of %@ to window %@, "
+              "the requestor stopped asking for data", _name, requestor);
+        [_incrTransfers removeObjectForKey: requestor];
+    }
+    if ([_incrTransfers count] > 0)
+        [self scheduleIncrementalTransferExpiry];
 }
 
 // Start handing a selection over as INCR, because it is larger than one property
@@ -789,10 +822,13 @@ static size_t MaximumPropertyBytes(Display *display) {
     XSelectInput(_display, event->requestor, PropertyChangeMask);
 
     NSNumber *requestor = [NSNumber numberWithUnsignedLong: event->requestor];
-    _incrTransfers[requestor] =
+    X11IncrTransfer *transfer =
             [[[X11IncrTransfer alloc] initWithProperty: event->property
                                                    type: event->target
                                                    data: data] autorelease];
+    transfer->_deadline = [NSDate timeIntervalSinceReferenceDate] + SelectionTimeout;
+    _incrTransfers[requestor] = transfer;
+    [self scheduleIncrementalTransferExpiry];
 
     XFlush(_display);
 }
