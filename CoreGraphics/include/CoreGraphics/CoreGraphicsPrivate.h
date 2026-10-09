@@ -10,8 +10,6 @@ __BEGIN_DECLS
 // https://github.com/koekeishiya/cglwindow/blob/master/src/cgl_window.c
 // https://sourceforge.net/p/xnntp/SVN_Xnntp/1/tree/CGSPrivate.h
 
-typedef int CGSConnectionID;
-typedef int CGSWindowID;
 typedef int CGSSurfaceID;
 typedef unsigned long CGSNotificationType;
 typedef CFMutableDictionaryRef CGSDictionaryObj;
