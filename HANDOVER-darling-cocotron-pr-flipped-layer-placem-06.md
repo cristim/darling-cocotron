@@ -11,13 +11,13 @@ VibeDarling/darling #120 (Wayland black upper panel, clipped text in AppZapper),
 - OpenSwiftUI fork rebased onto upstream/main 4fa65735: worktree ~/src/OpenSwiftUI-rebase-upstream, branch darling-rebased-20261009 (50 commits + a2b13994). Conflict log ~/tmp-opencode/swiftui-abi/rebase-conflicts.log. NOT compiled, NOT pushed.
 
 ## In progress / blocked
-- Rebased branch still has Tests/OpenSwiftUICoreTests/Event/Responder/ContentShapeDataTests.swift, which tests ContentShapeData from the removed fork file. Deleting it was denied by the permission classifier; needs user decision (delete, or port to upstream's types). Commit a2b13994 also carries a Co-Authored-By trailer; user's global rule says no Claude mention in commit messages: amend decision needed.
+- Stale test fixed: 72421496 moves ContentShapeDataTests to Tests/OpenSwiftUITests/Event/Responder/ContentShapeModifierTests.swift, ported to upstream's _ContentShapeModifier. NOT compiled/run (needs Darling toolchain). Commit a2b13994 still has a Co-Authored-By trailer; amending was denied, so decide whether to keep it (user's global rule: no Claude mention).
 - Local branch fix/flipped-view-layer-placement (dda054a9a, d39d488ed, 84b3c534a) unpushed, stacked on predecessor's 94 commits; source part is superseded by master.
 - 85 unresolved SwiftUI strict-link APIs: slices file ~/tmp-opencode/coordination/swiftui-closure-slices.md; slices on HOLD until coordinator confirms. CGImageGetHeadroom is cocotron PR #424 (darling-ce).
 - Real AppZapper launch blocked: dyld "SwiftUI.framework image not found"; evidence ~/tmp-opencode/appzapper-issue120-evidence/ (STATUS.md).
 
 ## Next steps
-1. Resolve the stale test + trailer decision, commit on darling-rebased-20261009.
+1. Decide the a2b13994 trailer question.
 2. Compile the rebased branch under the heavy lock (flock -w 1800 /tmp/agent-locks/darling-heavy-build.lock, jobs 1) with Darling/build-objects.sh; rerun symbol-diff.sh.
 3. Add _TaskModifier2/_TaskValueModifier2 from public task(name:executorPreference:priority:_:) docs (Sources/OpenSwiftUI/Modifier/ViewModifier/TaskModifier.swift); local commit, no push before report review.
 4. After slice hold lifts: CoreText 14, QuartzCore 12, AppKit 8 slices; then package SwiftUI.framework in a private prefix and gate AppZapper (dyld load, window opens, A/B black panel/clipping).
