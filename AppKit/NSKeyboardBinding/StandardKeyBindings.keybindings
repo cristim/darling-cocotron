@@ -7,6 +7,21 @@
 	"control,0x0061" = "selectAll:";				/* command-a */
 	"control,0x007a" = "undo:";				/* command-z */
 
+	/* Control shortcuts are also used by native Wayland keyboards. */
+	"control,shift,0x005a" = "redo:";
+	"control,shift,0x007a" = "redo:";
+	"control,0x0079" = "redo:";
+
+	"control,keypad,0xF700" = "moveToBeginningOfParagraph:";
+	"control,keypad,0xF701" = "moveToEndOfParagraph:";
+	"control,shift,keypad,0xF700" = "moveParagraphBackwardAndModifySelection:";
+	"control,shift,keypad,0xF701" = "moveParagraphForwardAndModifySelection:";
+
+	"control,keypad,0xF702" = "moveWordBackward:";
+	"control,keypad,0xF703" = "moveWordForward:";
+	"control,shift,keypad,0xF702" = "moveWordBackwardAndModifySelection:";
+	"control,shift,keypad,0xF703" = "moveWordForwardAndModifySelection:";
+
 	"command,0x0078" = "cut:";				/* command-x */
 	"command,0x0063" = "copy:";				/* command-c */
 	"command,0x0076" = "paste:";				/* command-v */

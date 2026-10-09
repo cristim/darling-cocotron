@@ -583,7 +583,7 @@ NSString *const NSAllRomanInputSourcesLocaleIdentifier =
 
     if (stillSelecting == NO &&
         [[ranges objectAtIndex: 0] rangeValue].length == 0)
-        _selectionOrigin = [[ranges objectAtIndex: 0] rangeValue].length;
+        _selectionOrigin = [[ranges objectAtIndex: 0] rangeValue].location;
 
     NSArray *oldRanges = [[_selectedRanges copy] autorelease];
 
@@ -1511,28 +1511,17 @@ NSString *const NSAllRomanInputSourcesLocaleIdentifier =
 }
 
 - (void) moveToBeginningOfDocumentAndModifySelection: sender {
-    NSRange range = [self selectedRange];
-
-    if (range.length == 0)
-        _selectionAffinity = NSSelectionAffinityUpstream;
-
-    range.length += range.location;
-    range.location = 0;
-
-    [self setSelectedRange: range];
+    [self setSelectedRange: NSMakeRange(0, _selectionOrigin)
+                  affinity: NSSelectionAffinityUpstream
+            stillSelecting: NO];
     [self scrollRangeToVisible: NSMakeRange(0, 0)];
 }
 
 - (void) moveToEndOfDocumentAndModifySelection: sender {
-    NSRange range = [self selectedRange];
     NSUInteger length = [[_textStorage string] length];
-
-    if (range.length == 0)
-        _selectionAffinity = NSSelectionAffinityDownstream;
-
-    range.length = length - range.location;
-
-    [self setSelectedRange: range];
+    [self setSelectedRange: NSMakeRange(_selectionOrigin, length - _selectionOrigin)
+                  affinity: NSSelectionAffinityDownstream
+            stillSelecting: NO];
     [self scrollRangeToVisible: NSMakeRange(length, 0)];
 }
 
@@ -3326,7 +3315,15 @@ NSString *const NSAllRomanInputSourcesLocaleIdentifier =
 }
 
 - (BOOL) validateMenuItem: (NSMenuItem *) item {
-    if ([item action] == @selector(undo:))
+    if ([item action] == @selector(cut:))
+        return _isEditable && [self selectedRange].length > 0;
+    else if ([item action] == @selector(copy:))
+        return _isSelectable && [self selectedRange].length > 0;
+    else if ([item action] == @selector(paste:))
+        return _isEditable;
+    else if ([item action] == @selector(selectAll:))
+        return _isSelectable && [_textStorage length] > 0;
+    else if ([item action] == @selector(undo:))
         return _allowsUndo ? [[self undoManager] canUndo] : NO;
     else if ([item action] == @selector(redo:))
         return _allowsUndo ? [[self undoManager] canRedo] : NO;
@@ -3649,8 +3646,6 @@ NSString *const NSAllRomanInputSourcesLocaleIdentifier =
 }
 
 - (NSMenu *) menuForEvent: (NSEvent *) event {
-    NSRange glyphRange;
-
     NSPoint point = [self convertPoint: [event locationInWindow] fromView: nil];
     CGFloat fraction;
 
@@ -3659,7 +3654,6 @@ NSString *const NSAllRomanInputSourcesLocaleIdentifier =
     @try {
         NSUInteger clickedIndex = [self glyphIndexForPoint: point
                                 fractionOfDistanceThroughGlyph: &fraction];
-        NSRange range = [_textStorage doubleClickAtIndex: clickedIndex];
 
         // A contextual click inside an existing selection should operate on
         // that selection (as on macOS). Only move the selection to the word
@@ -3669,7 +3663,8 @@ NSString *const NSAllRomanInputSourcesLocaleIdentifier =
         BOOL clickInSelection = selection.length != 0 &&
                 clickedIndex >= selection.location &&
                 clickedIndex < NSMaxRange(selection);
-        if (!clickInSelection) {
+        if (!clickInSelection && clickedIndex < [_textStorage length]) {
+            NSRange range = [_textStorage doubleClickAtIndex: clickedIndex];
             [self setSelectedRange: range];
 
             NSSpellChecker *checker = [NSSpellChecker sharedSpellChecker];
@@ -3688,7 +3683,7 @@ NSString *const NSAllRomanInputSourcesLocaleIdentifier =
                                     [NSBundle
                                             bundleForClass: [NSTextView class]],
                                     @"Spell checker guesses")
-                              action: @selector(cut:)
+                              action: NULL
                        keyEquivalent: @""];
                 [item setEnabled: NO];
             } else {
@@ -3698,8 +3693,11 @@ NSString *const NSAllRomanInputSourcesLocaleIdentifier =
                          keyEquivalent: @""];
                 }
             }
+        } else if (!clickInSelection) {
+            [self setSelectedRange: NSMakeRange([_textStorage length], 0)];
         }
-        [menu addItem: [NSMenuItem separatorItem]];
+        if ([[menu itemArray] count] > 0)
+            [menu addItem: [NSMenuItem separatorItem]];
     } @catch (NSException *e) {
         // Ignore - doubleClickAtIndex: can throw a range exception - which
         // means there's nothing to spellcheck
