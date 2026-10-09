@@ -1511,7 +1511,8 @@ NSString *const NSAllRomanInputSourcesLocaleIdentifier =
 }
 
 - (void) moveToBeginningOfDocumentAndModifySelection: sender {
-    [self setSelectedRange: NSMakeRange(0, _selectionOrigin)
+    NSUInteger origin = MIN(_selectionOrigin, [_textStorage length]);
+    [self setSelectedRange: NSMakeRange(0, origin)
                   affinity: NSSelectionAffinityUpstream
             stillSelecting: NO];
     [self scrollRangeToVisible: NSMakeRange(0, 0)];
@@ -1519,7 +1520,9 @@ NSString *const NSAllRomanInputSourcesLocaleIdentifier =
 
 - (void) moveToEndOfDocumentAndModifySelection: sender {
     NSUInteger length = [[_textStorage string] length];
-    [self setSelectedRange: NSMakeRange(_selectionOrigin, length - _selectionOrigin)
+    // The storage can shrink under a selection without resetting the anchor.
+    NSUInteger origin = MIN(_selectionOrigin, length);
+    [self setSelectedRange: NSMakeRange(origin, length - origin)
                   affinity: NSSelectionAffinityDownstream
             stillSelecting: NO];
     [self scrollRangeToVisible: NSMakeRange(length, 0)];
