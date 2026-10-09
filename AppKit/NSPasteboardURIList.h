@@ -30,3 +30,17 @@ NSArray *NSPasteboardFilenamesFromURIList(NSData *data);
 // Returns CRLF-terminated file URIs, or nil unless every name is under
 // /Volumes/SystemRoot and a valid host path.
 NSData *NSPasteboardURIListFromFilenames(NSArray *filenames);
+
+// Single-URL views of a list, for pasteboard types that carry one URL string
+// (NSPasteboardTypeFileURL, NSPasteboardTypeURL). File URLs name the file where
+// the guest sees it, i.e. under /Volumes/SystemRoot.
+//
+// The first file in the list, or nil if the list is not entirely valid files.
+NSString *NSPasteboardFileURLStringFromURIList(NSData *data);
+// As above, but a list whose first record is a non-file URI yields that record.
+NSString *NSPasteboardURLStringFromURIList(NSData *data);
+// The wire form of one URL string; a file URL must name a path under
+// /Volumes/SystemRoot. Returns nil for anything else that is not a plain URI.
+NSData *NSPasteboardURIListFromURLString(NSString *url);
+// Whether any record is a file: URI, valid or not.
+BOOL NSPasteboardURIListHasFileURI(NSData *data);

@@ -37,6 +37,34 @@ static void dropCheck(BOOL value, const char *what) {
         dropCheck([[pb dataForType:NSPasteboardTypePNG] isEqual:wire],"advertised PNG type reads the image/png bytes");
         return YES;
     }
+    if(getenv("FILE_URL_DRAG")) {
+        NSPasteboard *pb=[info draggingPasteboard];
+        dropCheck([[pb types] containsObject:NSPasteboardTypeFileURL] && [[pb types] containsObject:NSPasteboardTypeURL] && [[pb types] containsObject:@"text/uri-list"],"file URL types exposed beside raw URI list");
+        NSData *url=[pb dataForType:NSPasteboardTypeFileURL];
+        // FILE_URL_ONE is the guest-visible file:// URL of the first dropped file.
+        dropCheck(getenv("FILE_BAD") ? url==nil : [url isEqual:[fileEnv("FILE_URL_ONE") dataUsingEncoding:NSUTF8StringEncoding]],"first file URL exact");
+        if(!getenv("FILE_BAD")) {
+            dropCheck([[pb dataForType:NSPasteboardTypeURL] isEqual:url],"public.url matches first file URL");
+            dropCheck([[pb stringForType:NSPasteboardTypeFileURL] isEqual:fileEnv("FILE_URL_ONE")],"stringForType: decodes the file URL as UTF-8");
+            dropCheck([[pb dataForType:@"text/uri-list"] isEqual:[fileEnv("FILE_WIRE") dataUsingEncoding:NSUTF8StringEncoding]],"raw URI preserved after conversion");
+        }
+        return YES; // Deliberately accepts even failed conversion; backend must refuse finish.
+    }
+    if(getenv("LINK_DRAG")) {
+        // A browser link: the file URL type is absent, but the drop must still conclude.
+        NSPasteboard *pb=[info draggingPasteboard];
+        dropCheck([pb dataForType:NSPasteboardTypeFileURL]==nil,"non-file URI is not a file URL");
+        dropCheck([[pb stringForType:NSPasteboardTypeURL] isEqual:fileEnv("LINK_URL")],"public.url reads the link");
+        return YES;
+    }
+    if(getenv("HTML_DRAG")) {
+        NSPasteboard *pb=[info draggingPasteboard];
+        NSData *html=[fileEnv("HTML_WIRE") dataUsingEncoding:NSUTF8StringEncoding];
+        dropCheck([[pb types] containsObject:@"public.html"] && [[pb types] containsObject:NSPasteboardTypeHTML] && [[pb types] containsObject:NSHTMLPboardType] && [[pb types] containsObject:@"text/html"],"HTML types exposed beside raw MIME");
+        dropCheck([[pb dataForType:@"public.html"] isEqual:html] && [[pb dataForType:NSPasteboardTypeHTML] isEqual:html] && [[pb dataForType:NSHTMLPboardType] isEqual:html] && [[pb dataForType:@"text/html"] isEqual:html],"HTML bytes identical under every name");
+        dropCheck([[pb stringForType:NSPasteboardTypeHTML] isEqual:fileEnv("HTML_WIRE")],"stringForType: decodes HTML as UTF-8");
+        return YES;
+    }
     if(getenv("FILE_DRAG")) {
         NSPasteboard *pb=[info draggingPasteboard];
         NSArray *files=[pb propertyListForType:NSFilenamesPboardType];
@@ -95,7 +123,7 @@ int main(void) {
         NSWindow *window = [[NSWindow alloc] initWithContentRect: NSMakeRect(0,0,400,300) styleMask: NSTitledWindowMask backing: NSBackingStoreBuffered defer: NO];
         [window setTitle: @"Wayland drop target"];
         DropView *view = [[DropView alloc] initWithFrame: NSMakeRect(0,0,400,300)];
-        [view registerForDraggedTypes: getenv("IMAGE_DRAG") ? @[NSPasteboardTypePNG] : getenv("FILE_DRAG") ? @[NSFilenamesPboardType] : @[NSStringPboardType]];
+        [view registerForDraggedTypes: getenv("FILE_URL_DRAG") ? @[NSPasteboardTypeFileURL] : getenv("LINK_DRAG") ? @[NSPasteboardTypeFileURL, NSPasteboardTypeURL] : getenv("HTML_DRAG") ? @[@"public.html"] : getenv("IMAGE_DRAG") ? @[NSPasteboardTypePNG] : getenv("FILE_DRAG") ? @[NSFilenamesPboardType] : @[NSStringPboardType]];
         [window setContentView: view]; [window makeKeyAndOrderFront: nil];
         Driver *driver = [Driver new];
         [NSTimer scheduledTimerWithTimeInterval: 18 target: driver selector: @selector(done:) userInfo: nil repeats: NO];

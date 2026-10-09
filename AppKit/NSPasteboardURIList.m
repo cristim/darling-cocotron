@@ -94,7 +94,8 @@ static NSString *hostPathFromLine(NSString *line) {
     return hostPathFromURI(path);
 }
 
-NSArray *NSPasteboardFilenamesFromURIList(NSData *data) {
+// Non-blank, non-comment records, or nil if the list is oversized or not UTF-8.
+static NSArray *uriListRecords(NSData *data) {
     if (![data isKindOfClass: [NSData class]] || ![data length] ||
         [data length] > TransferLimit)
         return nil;
@@ -110,17 +111,37 @@ NSArray *NSPasteboardFilenamesFromURIList(NSData *data) {
                                             encoding: NSUTF8StringEncoding] autorelease];
     if (!text || memchr(wire, 0, [data length]) != NULL) return nil;
 
-    NSMutableArray *files = [NSMutableArray array];
+    NSMutableArray *records = [NSMutableArray array];
     for (NSString *rawLine in [text componentsSeparatedByString: @"\n"]) {
         NSString *line = [rawLine hasSuffix: @"\r"]
                                  ? [rawLine substringToIndex: [rawLine length] - 1]
                                  : rawLine;
-        if (![line length] || [line hasPrefix: @"#"]) continue;
+        if ([line length] && ![line hasPrefix: @"#"]) [records addObject: line];
+    }
+    return records;
+}
+
+NSArray *NSPasteboardFilenamesFromURIList(NSData *data) {
+    NSMutableArray *files = [NSMutableArray array];
+    for (NSString *line in uriListRecords(data)) {
         NSString *host = hostPathFromLine(line);
         if (!host) return nil; // All or nothing: a partial list would drop files.
         [files addObject: [HostRoot stringByAppendingString: host]];
     }
     return [files count] ? files : nil;
+}
+
+static void appendEscaped(NSMutableData *out, NSData *bytes) {
+    static const char hex[] = "0123456789ABCDEF";
+    const unsigned char *p = [bytes bytes];
+    for (NSUInteger i = 0; i < [bytes length]; i++) {
+        if (literalByte(p[i])) {
+            [out appendBytes: p + i length: 1];
+        } else {
+            char escaped[] = {'%', hex[p[i] >> 4], hex[p[i] & 15]};
+            [out appendBytes: escaped length: 3];
+        }
+    }
 }
 
 NSData *NSPasteboardURIListFromFilenames(NSArray *filenames) {
@@ -137,17 +158,75 @@ NSData *NSPasteboardURIListFromFilenames(NSArray *filenames) {
         NSData *bytes = [host dataUsingEncoding: NSUTF8StringEncoding];
         if ([result length] + 9 + 3 * [bytes length] > TransferLimit) return nil;
         [result appendBytes: "file://" length: 7];
-        const unsigned char *p = [bytes bytes];
-        static const char hex[] = "0123456789ABCDEF";
-        for (NSUInteger i = 0; i < [bytes length]; i++) {
-            if (literalByte(p[i])) {
-                [result appendBytes: p + i length: 1];
-            } else {
-                char escaped[] = {'%', hex[p[i] >> 4], hex[p[i] & 15]};
-                [result appendBytes: escaped length: 3];
-            }
-        }
+        appendEscaped(result, bytes);
         [result appendBytes: "\r\n" length: 2];
     }
     return result;
+}
+
+// One opaque URI: an ASCII RFC 3986 scheme followed by printable characters. A
+// leading "#" or any whitespace/control character would make a receiver read a
+// comment or split the record.
+static BOOL validURLString(NSString *url) {
+    if (![url length] || [url length] >= 4096) return NO;
+    BOOL inScheme = YES, sawScheme = NO;
+    for (NSUInteger i = 0; i < [url length]; i++) {
+        unichar c = [url characterAtIndex: i];
+        if (c <= 0x20 || c >= 0x7f) return NO;
+        if (!inScheme) continue;
+        if (c == ':') {
+            if (i == 0) return NO;
+            inScheme = NO;
+            sawScheme = YES;
+            continue;
+        }
+        BOOL alpha = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+        BOOL tail = (c >= '0' && c <= '9') || c == '+' || c == '-' || c == '.';
+        if (!alpha && !(i > 0 && tail)) return NO;
+    }
+    return sawScheme;
+}
+
+// A filename already validated by the list parser as a file URL string. The guest
+// path is kept whole, so the URL names the file where the guest sees it.
+static NSString *fileURLStringFromFilename(NSString *filename) {
+    NSData *bytes = [filename dataUsingEncoding: NSUTF8StringEncoding];
+    NSMutableData *url = [NSMutableData dataWithBytes: "file://" length: 7];
+    appendEscaped(url, bytes);
+    return [[[NSString alloc] initWithData: url encoding: NSUTF8StringEncoding] autorelease];
+}
+
+static BOOL isFileURLString(NSString *url) {
+    return [url length] >= 5 &&
+           [[url substringToIndex: 5] caseInsensitiveCompare: @"file:"] == NSOrderedSame;
+}
+
+NSString *NSPasteboardFileURLStringFromURIList(NSData *data) {
+    NSArray *files = NSPasteboardFilenamesFromURIList(data);
+    return files ? fileURLStringFromFilename([files objectAtIndex: 0]) : nil;
+}
+
+NSString *NSPasteboardURLStringFromURIList(NSData *data) {
+    NSString *fileURL = NSPasteboardFileURLStringFromURIList(data);
+    if (fileURL) return fileURL;
+    NSArray *records = uriListRecords(data);
+    NSString *first = [records count] ? [records objectAtIndex: 0] : nil;
+    // A file record that failed conversion must not leak out as an opaque string.
+    return first && !isFileURLString(first) && validURLString(first) ? first : nil;
+}
+
+NSData *NSPasteboardURIListFromURLString(NSString *url) {
+    if (![url isKindOfClass: [NSString class]]) return nil;
+    if (isFileURLString(url)) {
+        NSString *path = hostPathFromLine(url);
+        return path ? NSPasteboardURIListFromFilenames(@[path]) : nil;
+    }
+    if (!validURLString(url)) return nil;
+    return [[url stringByAppendingString: @"\r\n"] dataUsingEncoding: NSUTF8StringEncoding];
+}
+
+BOOL NSPasteboardURIListHasFileURI(NSData *data) {
+    for (NSString *record in uriListRecords(data))
+        if (isFileURLString(record)) return YES;
+    return NO;
 }

@@ -94,12 +94,48 @@ void WaylandSendData(WaylandDisplay *display, NSData *data, int fd) {
     }];
 }
 
+// Identifier from Apple's UTType documentation. NSPasteboardTypeHTML does not
+// carry it in this tree, so it is listed alongside the constants.
+static NSString *const PublicHTMLType = @"public.html";
+
+static BOOL isHTMLType(NSString *type) {
+    return [type isEqual: NSPasteboardTypeHTML] || [type isEqual: NSHTMLPboardType] ||
+           [type isEqual: PublicHTMLType];
+}
+static BOOL isURLType(NSString *type) {
+    return [type isEqual: NSPasteboardTypeFileURL] || [type isEqual: NSPasteboardTypeURL];
+}
+static BOOL isURIListType(NSString *type) {
+    return [type isEqual: NSFilenamesPboardType] || isURLType(type);
+}
+
 @implementation WaylandPasteboard
 - (struct wl_proxy *) dataDevice { return _device; }
 
 
+// URL and HTML payloads are UTF-8 text on the wire; legacy types keep UTF-16.
++ (NSStringEncoding) stringEncodingForType: (NSString *) type {
+    return [type isEqual: NSStringPboardType] || isURLType(type) || isHTMLType(type)
+            ? NSUTF8StringEncoding : NSUnicodeStringEncoding;
+}
+// The multi-file list outranks the single-URL types for text/uri-list, whatever
+// the declaration order, because publishing keeps the first type per MIME.
++ (NSArray *) typesInPublishOrder: (NSArray *) types {
+    NSMutableArray *ordered = [NSMutableArray array], *urls = [NSMutableArray array];
+    for (NSString *type in types) {
+        if (isURLType(type)) [urls addObject: type]; else [ordered addObject: type];
+    }
+    return [ordered arrayByAddingObjectsFromArray: urls];
+}
+// A failed optional single-URL read must not fail a drop that another type can
+// satisfy, but a list that holds file URIs keeps the atomic MOVE guarantee.
++ (BOOL) failedConversionBlocksDrop: (NSData *) raw forType: (NSString *) type {
+    return !isURLType(type) || NSPasteboardURIListHasFileURI(raw);
+}
+
 + (NSArray *) mimeTypesForType: (NSString *) type {
-    if ([type isEqual:NSFilenamesPboardType]) return @[@"text/uri-list"];
+    if (isURIListType(type)) return @[@"text/uri-list"];
+    if (isHTMLType(type)) return @[@"text/html"];
     if ([type isEqual: NSStringPboardType])
         return @[@"text/plain;charset=utf-8", @"text/plain", @"UTF8_STRING"];
     if ([type isEqual: NSPasteboardTypePNG] || [type isEqual: @"NSPNGPPboardType"])
@@ -118,26 +154,43 @@ void WaylandSendData(WaylandDisplay *display, NSData *data, int fd) {
         return NSPasteboardTypeTIFF;
     return mime;
 }
-// Keep the native bytes available alongside the converted Cocoa representation.
+// Keep the native bytes available alongside the converted Cocoa representations.
 + (NSArray *) typesForMime: (NSString *) mime {
-    if ([mime isEqual:@"text/uri-list"]) return @[mime, NSFilenamesPboardType];
+    if ([mime isEqual:@"text/uri-list"])
+        return @[mime, NSFilenamesPboardType, NSPasteboardTypeFileURL, NSPasteboardTypeURL];
+    if ([mime isEqual:@"text/html"])
+        return @[mime, NSPasteboardTypeHTML, NSHTMLPboardType, PublicHTMLType];
     return @[[self typeForMime:mime]];
 }
 + (NSData *) encodeData: (NSData *) data forType: (NSString *) type {
     if (!data || [data length] > TransferLimit) return nil;
-    if (![type isEqual:NSFilenamesPboardType]) return data;
-    id files = [NSPropertyListSerialization propertyListFromData:data
-            mutabilityOption:NSPropertyListImmutable format:NULL errorDescription:NULL];
-    return NSPasteboardURIListFromFilenames(files);
+    if ([type isEqual:NSFilenamesPboardType]) {
+        id files = [NSPropertyListSerialization propertyListFromData:data
+                mutabilityOption:NSPropertyListImmutable format:NULL errorDescription:NULL];
+        return NSPasteboardURIListFromFilenames(files);
+    }
+    if ([type isEqual:NSPasteboardTypeFileURL] || [type isEqual:NSPasteboardTypeURL]) {
+        NSString *url = [[[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] autorelease];
+        if ([type isEqual:NSPasteboardTypeFileURL] && ![[url lowercaseString] hasPrefix:@"file:"])
+            return nil;
+        return NSPasteboardURIListFromURLString(url);
+    }
+    return data;
 }
 + (NSData *) decodeData: (NSData *) data forType: (NSString *) type mime: (NSString *) mime {
     if (!data || [data length] > TransferLimit) return nil;
-    if (![type isEqual:NSFilenamesPboardType] || ![mime isEqual:@"text/uri-list"]) return data;
-    NSArray *files = NSPasteboardFilenamesFromURIList(data);
-    if (!files) return nil;
-    NSData *plist = [NSPropertyListSerialization dataFromPropertyList:files
-            format:NSPropertyListXMLFormat_v1_0 errorDescription:NULL];
-    return [plist length] <= TransferLimit ? plist : nil;
+    if (![mime isEqual:@"text/uri-list"]) return data;
+    if ([type isEqual:NSFilenamesPboardType]) {
+        NSArray *files = NSPasteboardFilenamesFromURIList(data);
+        if (!files) return nil;
+        NSData *plist = [NSPropertyListSerialization dataFromPropertyList:files
+                format:NSPropertyListXMLFormat_v1_0 errorDescription:NULL];
+        return [plist length] <= TransferLimit ? plist : nil;
+    }
+    NSString *url = [type isEqual:NSPasteboardTypeFileURL] ? NSPasteboardFileURLStringFromURIList(data)
+            : [type isEqual:NSPasteboardTypeURL] ? NSPasteboardURLStringFromURIList(data) : nil;
+    if (url) return [url dataUsingEncoding:NSUTF8StringEncoding];
+    return isURIListType(type) ? nil : data;
 }
 - (id) initWithName: (NSString *) name display: (WaylandDisplay *) display
            manager: (struct wl_proxy *) manager seat: (struct wl_proxy *) seat {
@@ -237,14 +290,13 @@ void WaylandSendData(WaylandDisplay *display, NSData *data, int fd) {
     return YES;
 }
 - (BOOL) setString: (NSString *) string forType: (NSString *) type {
-    return [self setData: [string dataUsingEncoding:
-            [type isEqual: NSStringPboardType] ? NSUTF8StringEncoding : NSUnicodeStringEncoding]
+    return [self setData: [string dataUsingEncoding: [WaylandPasteboard stringEncodingForType: type]]
                  forType: type];
 }
 - (NSString *) stringForType: (NSString *) type {
     NSData *data = [self dataForType: type];
     return data ? [[[NSString alloc] initWithData: data encoding:
-            [type isEqual: NSStringPboardType] ? NSUTF8StringEncoding : NSUnicodeStringEncoding] autorelease] : nil;
+            [WaylandPasteboard stringEncodingForType: type]] autorelease] : nil;
 }
 - (NSArray *) types {
     [_display processPendingEvents];
@@ -268,7 +320,7 @@ void WaylandSendData(WaylandDisplay *display, NSData *data, int fd) {
     NSMutableDictionary *snapshot = [NSMutableDictionary dictionary];
     _publishing = YES;
     @try {
-        for (NSString *type in [[_types copy] autorelease]) {
+        for (NSString *type in [WaylandPasteboard typesInPublishOrder: _types]) {
             NSData *data = [WaylandPasteboard encodeData:[self localDataForType:type] forType:type];
             if (data && [data length] <= TransferLimit)
                 for (NSString *mime in [WaylandPasteboard mimeTypesForType: type])

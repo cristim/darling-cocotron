@@ -157,11 +157,13 @@ static BOOL monotonicSeconds(double *seconds) {
         _localOnly = !_offeredActions && WaylandActionsFromOperations(_localOperations);
         if (_localOnly) _offeredActions = WaylandActionsFromOperations(_localOperations);
         if (_offeredActions) {
-            for (NSString *type in [[[pasteboard types] copy] autorelease]) {
+            for (NSString *type in [WaylandPasteboard typesInPublishOrder: [pasteboard types]]) {
                 if ([type isEqual:@"DELETE"]) continue;
                 NSData *data = [pasteboard dataForType: type];
                 if (!data) {
-                    if ([type isEqual:NSFilenamesPboardType]) { [snapshot removeAllObjects]; break; }
+                    if ([type isEqual:NSFilenamesPboardType] || [type isEqual:NSPasteboardTypeFileURL]) {
+                        [snapshot removeAllObjects]; break;
+                    }
                     continue;
                 }
                 if (!_localOnly) data = [WaylandPasteboard encodeData:data forType:type];
