@@ -42,7 +42,6 @@ extern void CGSInitialize(void);
 extern CGError CGSNewConnection(_Nullable CGSDictionaryObj attribs, CGSConnectionID* connId);
 extern CGError CGSReleaseConnection(CGSConnectionID connId);
 extern CGSConnectionID _CGSDefaultConnection(void);
-extern CGSConnectionID CGSMainConnectionID(void);
 // Pointer location in global display coordinates, origin at the top left.
 extern CGPoint CGSCurrentInputPointerPosition(void);
 extern CGError CGSSetDenyWindowServerConnections(Boolean deny);
@@ -62,7 +61,6 @@ extern CGError CGSSetWindowShape(CGSConnectionID cid, CGSWindowID wid, float x_o
 extern OSStatus CGSOrderWindow(CGSConnectionID cid, CGSWindowID wid, CGSWindowOrderingMode place, CGSWindowID relativeToWindow);
 extern CGError CGSMoveWindow(CGSConnectionID cid, CGSWindowID wid, const CGPoint *window_pos);
 extern CGError CGSSetWindowOpacity(CGSConnectionID cid, CGSWindowID wid, bool isOpaque);
-extern CGError CGSSetWindowAlpha(CGSConnectionID cid, CGSWindowID wid, float alpha);
 extern CGError CGSSetWindowLevel(CGSConnectionID cid, CGSWindowID wid, CGWindowLevel level);
 
 // Window transforms. Argument layout as applications call these functions:
