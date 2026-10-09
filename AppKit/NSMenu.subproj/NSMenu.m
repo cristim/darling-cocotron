@@ -471,9 +471,9 @@ BOOL itemIsEnabled(NSMenuItem *item) {
 
         if (((modifiers & keyModifiers) == itemModifiers) && ([key length] != 0)) {
 
-            // Explicit Shift on a lowercase equivalent also accepts its
-            // uppercase event spelling. Keep the exact match for backends
-            // that report an unshifted charactersIgnoringModifiers value.
+            // With Shift in play, backends disagree on whether
+            // charactersIgnoringModifiers is shifted ("Z") or unshifted ("z"),
+            // so compare case-insensitively.
             BOOL matches = [key isEqualToString: characters];
             if (!matches && (itemModifiers & NSShiftKeyMask))
                 matches = [[key lowercaseString]

@@ -37,10 +37,17 @@ int main(void) {
         // An uppercase key equivalent also implies Shift in older nibs.
         [redo setKeyEquivalent:@"Z"];
         [redo setKeyEquivalentModifierMask:NSCommandKeyMask];
-        NSEvent *event = [NSEvent keyEventWithType:NSKeyDown location:NSZeroPoint
-            modifierFlags:NSCommandKeyMask | NSShiftKeyMask timestamp:0 windowNumber:0
-            context:nil characters:@"Z" charactersIgnoringModifiers:@"Z" isARepeat:NO keyCode:6];
-        if (![menu performKeyEquivalent:event] || target.redoCount != 3 || target.undoCount != 0) return 1;
+        // Some backends report the unshifted "z" even with Shift held.
+        for (NSString *key in @[@"Z", @"z"]) {
+            NSEvent *event = [NSEvent keyEventWithType:NSKeyDown location:NSZeroPoint
+                modifierFlags:NSCommandKeyMask | NSShiftKeyMask timestamp:0 windowNumber:0
+                context:nil characters:key charactersIgnoringModifiers:key isARepeat:NO keyCode:6];
+            if (![menu performKeyEquivalent:event] || target.undoCount != 0) {
+                fprintf(stderr, "FAIL: Command+Shift+%s missed Redo with key equivalent \"Z\"\n", [key UTF8String]);
+                return 1;
+            }
+        }
+        if (target.redoCount != 4) return 1;
         puts("PASS: Command+Shift+Z dispatches Redo with both backend character forms");
     }
     return 0;
