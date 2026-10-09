@@ -162,6 +162,9 @@ extern CGError CGEventGetEventRecord(CGEventRef event, CGSEventRecordPtr eventRe
 extern CGError CGEventSetEventRecord(CGEventRef event, CGSEventRecordPtr eventRecord, uint32_t eventRecordSize);
 extern uint32_t CGEventGetEventRecordSize(CGEventRef event);
 
+// SPI declared by OpenSwiftUI (CoreGraphics_Private.h); both arguments are nullable.
+COREGRAPHICS_EXPORT bool CGImageGetHeadroom(CGImageRef image, float *headroom);
+
 #ifdef __OBJC__
 @class CGSConnection;
 CGSConnection* _CGSConnectionForID(CGSConnectionID connId);
