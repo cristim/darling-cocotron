@@ -116,7 +116,8 @@ APPKIT_EXPORT const NSPasteboardReadingOptionKey
 - (BOOL) setString: (NSString *) string forType: (NSPasteboardType) type;
 - (BOOL) setPropertyList: plist forType: (NSPasteboardType) type;
 - (BOOL) canReadItemWithDataConformingToTypes:(NSArray<NSString *> *) types;
-- (NSArray *)readObjectsForClasses:(NSArray<Class> *)classArray options:(NSDictionary<NSPasteboardReadingOptionKey, id> *) options;
+- (BOOL)canReadObjectForClasses:(NSArray<Class> *)classArray options:(nullable NSDictionary<NSPasteboardReadingOptionKey, id> *)options;
+- (nullable NSArray *)readObjectsForClasses:(NSArray<Class> *)classArray options:(nullable NSDictionary<NSPasteboardReadingOptionKey, id> *) options;
 
 @end
 
