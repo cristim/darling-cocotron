@@ -1,4 +1,5 @@
 #include <CoreGraphics/CoreGraphics.h>
+#include <CoreGraphics/CoreGraphicsPrivate.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -20,6 +21,12 @@ int main(void) {
     }
     if (CGImageGetHeadroom(image, NULL)) {
         fprintf(stderr, "FAIL: NULL out pointer\n");
+        return 1;
+    }
+
+    headroom = 123.0f;
+    if (CGImageGetHeadroom(NULL, &headroom) || headroom != 0.0f) {
+        fprintf(stderr, "FAIL: NULL image, got headroom %f, expected false and 0\n", headroom);
         return 1;
     }
 

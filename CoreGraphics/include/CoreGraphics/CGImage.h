@@ -112,7 +112,6 @@ COREGRAPHICS_EXPORT CGBitmapInfo CGImageGetBitmapInfo(CGImageRef self);
 COREGRAPHICS_EXPORT CGDataProviderRef CGImageGetDataProvider(CGImageRef self);
 COREGRAPHICS_EXPORT const CGFloat *CGImageGetDecode(CGImageRef self);
 COREGRAPHICS_EXPORT bool CGImageGetShouldInterpolate(CGImageRef self);
-COREGRAPHICS_EXPORT bool CGImageGetHeadroom(CGImageRef self, float *headroom);
 COREGRAPHICS_EXPORT CGColorRenderingIntent
 CGImageGetRenderingIntent(CGImageRef self);
 
