@@ -412,6 +412,8 @@ set(AppKit_sources
 	NSAccessibility.m
 	NSAppearance.m
 	NSAccessibilityElement.m
+	NSAccessibilityCustomRotor.m
+	NSAccessibilityCustomAction.m
 	NSAccessibilityRemoteUIElement.m
 	NSKeyValueBinding.m
 	NSCandidateListTouchBarItem.m

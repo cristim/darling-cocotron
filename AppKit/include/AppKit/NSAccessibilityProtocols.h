@@ -18,6 +18,25 @@
 */
 
 #import <Foundation/NSObject.h>
+#import <Foundation/NSGeometry.h>
+
+NS_ASSUME_NONNULL_BEGIN
+
+NS_SWIFT_NAME(NSAccessibilityElementProtocol)
+@protocol NSAccessibilityElement <NSObject>
+
+@required
+- (NSRect) accessibilityFrame;
+- (nullable id) accessibilityParent;
+
+@optional
+- (nullable NSString *) accessibilityIdentifier;
+- (BOOL) isAccessibilityFocused;
+- (nullable id) accessibilityFocusedUIElement;
+
+@end
+
+NS_ASSUME_NONNULL_END
 
 @protocol NSAccessibility <NSObject>
 
