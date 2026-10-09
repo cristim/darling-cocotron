@@ -19,7 +19,7 @@
  SOFTWARE. */
 
 #import "X11DropSession.h"
-#import "X11FileURLs.h"
+#import <AppKit/NSPasteboardURIList.h>
 #import "X11Window.h"
 #import "X11Display.h"
 #import <AppKit/NSWindow-Drag.h>
@@ -194,7 +194,7 @@
     }
     if (![type isEqual: NSFilenamesPboardType])
         return data;
-    NSArray *files = X11FilenamesFromURIList(data);
+    NSArray *files = NSPasteboardFilenamesFromURIList(data);
     if (!files) {
         _transferFailed = YES;
         return nil;

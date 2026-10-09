@@ -34,8 +34,8 @@ available through raw URI data but cannot masquerade as local filenames.
 
 ## Reproduction
 
-Build `fileurltest.m` with the backend directory in the include path; it compiles
-the exact conversion implementation and tests 47 valid/invalid/bounded cases.
+Build `fileurltest.m` (it imports `AppKit/NSPasteboardURIList.m`, shared with X11); it compiles
+the exact conversion implementation and tests the valid, invalid and bounded cases.
 
 Use `outgoingtest.m`/`outgoing-target.c` and `droptest.m`/`drop-source.c` on a private
 native compositor with `FILE_DRAG=1`. Set `FILE_ONE` and `FILE_TWO` to explicit
@@ -59,7 +59,7 @@ virtual keyboard injection so keyboard setup completes before the first key.
 Backend SHA256:
 `c73309647a93cff286f773fee9fe1bc2e2f3dca91a7942340b471ebeda081006`.
 
-- Pure parser: 47/47 checks pass.
+- Pure parser: 47/47 checks pass (before the parser moved to AppKit/NSPasteboardURIList.m).
 - Native DnD: seven cases pass, including exact URI bytes, cache separation,
   atomic conversion failure and nil-provider refusal.
 - Native clipboard: four cases pass, including actual external ownership change.

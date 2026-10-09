@@ -19,6 +19,14 @@
 #pragma once
 #import <Foundation/Foundation.h>
 
-// Pure, all-or-nothing conversion. These functions never access the filesystem.
-NSData *WaylandURIListFromFilenames(NSArray *filenames);
-NSArray *WaylandFilenamesFromURIList(NSData *data);
+// RFC 2483 text/uri-list codec shared by the X11 and Wayland backends. Pure and
+// all-or-nothing: neither function touches the filesystem, and an invalid entry
+// fails the whole list. Host paths are exposed to the guest under
+// /Volumes/SystemRoot.
+//
+// Returns the guest-visible filenames, or nil if the list is empty or any record
+// is not a well-formed local file URI.
+NSArray *NSPasteboardFilenamesFromURIList(NSData *data);
+// Returns CRLF-terminated file URIs, or nil unless every name is under
+// /Volumes/SystemRoot and a valid host path.
+NSData *NSPasteboardURIListFromFilenames(NSArray *filenames);

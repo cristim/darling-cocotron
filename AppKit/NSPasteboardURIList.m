@@ -1,6 +1,4 @@
-/* Copyright (c) 2008 Johannes Fortmann
-
- Permission is hereby granted, free of charge, to any person obtaining a copy of
+/* Permission is hereby granted, free of charge, to any person obtaining a copy of
  this software and associated documentation files (the "Software"), to deal in
  the Software without restriction, including without limitation the rights to
  use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
@@ -18,38 +16,39 @@
  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  SOFTWARE. */
 
-#import "X11FileURLs.h"
+#import "NSPasteboardURIList.h"
 #include <string.h>
 
-static const NSUInteger X11TransferLimit = 16 * 1024 * 1024;
-static const NSUInteger X11RecordLimit = 4096;
-// Host paths reach the guest through this prefix, the same one the Wayland
-// backend hands out, so a drop and a paste of the same file agree on its name.
-static NSString *const X11HostRoot = @"/Volumes/SystemRoot";
+static const NSUInteger TransferLimit = 16 * 1024 * 1024;
+static const NSUInteger RecordLimit = 4096;
+static NSString *const HostRoot = @"/Volumes/SystemRoot";
 
-static BOOL X11LiteralByte(unsigned char c) {
+static BOOL literalByte(unsigned char c) {
     return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
            (c >= '0' && c <= '9') || c == '-' || c == '.' || c == '_' ||
            c == '~' || c == '/';
 }
 
-static int X11HexValue(unsigned char c) {
+static int hexValue(unsigned char c) {
     if (c >= '0' && c <= '9') return c - '0';
     if (c >= 'a' && c <= 'f') return c - 'a' + 10;
     if (c >= 'A' && c <= 'F') return c - 'A' + 10;
     return -1;
 }
 
-static BOOL X11ValidHostPath(NSString *path) {
+static BOOL validHostPath(NSString *path) {
     if ([path length] >= 4096) return NO;
     NSData *bytes = [path dataUsingEncoding: NSUTF8StringEncoding];
-    if (!bytes || memchr([bytes bytes], 0, [bytes length]) != NULL) return NO;
+    // Check byte bounds before splitting into path components.
+    if (!bytes || [bytes length] + [HostRoot length] >= 4096 ||
+        memchr([bytes bytes], 0, [bytes length]) != NULL)
+        return NO;
     return [path hasPrefix: @"/"] && ![path hasPrefix: @"//"] &&
            ![[path componentsSeparatedByString: @"/"] containsObject: @".."];
 }
 
 // Decodes one URI path into a host path, refusing anything that could escape it.
-static NSString *X11HostPathFromURI(NSString *path) {
+static NSString *hostPathFromURI(NSString *path) {
     NSData *encoded = [path dataUsingEncoding: NSUTF8StringEncoding];
     if (!encoded) return nil;
     const unsigned char *p = [encoded bytes];
@@ -58,14 +57,14 @@ static NSString *X11HostPathFromURI(NSString *path) {
         unsigned char c = p[i];
         if (c == '%') {
             if (i + 2 >= [encoded length]) return nil;
-            int hi = X11HexValue(p[i + 1]), lo = X11HexValue(p[i + 2]);
+            int hi = hexValue(p[i + 1]), lo = hexValue(p[i + 2]);
             if (hi < 0 || lo < 0) return nil;
             c = (hi << 4) | lo;
             i += 2;
             // A NUL would truncate, and an escaped slash would forge a new path
             // component the sender never wrote.
             if (!c || c == '/') return nil;
-        } else if (!X11LiteralByte(c) && c != ':' && c != '@' &&
+        } else if (!literalByte(c) && c != ':' && c != '@' &&
                    strchr("!$&'()*+,;=", c) == NULL) {
             return nil;
         }
@@ -73,18 +72,18 @@ static NSString *X11HostPathFromURI(NSString *path) {
     }
     NSString *host = [[[NSString alloc] initWithData: decoded
                                             encoding: NSUTF8StringEncoding] autorelease];
-    return X11ValidHostPath(host) ? host : nil;
+    return validHostPath(host) ? host : nil;
 }
 
-static NSString *X11HostPathFromLine(NSString *line) {
+static NSString *hostPathFromLine(NSString *line) {
     if ([line length] < 6 ||
         [[line substringToIndex: 5] caseInsensitiveCompare: @"file:"] != NSOrderedSame)
         return nil;
     NSString *path = [line substringFromIndex: 5];
     if ([path hasPrefix: @"//"]) {
         NSRange slash = [path rangeOfString: @"/"
-                                   options: 0
-                                     range: NSMakeRange(2, [path length] - 2)];
+                                    options: 0
+                                      range: NSMakeRange(2, [path length] - 2)];
         if (slash.location == NSNotFound) return nil;
         NSString *authority = [path substringWithRange: NSMakeRange(2, slash.location - 2)];
         if ([authority length] &&
@@ -92,20 +91,20 @@ static NSString *X11HostPathFromLine(NSString *line) {
             return nil;
         path = [path substringFromIndex: slash.location];
     }
-    return X11HostPathFromURI(path);
+    return hostPathFromURI(path);
 }
 
-NSArray *X11FilenamesFromURIList(NSData *data) {
+NSArray *NSPasteboardFilenamesFromURIList(NSData *data) {
     if (![data isKindOfClass: [NSData class]] || ![data length] ||
-        [data length] > X11TransferLimit)
+        [data length] > TransferLimit)
         return nil;
     // Bound the record count before splitting, so an input of nothing but newlines
     // cannot be expanded into an unbounded array.
     const unsigned char *wire = [data bytes];
     NSUInteger lines = 0;
     for (NSUInteger i = 0; i < [data length]; i++)
-        if (wire[i] == '\n' && ++lines > X11RecordLimit) return nil;
-    if (lines == X11RecordLimit && wire[[data length] - 1] != '\n') return nil;
+        if (wire[i] == '\n' && ++lines > RecordLimit) return nil;
+    if (lines == RecordLimit && wire[[data length] - 1] != '\n') return nil;
 
     NSString *text = [[[NSString alloc] initWithData: data
                                             encoding: NSUTF8StringEncoding] autorelease];
@@ -117,9 +116,38 @@ NSArray *X11FilenamesFromURIList(NSData *data) {
                                  ? [rawLine substringToIndex: [rawLine length] - 1]
                                  : rawLine;
         if (![line length] || [line hasPrefix: @"#"]) continue;
-        NSString *host = X11HostPathFromLine(line);
+        NSString *host = hostPathFromLine(line);
         if (!host) return nil; // All or nothing: a partial list would drop files.
-        [files addObject: [X11HostRoot stringByAppendingString: host]];
+        [files addObject: [HostRoot stringByAppendingString: host]];
     }
     return [files count] ? files : nil;
+}
+
+NSData *NSPasteboardURIListFromFilenames(NSArray *filenames) {
+    if (![filenames isKindOfClass: [NSArray class]] || ![filenames count] ||
+        [filenames count] > RecordLimit)
+        return nil;
+    NSMutableData *result = [NSMutableData data];
+    NSString *boundary = [HostRoot stringByAppendingString: @"/"];
+    for (id filename in filenames) {
+        if (![filename isKindOfClass: [NSString class]] || ![filename hasPrefix: boundary])
+            return nil; // Guest overlay paths are not necessarily host-visible.
+        NSString *host = [filename substringFromIndex: [HostRoot length]];
+        if (!validHostPath(host)) return nil;
+        NSData *bytes = [host dataUsingEncoding: NSUTF8StringEncoding];
+        if ([result length] + 9 + 3 * [bytes length] > TransferLimit) return nil;
+        [result appendBytes: "file://" length: 7];
+        const unsigned char *p = [bytes bytes];
+        static const char hex[] = "0123456789ABCDEF";
+        for (NSUInteger i = 0; i < [bytes length]; i++) {
+            if (literalByte(p[i])) {
+                [result appendBytes: p + i length: 1];
+            } else {
+                char escaped[] = {'%', hex[p[i] >> 4], hex[p[i] & 15]};
+                [result appendBytes: escaped length: 3];
+            }
+        }
+        [result appendBytes: "\r\n" length: 2];
+    }
+    return result;
 }
