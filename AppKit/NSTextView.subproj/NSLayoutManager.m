@@ -2436,7 +2436,9 @@ static inline void _appendRectToCache(NSLayoutManager *self, NSRect rect) {
                 }
 
                 // A boundary draws the preceding run. Advance past its glyphs
-                // before accounting for the glyph at this boundary.
+                // before accounting for the glyph at this boundary. Relies on
+                // NSFont's positionOfGlyph: returning the advance of `glyph`;
+                // tests/appkit-layout-selection-split.m catches a change there.
                 BOOL ignore = NO;
                 partWidth += [font positionOfGlyph: glyph
                                      precededByGlyph: previousGlyph
