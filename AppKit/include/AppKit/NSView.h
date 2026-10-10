@@ -32,6 +32,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSAppearance.h>
 #import <AppKit/NSUserInterfaceLayoutDirection.h>
 
+@class NSDraggingSession;
+@protocol NSDraggingSource;
 @class CADisplayLink, NSWindow, NSMenu, NSMenuItem, NSCursor, NSClipView, NSPasteboard,
         NSTextInputContext, NSImage, NSBitmapImageRep, NSScrollView,
         NSTrackingArea, NSShadow, NSScreen, CALayer, CIFilter, CALayerContext,
@@ -453,6 +455,18 @@ APPKIT_EXPORT const NSViewFullScreenModeOptionKey NSFullScreenModeApplicationPre
         pasteboard: (NSPasteboard *) pasteboard
             source: source
          slideBack: (BOOL) slideBack;
+// Divergences from Apple:
+// - Built on the blocking legacy dragImage: path, so draggingSession:endedAtPoint:
+//   operation: runs BEFORE this method returns and the returned session is already
+//   finished; changing its properties has no effect.
+// - Returns nil, with a log and NO source callbacks, when the drag cannot start:
+//   empty items, nil event/source, a non-NSDraggingItem entry, a writer that
+//   -writeObjects: refuses (NSPasteboardItem writers, or two items supplying the
+//   same type, e.g. two strings), or a backend that does not begin the drag.
+// - Only the first item's first NSImage component is drawn.
+- (NSDraggingSession *) beginDraggingSessionWithItems: (NSArray *) items
+                                               event: (NSEvent *) event
+                                              source: (id<NSDraggingSource>) source;
 - (BOOL) dragFile: (NSString *) path
          fromRect: (NSRect) rect
         slideBack: (BOOL) slideBack

@@ -26,6 +26,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSCursorRect.h>
 #import <AppKit/NSDragging.h>
 #import <AppKit/NSDraggingManager.h>
+#import <AppKit/NSDraggingItem.h>
+#import "NSDraggingSession-Private.h"
 #import <AppKit/NSEvent.h>
 #import <AppKit/NSGraphics.h>
 #import <AppKit/NSGraphicsContextFunctions.h>
@@ -2975,6 +2977,66 @@ static NSView *viewBeingPrinted = nil;
                                         pasteboard: pasteboard
                                             source: source
                                          slideBack: slideBack];
+}
+
+- (NSDraggingSession *) beginDraggingSessionWithItems: (NSArray *) items
+                                               event: (NSEvent *) event
+                                              source: (id<NSDraggingSource>) source
+{
+    NSMutableArray *writers = [NSMutableArray array];
+    NSDraggingItem *first = nil;
+
+    if ([items count] == 0 || event == nil || source == nil) {
+        NSLog(@"beginDraggingSessionWithItems: needs items, an event and a source");
+        return nil;
+    }
+    for (id item in items) {
+        if (![item isKindOfClass: [NSDraggingItem class]]) {
+            NSLog(@"beginDraggingSessionWithItems: %@ is not an NSDraggingItem", [item class]);
+            return nil;
+        }
+        if (first == nil)
+            first = item;
+        [writers addObject: [item item]];
+    }
+
+    NSPasteboard *pasteboard = [NSPasteboard pasteboardWithName: NSDragPboard];
+    [pasteboard clearContents];
+    if (![pasteboard writeObjects: writers]) {
+        NSLog(@"beginDraggingSessionWithItems: the drag pasteboard could not take the items");
+        return nil;
+    }
+
+    // Only the first item's first image component is drawn; the frame still
+    // gives an image size when there is none (0x0 is a valid drag image).
+    NSRect frame = [first draggingFrame];
+    NSImage *image = nil;
+    for (NSDraggingImageComponent *component in [first imageComponents]) {
+        if ([[component contents] isKindOfClass: [NSImage class]]) {
+            image = [component contents];
+            break;
+        }
+    }
+    if (image == nil)
+        image = [[[NSImage alloc] initWithSize: frame.size] autorelease];
+
+    NSDraggingSession *session = [[[NSDraggingSession alloc] _initWithPasteboard: pasteboard] autorelease];
+    _NSDraggingSourceBridge *bridge =
+        [[[_NSDraggingSourceBridge alloc] initWithSession: session source: source] autorelease];
+
+    // Unlike Apple's, the legacy entry point returns only once the drag is over.
+    [self dragImage: image
+                 at: frame.origin
+             offset: NSZeroSize
+              event: event
+         pasteboard: pasteboard
+             source: bridge
+          slideBack: YES];
+    if (![bridge began]) {
+        NSLog(@"beginDraggingSessionWithItems: the drag could not be started");
+        return nil;
+    }
+    return session;
 }
 
 - (BOOL) dragFile: (NSString *) path

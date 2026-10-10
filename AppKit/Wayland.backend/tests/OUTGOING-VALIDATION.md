@@ -17,6 +17,7 @@ Modes:
 | `LOCAL_DROP=1` | blue same-app target | exact data and original source identity, COPY |
 | `EXPECT_CANCEL=1` | GTK with `HOLD_DROP=1` | data arrives; no finish; bounded NONE callback |
 | `LOCAL_DROP=1 LOCAL_REJECT=1 EXPECT_CANCEL=1` | same-app target | local source mask forbids delivery; NONE |
+| `SESSION_API=1` | GTK target | drag started through `beginDraggingSessionWithItems:` with a source implementing only `draggingSession:` callbacks; same 26 bytes, one COPY end callback, non-nil session, exit0 |
 | `INVALID_PROVIDER=1` | any | lazy provider unmaps origin; no begin/end callback, return0 |
 
 For same-app tests, move the GTK control away rather than overlapping targets.

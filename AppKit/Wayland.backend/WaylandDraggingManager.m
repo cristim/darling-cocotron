@@ -25,6 +25,7 @@
 #import "WaylandDragIcon.h"
 #include <math.h>
 #import <AppKit/AppKit.h>
+#import "../NSDraggingSession-Private.h"
 #include <unistd.h>
 #include <time.h>
 #include <poll.h>
@@ -47,7 +48,12 @@ static BOOL monotonicSeconds(double *seconds) {
 // Incoming drops already inspect registered view types while hit testing.
 - (void) registerWindow: (NSWindow *) window dragTypes: (NSArray *) types {}
 - (void) unregisterWindow: (NSWindow *) window {}
-- (id) localDraggingSource { return _nativeStarted && !_finished ? _localSource : nil; }
+- (id) localDraggingSource {
+    if (!_nativeStarted || _finished) return nil;
+    // beginDraggingSessionWithItems:event:source: passes an adapter; peers must see the real source.
+    return [_localSource isKindOfClass: [_NSDraggingSourceBridge class]]
+        ? [_localSource _originalDraggingSource] : _localSource;
+}
 - (NSDragOperation) localOperations { return _nativeStarted && !_finished ? _localOperations : NSDragOperationNone; }
 // The marker carries no payload or capability. Only our currently active drag
 // and exact destination session may access the in-process typed snapshot.

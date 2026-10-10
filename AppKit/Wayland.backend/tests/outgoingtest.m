@@ -82,6 +82,23 @@ static BOOL noStartExpected(void) { return getenv("INVALID_PROVIDER") || getenv(
 }
 @end
 
+// SESSION_API: a source that implements only the session-style callbacks.
+@interface SessionSource : NSObject <NSDraggingSource>
+@end
+@implementation SessionSource
+- (NSDragOperation)draggingSession:(NSDraggingSession *)session sourceOperationMaskForDraggingContext:(NSDraggingContext)context {
+    return NSDragOperationCopy; }
+- (void)draggingSession:(NSDraggingSession *)session willBeginAtPoint:(NSPoint)point {
+    puts("BEGAN");fflush(stdout);
+    [NSTimer scheduledTimerWithTimeInterval:0.1 target:self selector:@selector(tick:) userInfo:nil repeats:NO];
+}
+- (void)tick:(id)sender { ticks++; }
+- (void)draggingSession:(NSDraggingSession *)session endedAtPoint:(NSPoint)point operation:(NSDragOperation)operation {
+    ended++;
+    if(ticks!=1 || operation!=NSDragOperationCopy)failures++;
+    printf("ENDED op=%lu\n",(unsigned long)operation);fflush(stdout);
+}
+@end
 @interface SourceView : NSView
 @end
 @implementation SourceView
@@ -93,6 +110,14 @@ static BOOL noStartExpected(void) { return getenv("INVALID_PROVIDER") || getenv(
     return getenv("SOURCE_MOVE") ? NSDragOperationMove : NSDragOperationCopy; }
 - (void)mouseDown:(NSEvent *)event {
     attempts++;
+    if(getenv("SESSION_API")) {
+        NSDraggingItem *item=[[[NSDraggingItem alloc]initWithPasteboardWriter:(id)@"Darling outgoing — café"]autorelease];
+        [item setDraggingFrame:NSMakeRect(10,10,32,24) contents:[[[NSImage alloc]initWithSize:NSMakeSize(32,24)]autorelease]];
+        puts("STARTING");fflush(stdout);
+        NSDraggingSession *session=[self beginDraggingSessionWithItems:@[item] event:event source:[[SessionSource new]autorelease]];
+        printf("RETURN session=%d ended=%d failures=%d\n",session!=nil,ended,failures);fflush(stdout);
+        exit(session!=nil && ended==1 && failures==0 ? 0:1);
+    }
     NSPasteboard *pb=[NSPasteboard pasteboardWithName:NSDragPboard];
     if((getenv("FILE_DRAG") || getenv("LOCAL_FILES"))) {
         NSArray *types=getenv("FILE_RAW") ? (getenv("REVERSE_RAW")
