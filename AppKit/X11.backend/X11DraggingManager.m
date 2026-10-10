@@ -635,31 +635,30 @@ static NSString *X11PropertyAtomName(Display *xdpy, Atom atom) {
     return result;
 }
 
+// The selection to convert is XdndSelection itself, as the specification has it.
+// This backend's own source also publishes an XdndSelection property on its window
+// naming a private per-drag selection, which wins when present; no other client
+// sets it, so its absence is the normal case.
 - (NSString *) selectionNameFromSource: (Window) source {
     Atom type;
     int format;
     unsigned long count, remaining;
     unsigned char *data = NULL;
-    // XdndSelection is a pair: the selection to convert, and the property the
-    // target is asked to receive it on. X11Pasteboard always receives on its own
-    // RECEIVING_PROPERTY, which every source honours because the X protocol has
-    // the conversion write to whatever property the requestor named, so only the
-    // selection half is needed here.
+    NSString *name = nil;
     if (XGetWindowProperty(_xdpy, source, _atom.selection, 0, 2, False, XA_ATOM,
                            &type, &format, &count, &remaining,
                            &data) == Success &&
-        type == XA_ATOM && format == 32 && count >= 1) {
-        NSString *name = X11PropertyAtomName(_xdpy, (Atom) ((long *) data)[0]);
-        if (data)
-            XFree(data);
-        return name;
-    }
+        type == XA_ATOM && format == 32 && count >= 1)
+        name = X11PropertyAtomName(_xdpy, (Atom) ((long *) data)[0]);
     if (data)
         XFree(data);
-    return nil;
+    return name ? name : X11PropertyAtomName(_xdpy, _atom.selection);
 }
 
 - (NSString *) pasteboardTypeForAtom: (Atom) atom {
+    // Unused inline slots of XdndEnter are zero.
+    if (atom == None)
+        return nil;
     NSString *name = X11PropertyAtomName(_xdpy, atom);
     if (name == nil)
         return nil;
@@ -764,7 +763,7 @@ static NSString *X11PropertyAtomName(Display *xdpy, Atom atom) {
         return;
 
     NSString *selection = [self selectionNameFromSource: source];
-    NSArray *types = selection ? [self typesFromEnter: message source: source] : nil;
+    NSArray *types = [self typesFromEnter: message source: source];
     if (selection == nil || [types count] == 0)
         return;
 
