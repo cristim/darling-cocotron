@@ -44,7 +44,7 @@ by the host harness. Filenames include space, hash, percent and Japanese text.
 
 Outgoing modes: ordinary conversion; FILE_RAW precedence in both type orders
 (REVERSE_RAW); FILE_BAD mixed guest path refusal; FILE_NIL lazy-provider refusal.
-The last two advertise MOVE and a text fallback but must emit no begin/end.
+The last two advertise MOVE and a text fallback but must emit no begin and exactly one NONE end callback.
 Incoming modes: valid list plus repeated converted/raw reads; mixed remote URI
 with FILE_BAD, whose receiver deliberately returns YES but must not conclude.
 The native source sends data once, proving raw/converted reads share wire cache.
