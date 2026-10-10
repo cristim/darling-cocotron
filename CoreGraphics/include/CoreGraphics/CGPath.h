@@ -94,7 +94,8 @@ COREGRAPHICS_EXPORT void CGPathAddCurveToPoint(CGMutablePathRef self,
 COREGRAPHICS_EXPORT void
 CGPathAddQuadCurveToPoint(CGMutablePathRef self, const CGAffineTransform * _Nullable xform,
                           CGFloat cpx, CGFloat cpy, CGFloat x, CGFloat y);
-COREGRAPHICS_EXPORT void CGPathCloseSubpath(CGMutablePathRef self);
+COREGRAPHICS_EXPORT void CGPathCloseSubpath(CGMutablePathRef self)
+    CF_SWIFT_NAME(CGMutablePath.closeSubpath(self:));
 
 COREGRAPHICS_EXPORT void CGPathAddLines(CGMutablePathRef self,
                                         const CGAffineTransform * _Nullable xform,
@@ -145,7 +146,16 @@ COREGRAPHICS_EXPORT CGPathRef CGPathCreateWithRoundedRect(
 COREGRAPHICS_EXPORT CGRect CGPathGetPathBoundingBox(CGPathRef path);
 
 COREGRAPHICS_EXPORT CGPathRef _Nullable CGPathCreateCopyByTransformingPath(
-        CGPathRef _Nullable path, const CGAffineTransform * _Nullable transform);
+        CGPathRef _Nullable path, const CGAffineTransform * _Nullable transform)
+    CF_SWIFT_NAME(CGPath.copy(self:using:));
+
+#if __has_feature(blocks)
+typedef void (^CGPathApplyBlock)(const CGPathElement *element);
+
+COREGRAPHICS_EXPORT void CGPathApplyWithBlock(CGPathRef path,
+                                              CF_NOESCAPE CGPathApplyBlock block)
+    CF_SWIFT_NAME(CGPath.applyWithBlock(self:_:));
+#endif
 
 CF_ASSUME_NONNULL_END
 CF_IMPLICIT_BRIDGING_DISABLED
