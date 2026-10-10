@@ -62,6 +62,10 @@ static NSMutableDictionary<NSPasteboardName, X11Pasteboard *> *nameToPboard;
 
 static const NSTimeInterval SelectionTimeout = 5;
 
+// A wait is made of passes this long, so the X connection is read on every pass
+// and a reply is seen even when the wait is nested inside an X event callout.
+static const NSTimeInterval SelectionPollInterval = 0.01;
+
 // The Wayland backend bounds its clipboard transfers the same way, so the two
 // backends accept the same payloads.
 static const NSUInteger TransferLimit = 16 * 1024 * 1024;
@@ -321,7 +325,8 @@ static size_t MaximumPropertyBytes(Display *display) {
 
         [[NSDisplay currentDisplay]
                 nextEventMatchingMask: NSAnyEventMask
-                            untilDate: [NSDate dateWithTimeIntervalSinceNow: remaining]
+                            untilDate: [NSDate dateWithTimeIntervalSinceNow:
+                                               MIN(remaining, SelectionPollInterval)]
                                inMode: NSDefaultRunLoopMode
                               dequeue: NO];
     }
@@ -439,7 +444,8 @@ static size_t MaximumPropertyBytes(Display *display) {
 
         [[NSDisplay currentDisplay]
                 nextEventMatchingMask: NSAnyEventMask
-                            untilDate: [NSDate dateWithTimeIntervalSinceNow: remaining]
+                            untilDate: [NSDate dateWithTimeIntervalSinceNow:
+                                               MIN(remaining, SelectionPollInterval)]
                                inMode: NSDefaultRunLoopMode
                               dequeue: NO];
     }
