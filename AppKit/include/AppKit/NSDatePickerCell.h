@@ -99,6 +99,8 @@ typedef NSUInteger NSDatePickerStyle;
 - (void) setBackgroundColor: (NSColor *) color;
 - (void) setTextColor: (NSColor *) color;
 
+- (void) insertText: (NSString *) text;
+
 @end
 
 @protocol NSDatePickerCellDelegate <NSObject>

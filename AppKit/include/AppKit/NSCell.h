@@ -27,6 +27,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 @class NSFont, NSImage, NSView;
 
+// Annotating single properties must not flag every other pointer in this header.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wnullability-completeness"
+
 typedef NS_ENUM(NSUInteger, NSCellType) {
     NSNullCellType,
     NSTextCellType,
@@ -169,7 +173,7 @@ APPKIT_EXPORT NSNotificationName NSControlTintDidChangeNotification;
 - initTextCell: (NSString *) string;
 - initImageCell: (NSImage *) image;
 
-- (NSView *) controlView;
+@property (nullable, assign) NSView *controlView;
 - (NSCellType) type;
 @property NSControlStateValue state;
 
@@ -217,7 +221,6 @@ APPKIT_EXPORT NSNotificationName NSControlTintDidChangeNotification;
 - (NSBackgroundStyle) interiorBackgroundStyle;
 - (void) setInteriorBackgroundStyle: (NSBackgroundStyle) value;
 
-- (void) setControlView: (NSView *) view;
 - (void) setType: (NSCellType) type;
 
 - (NSControlStateValue) nextState;
@@ -328,3 +331,5 @@ void NSDrawThreePartImage(NSRect frame, NSImage *startCap, NSImage *centerFill,
                           NSImage *endCap, BOOL vertical,
                           NSCompositingOperation operation, CGFloat alpha,
                           BOOL flipped);
+
+#pragma clang diagnostic pop

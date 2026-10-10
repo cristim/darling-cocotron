@@ -180,7 +180,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 }
 
 - (void) insertText: (NSString *) string {
-    [[self cell] insertText: string];
+    [[self _pickerCell] insertText: string];
     [self setNeedsDisplay: YES];
 }
 

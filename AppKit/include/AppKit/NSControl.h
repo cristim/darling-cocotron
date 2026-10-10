@@ -42,7 +42,7 @@ APPKIT_EXPORT const NSNotificationName NSControlTextDidEndEditingNotification;
 + (Class) cellClass;
 + (void) setCellClass: (Class) aClass;
 
-- (id) cell;
+@property (nullable, strong) __kindof NSCell *cell;
 
 @property (assign, nullable) id target;
 - (SEL) action;
@@ -75,7 +75,6 @@ APPKIT_EXPORT const NSNotificationName NSControlTextDidEndEditingNotification;
 - (id) selectedCell;
 - (NSInteger) selectedTag;
 
-- (void) setCell: (NSCell *) cell;
 - (void) setAction: (SEL) action;
 - (void) setTag: (NSInteger) tag;
 - (void) setImage: (NSImage *) image;
