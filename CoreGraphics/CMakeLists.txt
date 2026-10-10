@@ -53,6 +53,7 @@ set_property(SOURCE
 	CGSWindow.m
 	CGSSurface.m
 	CGSRegion.m
+	CGSServerSPI.m
 
 	APPEND PROPERTY COMPILE_FLAGS "-include Foundation/Foundation.h"
 )
@@ -108,6 +109,7 @@ set(CoreGraphics_sources
 	CGSKeyboardLayout.m
 	CGSRegion.m
 	CGSScreen.m
+	CGSServerSPI.m
 	CGEvent.m
 	CGEventSource.m
 	CGEventTap.m
