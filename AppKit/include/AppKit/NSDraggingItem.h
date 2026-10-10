@@ -19,14 +19,37 @@
 
 #import <AppKit/AppKitExport.h>
 #import <Foundation/NSObject.h>
+#import <Foundation/NSGeometry.h>
+
+@protocol NSPasteboardWriting;
 
 typedef NSString *NSDraggingImageComponentKey;
 
 APPKIT_EXPORT NSDraggingImageComponentKey const NSDraggingImageComponentIconKey;
 APPKIT_EXPORT NSDraggingImageComponentKey const NSDraggingImageComponentLabelKey;
 
-@interface NSDraggingImageComponent : NSObject
+@interface NSDraggingImageComponent : NSObject {
+    NSDraggingImageComponentKey _key;
+    id _contents;
+    NSRect _frame;
+}
++ (instancetype) draggingImageComponentWithKey: (NSDraggingImageComponentKey) key;
+- (instancetype) initWithKey: (NSDraggingImageComponentKey) key;
+@property(copy) NSDraggingImageComponentKey key;
+// Only NSImage contents are used by the drag image builder.
+@property(retain) id contents;
+@property NSRect frame;
 @end
 
-@interface NSDraggingItem : NSObject
+@interface NSDraggingItem : NSObject {
+    id _item;
+    NSRect _draggingFrame;
+    NSArray *(^_imageComponentsProvider)(void);
+}
+- (instancetype) initWithPasteboardWriter: (id<NSPasteboardWriting>) pasteboardWriter;
+@property(readonly, retain) id item;
+@property NSRect draggingFrame;
+@property(copy) NSArray *(^imageComponentsProvider)(void);
+@property(readonly, copy) NSArray *imageComponents;
+- (void) setDraggingFrame: (NSRect) frame contents: (id) contents;
 @end
