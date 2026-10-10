@@ -190,7 +190,7 @@ APPKIT_EXPORT const NSViewFullScreenModeOptionKey NSFullScreenModeApplicationPre
 - (NSScrollView *) enclosingScrollView;
 - (NSRect) adjustScroll: (NSRect) toRect;
 
-@property (copy) NSArray<__kindof NSView *> *subviews;
+@property (copy, nonnull) NSArray<__kindof NSView *> *subviews;
 @property BOOL autoresizesSubviews;
 - (NSAutoresizingMaskOptions) autoresizingMask;
 @property NSFocusRingType focusRingType;
