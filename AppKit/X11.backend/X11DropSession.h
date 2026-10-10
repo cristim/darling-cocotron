@@ -35,7 +35,7 @@
     Window _source;
     NSArray *_types;
     id _receiver;
-    NSDragOperation _sourceOperations, _acceptedOperations;
+    NSDragOperation _enterOperations, _sourceOperations, _acceptedOperations;
     NSPoint _point;
     int _sequence;
     BOOL _dropAnnounced, _transferFailed, _invalidated;

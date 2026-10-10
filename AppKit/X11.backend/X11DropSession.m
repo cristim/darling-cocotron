@@ -39,7 +39,7 @@
         _destination = [[target delegate] retain];
         _source = source;
         _types = [types copy];
-        _sourceOperations = operations;
+        _enterOperations = _sourceOperations = operations;
         static int nextSequence = 0;
         _sequence = ++nextSequence;
     }
@@ -78,6 +78,11 @@
         return NSDragOperationNone;
     _point = [_targetWindow logicalPoint: NSMakePoint(windowX, windowY)];
 
+    // A source that is not this backend carries no per-action properties, so the
+    // action it requests here is the one thing that tells what it allows. It is
+    // the current request, not an accumulation: the user can change it mid-drag.
+    _sourceOperations = _enterOperations | actions;
+
     // A drop already being performed owns the outcome; the source keeps sending
     // positions while the receiver reads the selection, and those must not
     // renegotiate it.
@@ -109,6 +114,9 @@
         actions = _sourceOperations;
 
     NSDragOperation accepted = operation & _sourceOperations & actions;
+    // The target may answer with copy whatever action was requested.
+    if (accepted == NSDragOperationNone)
+        accepted = operation & _sourceOperations & NSDragOperationCopy;
     // One operation for the whole drag: the source draws its cursor from
     // XdndStatus and later reports one action in XdndFinished, so narrowing to a
     // single bit keeps the three in step.
