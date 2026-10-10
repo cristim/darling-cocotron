@@ -59,7 +59,31 @@ enum {
 - (BOOL) wantsPeriodicDraggingUpdates;
 @end
 
+typedef NS_ENUM(NSInteger, NSDraggingContext) {
+    NSDraggingContextOutsideApplication = 0,
+    NSDraggingContextWithinApplication = 1,
+};
+
+@class NSDraggingSession;
+
+// The session callbacks are preferred; a source that implements only the legacy
+// ones keeps working through beginDraggingSessionWithItems:. Session points are
+// the backends' window-space drag locations, not screen coordinates, and
+// movedToPoint: / ignoreModifierKeysForDraggingSession: are declared but never
+// called (the backends call neither of their legacy counterparts).
 @protocol NSDraggingSource <NSObject>
+@required
+- (NSDragOperation) draggingSession: (NSDraggingSession *) session
+sourceOperationMaskForDraggingContext: (NSDraggingContext) context;
+@optional
+// Session-based callbacks (10.7+).
+- (void) draggingSession: (NSDraggingSession *) session willBeginAtPoint: (NSPoint) screenPoint;
+- (void) draggingSession: (NSDraggingSession *) session movedToPoint: (NSPoint) screenPoint;
+- (void) draggingSession: (NSDraggingSession *) session
+            endedAtPoint: (NSPoint) screenPoint
+               operation: (NSDragOperation) operation;
+- (BOOL) ignoreModifierKeysForDraggingSession: (NSDraggingSession *) session;
+// Legacy callbacks.
 - (BOOL) ignoreModifierKeysWhileDragging;
 - (NSDragOperation) draggingSourceOperationMaskForLocal: (BOOL) flag;
 - (void) draggedImage: (NSImage *) image beganAt: (NSPoint) point;
