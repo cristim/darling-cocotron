@@ -17,9 +17,19 @@ Modes:
 | `LOCAL_DROP=1` | blue same-app target | exact data and original source identity, COPY |
 | `EXPECT_CANCEL=1` | GTK with `HOLD_DROP=1` | data arrives; no finish; bounded NONE callback |
 | `LOCAL_DROP=1 LOCAL_REJECT=1 EXPECT_CANCEL=1` | same-app target | local source mask forbids delivery; NONE |
-| `INVALID_PROVIDER=1` | any | lazy provider unmaps origin; no begin/end callback, return0 |
+| `INVALID_PROVIDER=1` | any | lazy provider unmaps origin; no begin callback, one NONE end callback, return0 |
+| `NO_SERIAL=1 DRAG_LOG_FILE=<path>` | none | `dragImage:` called with an event holding no press serial; stderr contains `drag not started: no pointer press serial`, no BEGAN, one NONE end callback |
+| `ZERO_ICON=1` | GTK target | 0x0 image: drag still starts without an icon; BEGAN, one COPY end |
+| `EMPTY_BOARD=1 DRAG_LOG_FILE=<path>` | none | empty drag pasteboard; log line `drag not started: the drag pasteboard is empty`, one NONE end callback |
 
 For same-app tests, move the GTK control away rather than overlapping targets.
+
+A refused start (no serial or pointer focus, no data device or manager below v3, source
+allows no operation, empty or unexportable pasteboard, origin or serial
+changed during preparation) logs one `Wayland backend: drag not started: <reason>` line and
+sends `draggedImage:endedAt:operation:` with `NSDragOperationNone`; `draggedImage:beganAt:` is
+not sent. A busy or off-main-thread call is only logged (no callback). An icon that cannot
+be created logs a line and the drag proceeds without it. `SOURCE_LINK`, `FILE_BAD` and `FILE_NIL` now also expect that one NONE callback.
 
 ## Implementation boundaries
 

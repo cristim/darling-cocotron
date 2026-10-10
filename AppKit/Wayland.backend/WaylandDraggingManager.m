@@ -124,25 +124,56 @@ static BOOL monotonicSeconds(double *seconds) {
         _finished = YES;
     }
 }
+- (void) reportRefusedDrag: (NSString *) reason image: (NSImage *) image
+                        at: (NSPoint) location source: (id) source {
+    NSLog(@"Wayland backend: drag not started: %@", reason);
+    if ([source respondsToSelector: @selector(draggedImage:endedAt:operation:)])
+        [source draggedImage: image endedAt: location operation: NSDragOperationNone];
+}
 - (void) dragImage: (NSImage *) image at: (NSPoint) location
             offset: (NSSize) offset event: (NSEvent *) event
         pasteboard: (NSPasteboard *) pasteboard source: (id) source
          slideBack: (BOOL) slideBack {
-    if (_busy || ![NSThread isMainThread] || _display == nil) return;
-    struct wl_proxy *manager = _display->_dataDeviceManager;
-    struct wl_proxy *device = [_display dragDataDevice];
-    // Older protocol versions cannot reliably report outgoing completion.
-    if (!manager || !device || WL.wl_proxy_get_version(manager) < 3) return;
-    WaylandWindow *origin = [_display dragOriginForEvent: event];
-    uint32_t serial = [_display dragSerialForEvent: event];
-    if (!origin || !serial) return;
+    // A refusal is logged once and, when the source is not mid-session on this
+    // thread, reported as a session that ended without a drop.
+    if (![NSThread isMainThread]) {
+        NSLog(@"Wayland backend: drag not started: dragging must start on the main thread");
+        return;
+    }
+    if (_busy) {
+        NSLog(@"Wayland backend: drag not started: another drag session is still active");
+        return;
+    }
+    NSString *refusal = nil;
+    struct wl_proxy *manager = NULL, *device = NULL;
+    WaylandWindow *origin = nil;
+    uint32_t serial = 0;
+    if (_display == nil) refusal = @"the display connection is gone";
+    else {
+        manager = _display->_dataDeviceManager;
+        device = [_display dragDataDevice];
+        if (!manager || !device) refusal = @"the compositor offers no wl_data_device_manager/data device";
+        // Older protocol versions cannot reliably report outgoing completion.
+        else if (WL.wl_proxy_get_version(manager) < 3) refusal = @"wl_data_device_manager is older than version 3";
+        else {
+            origin = [_display dragOriginForEvent: event];
+            serial = [_display dragSerialForEvent: event];
+            if (!origin || !serial)
+                refusal = @"no pointer press serial or pointer focus for this event";
+        }
+    }
+    if (refusal) {
+        [self reportRefusedDrag: refusal image: image at: location source: source];
+        return;
+    }
     [self retain]; // Display invalidation may release its ownership while pumping.
     _busy = YES; _finished = NO; _dropped = NO; _action = 0;
     _nativeStarted = NO; _localOnly = NO; _localSession = nil;
     ++_localGeneration; _completedLocalAction = 0;
     _origin = [origin retain]; _localSource = [source retain];
     NSImage *heldImage = [image retain];
-    BOOL began = NO;
+    BOOL began = NO, completed = NO;
+    NSString *failure = nil;
     NSDragOperation result = NSDragOperationNone;
     @try {
         NSDragOperation allowed = NSDragOperationCopy;
@@ -182,17 +213,26 @@ static BOOL monotonicSeconds(double *seconds) {
                         [snapshot setObject:copy forKey:mime];
             }
         }
-        if (image != nil && [snapshot count] && !_finished && _display) {
+        if (![snapshot count]) {
+            failure = !_offeredActions ? @"the source allows no supported drag operation"
+                    : ![[pasteboard types] count] ? @"the drag pasteboard is empty"
+                    : @"no pasteboard type could be exported (missing data, unmappable files or over 16 MiB)";
+        }
+        if (!failure && image != nil && !_finished && _display) {
             NSPoint pointer = [event locationInWindow];
             NSPoint iconOffset = NSMakePoint(location.x - pointer.x,
                     pointer.y - location.y - ceil([image size].height));
             _icon = [[WaylandDragIcon alloc] initWithImage: image display: _display
                     scale120: [origin renderScale120] fallbackScale: [origin bufferScale] offset: iconOffset];
+            if (_icon == nil)
+                NSLog(@"Wayland backend: drag icon could not be created, dragging without one");
         }
         // Lazy providers/image drawing may run the event loop, release the button or unmap.
-        if ([snapshot count] && !_finished && _display &&
-            [_display dragOriginForEvent: event] == origin &&
-            [_display dragSerialForEvent: event] == serial) {
+        if (!failure && (_finished || !_display ||
+            [_display dragOriginForEvent: event] != origin ||
+            [_display dragSerialForEvent: event] != serial))
+            failure = @"the drag origin or press serial changed while preparing the session";
+        if (!failure) {
             if (_localOnly) {
                 _localSnapshot = [snapshot copy];
                 // Unique correlation marker rejects stale offers. It contains
@@ -245,6 +285,7 @@ static BOOL monotonicSeconds(double *seconds) {
                 (!_localOnly || _completedLocalAction == _action))
                 result = WaylandOperationsFromActions(_action);
         }
+        completed = YES;
     } @finally {
         _nativeStarted = NO; _localSession = nil;
         [_localSnapshot release]; _localSnapshot = nil;
@@ -260,7 +301,10 @@ static BOOL monotonicSeconds(double *seconds) {
         @try {
             // Core Wayland supplies no global drop coordinates; retain the
             // documented virtual starting location rather than invent one.
-            if (began && [finishedSource respondsToSelector: @selector(draggedImage:endedAt:operation:)])
+            if (!began) NSLog(@"Wayland backend: drag not started: %@",
+                              failure ?: @"unexpected exception while preparing the session");
+            // Do not call into the source while an exception unwinds before the drag began.
+            if ((began || completed) && [finishedSource respondsToSelector: @selector(draggedImage:endedAt:operation:)])
                 [finishedSource draggedImage: heldImage endedAt: location operation: result];
         } @finally { [finishedSource release]; [heldImage release]; [self release]; }
     }

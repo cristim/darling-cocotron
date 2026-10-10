@@ -25,7 +25,9 @@ moving the icon. Output enter/leave, scale completion and removal trigger a
 coalesced update outside native dispatch. Reentrant image drawing cannot replace
 a newer scale update with stale pixels; invalidated icons ignore queued work.
 Raster storage is capped at 16 MiB. Failed raster allocation retains the previous
-image, or starts without an icon if no image could be created.
+image, or starts without an icon (logging one line) if no image could be created.
+`ZERO_ICON=1` in `outgoingtest.m` drags a 0x0 image, as NSTableView does: it must
+still emit BEGAN and a COPY end callback.
 
 The ARGB buffer allocation helper is shared with image cursors. Buffers are never
 rewritten while the compositor might use them. No new native ABI entry points.

@@ -9,7 +9,7 @@
 - (id)draggingManager;
 - (void)invalidate;
 @end
-static int ended, failures, ticks, attempts;
+static int ended, failures, ticks, attempts, began;
 static NSPasteboard *retainedBoard;
 static NSData *expectedLocalBytes;
 static NSString *expectedLocalType;
@@ -18,7 +18,8 @@ static Ivar managerIvar;
 static id sourceView;
 static NSString *fileEnv(const char *key) { return [NSString stringWithUTF8String:getenv(key)]; }
 static NSArray *filePaths(void) { return getenv("LOCAL_FILES") ? @[@"/guest-only-not-exportable",@"/tmp/private-selection"] : @[fileEnv("FILE_ONE"),fileEnv("FILE_TWO")]; }
-static BOOL noStartExpected(void) { return getenv("INVALID_PROVIDER") || getenv("SOURCE_LINK") || getenv("FILE_BAD") || getenv("FILE_NIL"); }
+// Cases where dragImage: refuses to start: the source must still get one endedAt NONE and no beganAt.
+static BOOL noStartExpected(void) { return getenv("INVALID_PROVIDER") || getenv("SOURCE_LINK") || getenv("FILE_BAD") || getenv("FILE_NIL") || getenv("NO_SERIAL") || getenv("EMPTY_BOARD"); }
 @interface TargetView : NSView
 @end
 @implementation TargetView
@@ -116,8 +117,10 @@ static BOOL noStartExpected(void) { return getenv("INVALID_PROVIDER") || getenv(
         expectedLocalType=getenv("LOCAL_OPAQUE")?@"DarlingPrivateType":(getenv("LOCAL_FILES")?NSFilenamesPboardType:NSStringPboardType);
         [expectedLocalBytes release];expectedLocalBytes=[[pb dataForType:expectedLocalType]copy];
     }
+    if(getenv("EMPTY_BOARD")) [pb declareTypes:@[] owner:nil];
     puts("STARTING");fflush(stdout);
     NSImage *image=nil;
+    if(getenv("ZERO_ICON")) image=[[[NSImage alloc] initWithSize:NSMakeSize(0,0)] autorelease]; // as NSTableView drags
     NSPoint imageLocation=NSMakePoint(10,10);
     if(getenv("DRAG_ICON")) {
         NSBitmapImageRep *rep=[[[NSBitmapImageRep alloc] initWithBitmapDataPlanes:NULL
@@ -142,8 +145,29 @@ static BOOL noStartExpected(void) { return getenv("INVALID_PROVIDER") || getenv(
         }
         NSPoint pointer=[event locationInWindow];imageLocation=NSMakePoint(pointer.x+20,pointer.y-34);
     }
-    [self dragImage:image at:imageLocation offset:NSZeroSize event:event
+    NSEvent *dragEvent=event;
+    int savedErr=-1;
+    const char *logPath=getenv("DRAG_LOG_FILE");
+    if((getenv("NO_SERIAL") || getenv("EMPTY_BOARD")) && !logPath) {
+        puts("DRAG_LOG_FILE is required for this mode");fflush(stdout);exit(1);
+    }
+    if(getenv("EMPTY_BOARD")) savedErr=dup(2),freopen(logPath,"w",stderr);
+    if(getenv("NO_SERIAL")) {
+        // A drag event that is neither the press nor the dispatched drag holds no grab serial.
+        dragEvent=[NSEvent mouseEventWithType:NSLeftMouseDragged location:NSZeroPoint modifierFlags:0
+            timestamp:0 windowNumber:[[self window] windowNumber] context:nil eventNumber:0 clickCount:1 pressure:0];
+        savedErr=dup(2);freopen(logPath,"w",stderr);
+    }
+    [self dragImage:image at:imageLocation offset:NSZeroSize event:dragEvent
         pasteboard:pb source:self slideBack:NO];
+    if(savedErr>=0) {
+        fflush(stderr);dup2(savedErr,2);close(savedErr);
+        NSString *log=[NSString stringWithContentsOfFile:[NSString stringWithUTF8String:logPath]
+            encoding:NSUTF8StringEncoding error:NULL];
+        NSString *want=getenv("EMPTY_BOARD")?@"drag not started: the drag pasteboard is empty":@"drag not started: no pointer press serial";
+        BOOL logged=[log rangeOfString:want].location!=NSNotFound;
+        if(!logged)failures++;printf("REFUSAL_LOGGED=%d\n",logged);fflush(stdout);
+    }
     if(getenv("LIVE_TEARDOWN")) {
         [retainedBoard invalidate];
         object_setIvar(teardownDisplay,managerIvar,nil);
@@ -155,7 +179,7 @@ static BOOL noStartExpected(void) { return getenv("INVALID_PROVIDER") || getenv(
         puts("NEXT_READY");fflush(stdout);return;
     }
     printf("RETURN ended=%d failures=%d\n",ended,failures);fflush(stdout);
-    exit(ended==(noStartExpected() ? 0 : (getenv("TWO_DRAGS")?2:1)) && failures==0 ? 0:1);
+    exit(ended==(getenv("TWO_DRAGS")?2:1) && failures==0 ? 0:1);
 }
 - (void)pasteboard:(NSPasteboard *)pasteboard provideDataForType:(NSString *)type {
     if(getenv("FILE_NIL")) { puts("FILE_PROVIDER_NIL");fflush(stdout);return; }
@@ -165,7 +189,7 @@ static BOOL noStartExpected(void) { return getenv("INVALID_PROVIDER") || getenv(
 }
 - (void)tick:(id)sender { ticks++;puts("TIMER_FIRED");fflush(stdout); }
 - (void)draggedImage:(NSImage *)image beganAt:(NSPoint)point {
-    puts("BEGAN");fflush(stdout);
+    began++;puts("BEGAN");fflush(stdout);
     if(getenv("TWO_DRAGS") && attempts==2) {
         BOOL denied=[retainedBoard dataForType:NSStringPboardType]==nil;
         if(!denied)failures++;printf("STALE generationDenied=%d\n",denied);fflush(stdout);
@@ -175,8 +199,8 @@ static BOOL noStartExpected(void) { return getenv("INVALID_PROVIDER") || getenv(
 }
 - (void)draggedImage:(NSImage *)image endedAt:(NSPoint)point operation:(NSDragOperation)operation {
     ended++;
-    if(ticks!=attempts)failures++;
-    BOOL cancel=getenv("EXPECT_CANCEL")!=NULL || (getenv("TWO_DRAGS") && attempts==2);
+    if(ticks!=(noStartExpected()?0:attempts) || (noStartExpected() && began))failures++;
+    BOOL cancel=getenv("EXPECT_CANCEL")!=NULL || noStartExpected() || (getenv("TWO_DRAGS") && attempts==2);
     if(operation!=(cancel?NSDragOperationNone:(getenv("EXPECT_MOVE")?NSDragOperationMove:NSDragOperationCopy)))failures++;
     printf("ENDED op=%lu\n",(unsigned long)operation);fflush(stdout);
 }
