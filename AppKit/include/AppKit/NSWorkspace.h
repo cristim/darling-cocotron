@@ -22,6 +22,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 @class NSImage, NSView, NSRunningApplication, NSWorkspaceOpenConfiguration;
 
+// Annotating single properties must not flag every other pointer in this header.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wnullability-completeness"
+
 APPKIT_EXPORT NSString *const NSWorkspaceApplicationKey;
 
 APPKIT_EXPORT NSString *const NSWorkspaceWillPowerOffNotification;
@@ -57,7 +61,7 @@ typedef NSUInteger NSWorkspaceIconCreationOptions;
 
 @property (class, readonly, retain) NSWorkspace *sharedWorkspace;
 
-- (NSNotificationCenter *) notificationCenter;
+@property (readonly, strong, nonnull) NSNotificationCenter *notificationCenter;
 
 @property(readonly) BOOL accessibilityDisplayShouldDifferentiateWithoutColor;
 @property(readonly) BOOL accessibilityDisplayShouldIncreaseContrast;
@@ -193,3 +197,5 @@ typedef NSUInteger NSWorkspaceIconCreationOptions;
                                     configuration: (NSDictionary *) configuration
                                             error: (NSError **) error;
 @end
+
+#pragma clang diagnostic pop
