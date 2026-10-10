@@ -127,6 +127,21 @@ int main(void)
             fprintf(stderr, "FAIL: Command+V result=%s\n", [[view string] UTF8String]);
             return 1;
         }
+        // Shrinking the storage under a non-empty selection leaves the anchor
+        // (4) past the end; extending must clamp it rather than underflow.
+        [view setSelectedRange:NSMakeRange(4, 0)];
+        [view moveToBeginningOfDocumentAndModifySelection:nil];
+        [[view textStorage] replaceCharactersInRange:NSMakeRange(1, 3) withString:@""];
+        [view moveToBeginningOfDocumentAndModifySelection:nil];
+        if (!NSEqualRanges([view selectedRange], NSMakeRange(0, 1))) {
+            fprintf(stderr, "FAIL: stale anchor escaped the shrunken text at start\n");
+            return 1;
+        }
+        [view moveToEndOfDocumentAndModifySelection:nil];
+        if (!NSEqualRanges([view selectedRange], NSMakeRange(1, 0))) {
+            fprintf(stderr, "FAIL: stale anchor escaped the shrunken text at end\n");
+            return 1;
+        }
         puts("PASS: Shift+Arrows select, Command+C copies, Command+V pastes");
     }
     return 0;
