@@ -63,6 +63,8 @@ typedef NSUInteger NSWorkspaceIconCreationOptions;
 
 @property (readonly, strong, nonnull) NSNotificationCenter *notificationCenter;
 
+@property (readonly, getter=isVoiceOverEnabled) BOOL voiceOverEnabled;
+@property (readonly, getter=isSwitchControlEnabled) BOOL switchControlEnabled;
 @property(readonly) BOOL accessibilityDisplayShouldDifferentiateWithoutColor;
 @property(readonly) BOOL accessibilityDisplayShouldIncreaseContrast;
 @property(readonly) BOOL accessibilityDisplayShouldReduceTransparency;

@@ -84,8 +84,10 @@ NSNotificationName NSWorkspaceWillUnmountNotification = @"NSWorkspaceWillUnmount
     return _notificationCenter;
 }
 
-// Darling has no bridge to the host's accessibility display preferences yet.
-// Report the standard, unmodified display mode until that bridge exists.
+// Darling has no bridge to the host's accessibility preferences yet.
+// Report no assistive technology and the standard display mode until it exists.
+- (BOOL) isVoiceOverEnabled { return NO; }
+- (BOOL) isSwitchControlEnabled { return NO; }
 - (BOOL) accessibilityDisplayShouldDifferentiateWithoutColor { return NO; }
 - (BOOL) accessibilityDisplayShouldIncreaseContrast { return NO; }
 - (BOOL) accessibilityDisplayShouldReduceTransparency { return NO; }
