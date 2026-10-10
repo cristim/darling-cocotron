@@ -57,6 +57,7 @@ typedef enum {
     BOOL _hasUndoManager;
     NSMutableArray *_activeEditors; // registered via NSEditorRegistration
     BOOL _autosaveScheduled;
+    BOOL _draft;
 }
 
 + (NSArray *) readableTypes;
@@ -110,6 +111,8 @@ typedef enum {
 - (NSWindow *) windowForSheet;
 
 - (BOOL) isDocumentEdited;
+- (BOOL) isDraft;
+- (void) setDraft: (BOOL) value;
 - (void) updateChangeCount: (NSDocumentChangeType) changeType;
 
 - (BOOL) readFromData: (NSData *) data
