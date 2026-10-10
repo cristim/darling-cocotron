@@ -2336,6 +2336,11 @@ static void clearNeedsDisplay(NSView *self) {
     NSUnimplementedMethod();
 }
 
+// The ring is painted with the view, so a changed mask needs the whole view redrawn.
+- (void) noteFocusRingMaskChanged {
+    [self setNeedsDisplay: YES];
+}
+
 - (void) translateRectsNeedingDisplayInRect: (NSRect) rect by: (NSSize) delta {
     NSUnimplementedMethod();
 }
