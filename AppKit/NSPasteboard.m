@@ -110,6 +110,21 @@ static BOOL PasteboardTypeConformsTo(NSString *type, NSString *uti) {
     return [[NSWorkspace sharedWorkspace] type: type conformsToType: uti];
 }
 
+// Logs once per class so a handler that polls does not flood the log.
+static void LogUnsupportedOnce(Class cls, NSString *action) {
+    static NSMutableSet *warned = nil;
+    @synchronized([NSPasteboard class]) {
+        if (warned == nil)
+            warned = [NSMutableSet new];
+        NSString *key = [action stringByAppendingString: NSStringFromClass(cls)];
+        if ([warned containsObject: key])
+            return;
+        [warned addObject: key];
+    }
+    NSLog(@"NSPasteboard: %@ %@ objects is not supported; skipping them",
+          action, NSStringFromClass(cls));
+}
+
 @implementation NSPasteboard
 
 + (NSPasteboard *) generalPasteboard {
@@ -298,17 +313,7 @@ static BOOL PasteboardTypeConformsTo(NSString *type, NSString *uti) {
         // NSPasteboardItem, NSColor, NSSound and NSPasteboardReading
         // implementations are not available here; skip the class like a class
         // with no matching data rather than failing the caller's handler.
-        static NSMutableSet *warned = nil;
-        @synchronized([NSPasteboard class]) {
-            if (warned == nil)
-                warned = [NSMutableSet new];
-            if (![warned containsObject: cls]) {
-                [warned addObject: cls];
-                NSLog(@"NSPasteboard: reading %@ objects is not supported; "
-                      @"skipping that class",
-                      NSStringFromClass(cls));
-            }
-        }
+        LogUnsupportedOnce(cls, @"reading");
     }
     return nil;
 }
@@ -358,6 +363,126 @@ static BOOL PasteboardTypeConformsTo(NSString *type, NSString *uti) {
             if (PasteboardTypeConformsTo(have, want))
                 return YES;
     return NO;
+}
+
+// Types whose payload is UTF-8 text on the wire (and in the backends'
+// -stringForType:/-dataForType: for NSStringPboardType); a plist string for
+// them must not go through -setString:forType:, which may encode UTF-16.
+static BOOL IsUTF8TextType(NSString *type) {
+    return [type isEqual: NSStringPboardType] ||
+           [type isEqual: NSPasteboardTypeURL] ||
+           [type isEqual: NSPasteboardTypeFileURL];
+}
+
+static NSData *UTF8Data(NSString *string) {
+    return [string dataUsingEncoding: NSUTF8StringEncoding];
+}
+
+- (BOOL) _setPropertyList: (id) plist forType: (NSPasteboardType) type {
+    if ([plist isKindOfClass: [NSData class]])
+        return [self setData: plist forType: type];
+    if ([plist isKindOfClass: [NSString class]])
+        return IsUTF8TextType(type)
+                       ? [self setData: UTF8Data(plist) forType: type]
+                       : [self setString: plist forType: type];
+    if (plist != nil &&
+        [NSPropertyListSerialization propertyList: plist
+                                 isValidForFormat: NSPropertyListXMLFormat_v1_0])
+        return [self setPropertyList: plist forType: type];
+    return NO;
+}
+
+// (type, property list) pairs for the classes this tree can serialize itself,
+// or nil when the object is not one of them.
+- (NSArray *) _representationsOfObject: (id) object {
+    NSMutableArray *pairs = [NSMutableArray array];
+    if ([object isKindOfClass: [NSString class]]) {
+        [pairs addObject: @[ NSStringPboardType, UTF8Data(object) ]];
+    } else if ([object isKindOfClass: [NSURL class]]) {
+        [pairs addObject: @[ NSPasteboardTypeURL,
+                             UTF8Data([object absoluteString]) ]];
+    } else if ([object isKindOfClass: [NSAttributedString class]]) {
+        NSData *rtf = [object RTFFromRange: NSMakeRange(0, [object length])
+                        documentAttributes: nil];
+        if (rtf != nil)
+            [pairs addObject: @[ NSRTFPboardType, rtf ]];
+        [pairs addObject: @[ NSStringPboardType,
+                             UTF8Data([object string]) ]];
+    } else if ([object isKindOfClass: [NSImage class]]) {
+        NSData *tiff = [object TIFFRepresentation];
+        if (tiff != nil)
+            [pairs addObject: @[ NSTIFFPboardType, tiff ]];
+    } else {
+        return nil;
+    }
+    return pairs;
+}
+
+// The pasteboard holds a single item, so the objects share one set of types:
+// the first object to supply a type wins and later ones supply only the types
+// still free (so several strings return NO and keep only the first, where
+// Apple writes one item per object and returns YES; a known divergence). File URLs are merged into one NSFilenamesPboardType list. An
+// object counts as written when at least one of its types was stored.
+// Promised writing is not supported: NSPasteboardWritingPromised is ignored
+// and the data is requested immediately.
+- (BOOL) writeObjects: (NSArray *) objects {
+    if (objects == nil)
+        return NO;
+    NSMutableSet *claimed = [NSMutableSet set];
+    NSMutableArray *filePaths = [NSMutableArray array];
+    NSURL *firstFile = nil;
+    BOOL allWritten = YES;
+
+    for (id object in objects) {
+        NSArray *pairs = nil;
+        if ([object conformsToProtocol: @protocol(NSPasteboardWriting)]) {
+            NSMutableArray *provided = [NSMutableArray array];
+            for (NSPasteboardType type in
+                 [object writableTypesForPasteboard: self]) {
+                id plist = [object pasteboardPropertyListForType: type];
+                if (plist != nil)
+                    [provided addObject: @[ type, plist ]];
+            }
+            pairs = provided;
+        } else if ([object isKindOfClass: [NSURL class]] &&
+                   [object isFileURL]) {
+            NSString *path = [object path];
+            if ([path length] == 0)
+                allWritten = NO;
+            else {
+                [filePaths addObject: path];
+                firstFile = firstFile ?: object;
+            }
+            continue;
+        } else {
+            pairs = [self _representationsOfObject: object];
+            if (pairs == nil)
+                LogUnsupportedOnce([object class], @"writing");
+        }
+
+        BOOL wrote = NO;
+        for (NSArray *pair in pairs) {
+            if ([claimed containsObject: pair[0]])
+                continue;
+            if ([self _setPropertyList: pair[1] forType: pair[0]]) {
+                [claimed addObject: pair[0]];
+                wrote = YES;
+            }
+        }
+        allWritten = allWritten && wrote;
+    }
+
+    if (firstFile != nil) {
+        BOOL wrote = NO;
+        if (![claimed containsObject: NSPasteboardTypeFileURL])
+            wrote = [self setData: UTF8Data([firstFile absoluteString])
+                          forType: NSPasteboardTypeFileURL];
+        if (![claimed containsObject: NSFilenamesPboardType])
+            wrote = [self setPropertyList: filePaths
+                                  forType: NSFilenamesPboardType] || wrote;
+        allWritten = allWritten && wrote;
+    }
+    return allWritten;
 }
 
 @end
