@@ -118,6 +118,7 @@ APPKIT_EXPORT const NSPasteboardReadingOptionKey
 - (BOOL) canReadItemWithDataConformingToTypes:(NSArray<NSString *> *) types;
 - (BOOL)canReadObjectForClasses:(NSArray<Class> *)classArray options:(nullable NSDictionary<NSPasteboardReadingOptionKey, id> *)options;
 - (nullable NSArray *)readObjectsForClasses:(NSArray<Class> *)classArray options:(nullable NSDictionary<NSPasteboardReadingOptionKey, id> *) options;
+- (BOOL) writeObjects: (NSArray *) objects;
 
 @end
 
@@ -127,8 +128,18 @@ APPKIT_EXPORT const NSPasteboardReadingOptionKey
 
 @end
 
+typedef NSUInteger NSPasteboardWritingOptions;
+enum {
+    NSPasteboardWritingPromised = 1 << 9,
+};
+
 @protocol NSPasteboardWriting <NSObject>
 
-// TODO
+- (NSArray<NSPasteboardType> *) writableTypesForPasteboard: (NSPasteboard *) pasteboard;
+- (nullable id) pasteboardPropertyListForType: (NSPasteboardType) type;
+
+@optional
+- (NSPasteboardWritingOptions) writingOptionsForType: (NSPasteboardType) type
+                                          pasteboard: (NSPasteboard *) pasteboard;
 
 @end
