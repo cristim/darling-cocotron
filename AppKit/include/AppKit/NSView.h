@@ -193,7 +193,7 @@ APPKIT_EXPORT const NSViewFullScreenModeOptionKey NSFullScreenModeApplicationPre
 @property (copy) NSArray<__kindof NSView *> *subviews;
 @property BOOL autoresizesSubviews;
 - (NSAutoresizingMaskOptions) autoresizingMask;
-- (NSFocusRingType) focusRingType;
+@property NSFocusRingType focusRingType;
 
 - (NSInteger) tag;
 @property (readonly) BOOL isFlipped;
@@ -220,8 +220,8 @@ APPKIT_EXPORT const NSViewFullScreenModeOptionKey NSFullScreenModeApplicationPre
 - (void) viewDidHide;
 - (void) viewDidUnhide;
 
-- (BOOL) canBecomeKeyView;
-- (BOOL) needsPanelToBecomeKey;
+@property (readonly) BOOL canBecomeKeyView;
+@property (readonly) BOOL needsPanelToBecomeKey;
 
 - (NSView *) nextKeyView;
 - (NSView *) nextValidKeyView;
@@ -276,7 +276,6 @@ APPKIT_EXPORT const NSViewFullScreenModeOptionKey NSFullScreenModeApplicationPre
 - (void) didAddSubview: (NSView *) subview;
 - (void) willRemoveSubview: (NSView *) subview;
 - (void) setAutoresizingMask: (NSAutoresizingMaskOptions) mask;
-- (void) setFocusRingType: (NSFocusRingType) value;
 
 - (void) setNextKeyView: (NSView *) next;
 - (BOOL) acceptsFirstMouse: (NSEvent *) event NS_SWIFT_NAME(acceptsFirstMouse(for:));

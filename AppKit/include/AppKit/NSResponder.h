@@ -46,7 +46,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 - (BOOL) tryToPerform: (SEL) action with: object;
 - (void) noResponderFor: (SEL) action;
 
-- (BOOL) acceptsFirstResponder;
+@property (readonly) BOOL acceptsFirstResponder;
 - (BOOL) becomeFirstResponder;
 - (BOOL) resignFirstResponder;
 
