@@ -25,6 +25,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 @class NSClipView, NSScroller, NSColor, NSRulerView;
 
+// Annotating single properties must not flag every other pointer in this header.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wnullability-completeness"
+
 APPKIT_EXPORT NSString *const NSScrollViewDidEndLiveScrollNotification;
 APPKIT_EXPORT NSString *const NSScrollViewWillStartLiveScrollNotification;
 APPKIT_EXPORT NSString *const NSScrollViewDidLiveScrollNotification;
@@ -98,7 +102,7 @@ typedef NS_ENUM(NSInteger, NSScrollElasticity) {
 
 - (NSSize) contentSize;
 
-- documentView;
+@property (nullable, strong) __kindof NSView *documentView;
 - (NSClipView *) contentView;
 - (NSRect) documentVisibleRect;
 
@@ -136,7 +140,6 @@ typedef NS_ENUM(NSInteger, NSScrollElasticity) {
 - (CGFloat) maxMagnification;
 - (BOOL) allowsMagnification;
 
-- (void) setDocumentView: (NSView *) view;
 - (void) setContentView: (NSClipView *) clipView;
 - (void) setDrawsBackground: (BOOL) value;
 - (void) setBackgroundColor: (NSColor *) color;
@@ -166,3 +169,5 @@ typedef NS_ENUM(NSInteger, NSScrollElasticity) {
 - (void) reflectScrolledClipView: (NSClipView *) clipView;
 
 @end
+
+#pragma clang diagnostic pop
