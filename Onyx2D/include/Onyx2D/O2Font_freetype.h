@@ -10,6 +10,7 @@
 #import <ft2build.h>
 #import FT_FREETYPE_H
 #import FT_RENDER_H
+#import FT_TRUETYPE_TABLES_H
 
 #import <fontconfig/fontconfig.h>
 

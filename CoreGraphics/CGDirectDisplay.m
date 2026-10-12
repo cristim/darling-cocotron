@@ -474,7 +474,9 @@ CGError CGAssociateMouseAndMouseCursorPosition(boolean_t connected) {
     if (!display)
         return kCGErrorInvalidConnection;
 
-    [display grabMouse: connected];
+    // Association enables ordinary absolute pointer motion. A disconnected
+    // cursor requests relative motion, implemented by the backend's grab.
+    [display grabMouse: !connected];
     return kCGErrorSuccess;
 }
 
@@ -499,4 +501,39 @@ CFDictionaryRef CGDisplayCurrentMode(CGDirectDisplayID display) {
 
 size_t CGDisplayModeGetPixelWidth(CGDisplayModeRef mode) {
     return 0;
+}
+
+bool CGDisplayUsesForceToGray(void) {
+    /* Accessibility grayscale is never forced on X11. */
+    return false;
+}
+
+bool CGDisplayIsBuiltin(CGDirectDisplayID display) {
+    /* Single X11 screen; treat it as the built-in display. */
+    (void)display;
+    return true;
+}
+
+double CGDisplayRotation(CGDirectDisplayID display) {
+    (void)display;
+    return 0.0;
+}
+
+CGColorSpaceRef CGDisplayCopyColorSpace(CGDirectDisplayID display) {
+    (void)display;
+    return CGColorSpaceCreateDeviceRGB();
+}
+
+CGImageRef CGDisplayCreateImage(CGDirectDisplayID displayID) {
+    /* Screen capture not implemented; callers must handle NULL. */
+    (void)displayID;
+    return NULL;
+}
+
+bool CGPreflightScreenCaptureAccess(void) {
+    return false;
+}
+
+bool CGRequestScreenCaptureAccess(void) {
+    return false;
 }

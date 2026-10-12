@@ -81,7 +81,11 @@ typedef enum {
 - initWithFontName: (NSString *) name;
 - initWithDataProvider: (O2DataProviderRef) provider;
 
+- (NSArray *) copyTableTags;
+- (NSString *) copyPostScriptName;
+- (NSString *) copyFamilyName;
 - (NSData *) copyTableForTag: (uint32_t) tag;
+- (O2Rect) boundingRectForGlyph: (O2Glyph) glyph;
 
 - (O2Glyph) glyphWithGlyphName: (NSString *) name;
 - (NSString *) copyGlyphNameForGlyph: (O2Glyph) glyph;

@@ -76,3 +76,22 @@ CGEventFlags CGEventSourceFlagsState(CGEventSourceStateID stateID) {
 void CGEventSourceSetLocalEventsSuppressionInterval(CGEventSourceRef source, CFTimeInterval seconds) {
     printf("STUB %s\n", __PRETTY_FUNCTION__);
 }
+
+bool CGEventSourceKeyState(CGEventSourceStateID stateID, CGKeyCode key) {
+    /* No access to the host keymap from here; report no keys down.
+     * Used by push-to-talk style polling (e.g. Discord); returning
+     * false is safe and keeps callers (dlopen-time binding included)
+     * alive. A future XQueryKeymap-backed version can upgrade this. */
+    (void)stateID; (void)key;
+    return false;
+}
+
+CFTimeInterval CGEventSourceSecondsSinceLastEventType(CGEventSourceStateID stateID, CGEventType eventType) {
+    (void)stateID; (void)eventType;
+    return 0.0;
+}
+
+uint32_t CGEventSourceCounterForEventType(CGEventSourceStateID stateID, CGEventType eventType) {
+    (void)stateID; (void)eventType;
+    return 0;
+}

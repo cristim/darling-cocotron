@@ -46,6 +46,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <QuartzCore/CALayerContext.h>
 #import <QuartzCore/CATransaction.h>
 #import <AppKit/NSLayoutConstraint.h>
+#import <AppKit/NSTextInput.h>
+#import <objc/runtime.h>
 
 @class IBMetricsTable;
 
@@ -955,6 +957,54 @@ static inline void buildTransformsIfNeeded(NSView *self) {
             CGPointApplyAffineTransform(point, toWindow), fromWindow);
 }
 
+- (NSUInteger) allowedTouchTypes {
+    return _allowedTouchTypes;
+}
+
+- (void) setAllowedTouchTypes: (NSUInteger) value {
+    _allowedTouchTypes = value;
+}
+
+- (BOOL) wantsUpdateLayer {
+    return _wantsUpdateLayer;
+}
+
+- (void) setWantsUpdateLayer: (BOOL) value {
+    _wantsUpdateLayer = value;
+}
+
+- (BOOL) canDrawSubviewsIntoLayer {
+    return _canDrawSubviewsIntoLayer;
+}
+
+- (void) setCanDrawSubviewsIntoLayer: (BOOL) value {
+    _canDrawSubviewsIntoLayer = value;
+}
+
+- (BOOL) wantsBestResolutionOpenGLSurface {
+    return _wantsBestResolutionOpenGLSurface;
+}
+
+- (void) setWantsBestResolutionOpenGLSurface: (BOOL) value {
+    _wantsBestResolutionOpenGLSurface = value;
+}
+
+- (NSPoint) convertPointFromBacking: (NSPoint) point {
+    return point;
+}
+
+- (NSPoint) convertPointToBacking: (NSPoint) point {
+    return point;
+}
+
+- (NSRect) convertRectFromBacking: (NSRect) rect {
+    return rect;
+}
+
+- (NSRect) convertRectToBacking: (NSRect) rect {
+    return rect;
+}
+
 - (NSSize) convertSize: (NSSize) size fromView: (NSView *) viewOrNil {
     NSView *fromView =
             (viewOrNil != nil) ? viewOrNil : [[self window] _backgroundView];
@@ -1254,7 +1304,11 @@ static inline void buildTransformsIfNeeded(NSView *self) {
                  (NSComparisonResult (*)(id, id, void *)) compareFunction
                            context: (void *) context
 {
-    NSUnimplementedMethod();
+    if (compareFunction == NULL || [_subviews count] < 2)
+        return;
+
+    [_subviews sortUsingFunction: compareFunction context: context];
+    [self setNeedsDisplay: YES];
 }
 
 - (void) didAddSubview: (NSView *) subview {
@@ -1511,8 +1565,16 @@ static inline void buildTransformsIfNeeded(NSView *self) {
 }
 
 - (NSTextInputContext *) inputContext {
-    NSUnimplementedMethod();
-    return nil;
+    if (![self respondsToSelector:@selector(insertText:replacementRange:)] &&
+        ![self respondsToSelector:@selector(insertText:)]) return nil;
+    static char contextKey;
+    NSTextInputContext *context = objc_getAssociatedObject(self, &contextKey);
+    if (!context) {
+        context = [[NSTextInputContext alloc] initWithClient:self];
+        objc_setAssociatedObject(self, &contextKey, context, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        [context release];
+    }
+    return context;
 }
 
 - (void) registerForDraggedTypes: (NSArray *) types {
@@ -1819,15 +1881,21 @@ static inline void buildTransformsIfNeeded(NSView *self) {
 
 - (void) _createLayerContextIfNeeded {
     if ([_superview layer] == nil) {
-        _layerContext = [[CALayerContext alloc] initWithFrame: [self frame]];
+        if (_layerContext == nil)
+            _layerContext = [[CALayerContext alloc] initWithFrame: [self frame]];
         [_layerContext setLayer: _layer];
-        if (_window) {
+        if (_window && [_layerContext subwindow] == nil) {
             [_layerContext setSubwindow: [_window _createSubWindowWithFrame: [self frame]]];
         }
     }
 }
 
 - (void) _addLayerToSuperlayer {
+    if ([_superview layer] != nil && _layerContext != nil) {
+        [_layerContext invalidate];
+        [_layerContext release];
+        _layerContext = nil;
+    }
     [[_superview layer] addSublayer: _layer];
     [self _createLayerContextIfNeeded];
 }
@@ -1905,6 +1973,7 @@ static inline void buildTransformsIfNeeded(NSView *self) {
             [[_superview layer] replaceSublayer: _layer with: value];
             [_layer release];
             _layer = value;
+            [_layerContext setLayer: _layer];
         }
 
         [_subviews

@@ -288,6 +288,14 @@ static NSLock *_cacheLock = nil;
     return [self messageFontOfSize: size];
 }
 
++ (NSFont *) systemFontOfSize: (CGFloat) size weight: (CGFloat) weight {
+    /* The current font backend provides regular and bold system faces.
+     * Match semibold and heavier requests to the available bold face. */
+    if (weight >= 0.3)
+        return [self boldSystemFontOfSize: size];
+    return [self systemFontOfSize: size];
+}
+
 + (NSFont *) titleBarFontOfSize: (CGFloat) size {
     return [self boldSystemFontOfSize: size];
 }
@@ -320,6 +328,30 @@ static NSLock *_cacheLock = nil;
 
 + (NSArray *) preferredFontNames {
     return [O2Font preferredFontNames];
+}
+
+/* Chromium uses this AppKit fallback entrypoint for text outside a face's
+ * coverage. Fontconfig's charset matcher selects an installed covering face. */
++ (NSFont *)findFontLike:(id)font forString:(NSString *)string
+              withRange:(NSRange)range inLanguage:(NSString *)language
+{
+    if (!font || !string || range.location > [string length] ||
+            range.length > [string length] - range.location)
+        return nil;
+    NSMutableString *pattern = [NSMutableString stringWithString:@"sans:charset="];
+    for (NSUInteger i = range.location; i < NSMaxRange(range); ++i) {
+        unsigned code = [string characterAtIndex:i];
+        if (code >= 0xd800 && code <= 0xdbff && i + 1 < NSMaxRange(range)) {
+            unsigned low = [string characterAtIndex:i + 1];
+            if (low >= 0xdc00 && low <= 0xdfff) {
+                code = 0x10000 + ((code - 0xd800) << 10) + (low - 0xdc00);
+                ++i;
+            }
+        }
+        [pattern appendFormat:@"%x ", code];
+    }
+    (void)language;
+    return [NSFont fontWithName:pattern size:[font pointSize]];
 }
 
 + (void) setPreferredFontNames: (NSArray *) fontNames {
@@ -565,6 +597,10 @@ static NSLock *_cacheLock = nil;
     return [self retain];
 }
 
+- (CTFontRef) _coreTextFont {
+    return _ctFont;
+}
+
 - (CGFloat) pointSize {
     return _pointSize;
 }
@@ -681,8 +717,10 @@ static NSLock *_cacheLock = nil;
 }
 
 - (NSFont *) printerFont {
-    NSUnimplementedMethod();
-    return nil;
+    /* Quartz-backed fonts do not need the old screen/printer font split.
+     * Chromium asks for printerFont while constructing its Skia typeface and
+     * requires a valid, non-owned NSFont result. */
+    return self;
 }
 
 - (NSFont *) screenFont {
@@ -692,6 +730,10 @@ static NSLock *_cacheLock = nil;
 - (NSFont *) screenFontWithRenderingMode: (NSFontRenderingMode) mode {
     NSUnimplementedMethod();
     return [[self copy] autorelease];
+}
+
+- (CGFontRef) copyGraphicsFont {
+    return CGFontRetain(_cgFont);
 }
 
 - (NSRect) boundingRectForFont {

@@ -100,6 +100,18 @@ CGAffineTransform CGAffineTransformTranslate(CGAffineTransform xform,
 }
 
 CGRect CGRectApplyAffineTransform(CGRect rect, CGAffineTransform t) {
-    printf("CGRectApplyAffineTransform STUB\n");
-    return rect;
+    if (CGRectIsNull(rect))
+        return rect;
+    CGFloat minX = 0, minY = 0, maxX = 0, maxY = 0;
+    for (int i = 0; i < 4; ++i) {
+        CGFloat x = rect.origin.x + ((i & 1) ? rect.size.width : 0);
+        CGFloat y = rect.origin.y + ((i & 2) ? rect.size.height : 0);
+        CGFloat tx = t.a * x + t.c * y + t.tx;
+        CGFloat ty = t.b * x + t.d * y + t.ty;
+        if (i == 0 || tx < minX) minX = tx;
+        if (i == 0 || ty < minY) minY = ty;
+        if (i == 0 || tx > maxX) maxX = tx;
+        if (i == 0 || ty > maxY) maxY = ty;
+    }
+    return CGRectMake(minX, minY, maxX - minX, maxY - minY);
 }

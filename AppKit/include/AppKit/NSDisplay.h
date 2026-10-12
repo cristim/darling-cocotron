@@ -22,6 +22,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSPasteboard.h>
 #import <CarbonCore/UnicodeUtilities.h>
 #import <Foundation/Foundation.h>
+#include <sys/types.h>
 
 @class NSColor, NSDraggingManager, NSPrintInfo, NSView, NSSavePanel,
         NSOpenPanel, NSFontTypeface, CGWindow;
@@ -31,6 +32,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 }
 
 + (NSDisplay *) currentDisplay;
+- (BOOL) activateProcessIdentifier: (pid_t) processIdentifier;
 
 - (NSArray *) screens;
 
@@ -95,6 +97,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 - (NSPoint) mouseLocation;
 - (NSUInteger) currentModifierFlags;
+- (NSUInteger) pressedMouseButtons;
 
 - (NSArray *) orderedWindowNumbers;
 

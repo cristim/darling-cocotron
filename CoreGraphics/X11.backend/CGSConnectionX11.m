@@ -18,6 +18,7 @@
 */
 #import "CGSConnectionX11.h"
 #import <CoreGraphics/CGSKeyboardLayout.h>
+#import <CoreGraphics/CGWindow.h>
 #include "CarbonKeys.h"
 #import "X11KeySymToUCS.h"
 #import <Foundation/NSDebug.h>
@@ -25,6 +26,7 @@
 #include <stdlib.h>
 #include <stdatomic.h>
 #import <X11/Xutil.h>
+#import <X11/Xatom.h>
 #import <X11/extensions/Xrandr.h>
 #import <X11/XKBlib.h>
 #import <X11/extensions/XKBrules.h>
@@ -52,6 +54,13 @@ static void socketCallback(CFSocketRef s, CFSocketCallBackType type, CFDataRef a
 
 -(instancetype) initWithConnectionID:(CGSConnectionID)connId
 {
+	// Native EGL and the run loop may use Xlib concurrently. This connection
+	// can be opened before AppKit initializes its own display.
+	if (!XInitThreads()) {
+		NSLog(@"CGSConnectionX11: Xlib thread initialization failed");
+		[self release];
+		return nil;
+	}
 	_display = XOpenDisplay(NULL);
 	if (!_display)
 		_display = XOpenDisplay(":0");
@@ -120,6 +129,106 @@ static void socketCallback(CFSocketRef s, CFSocketCallBackType type, CFDataRef a
 	[_keyboardLayout release];
 
 	[super dealloc];
+}
+
+// Reads a property as raw bytes; returns NULL if it is not set. Caller XFree()s the result.
+static unsigned char* windowProperty(Display* display, Window window, Atom property, Atom type, unsigned long* count)
+{
+	Atom actualType;
+	int actualFormat;
+	unsigned long bytesAfter;
+	unsigned char* data = NULL;
+
+	*count = 0;
+	if (XGetWindowProperty(display, window, property, 0, 1024, False, type, &actualType, &actualFormat,
+			count, &bytesAfter, &data) != Success || actualType == None || *count == 0)
+	{
+		if (data)
+			XFree(data);
+		*count = 0;
+		return NULL;
+	}
+	return data;
+}
+
+-(NSArray<NSDictionary*>*) copyWindowDescriptions
+{
+	NSMutableArray<NSDictionary*>* result = [[NSMutableArray alloc] init];
+
+	Window root = DefaultRootWindow(_display), rootReturn, parentReturn, *children = NULL;
+	unsigned int count = 0;
+
+	if (!XQueryTree(_display, root, &rootReturn, &parentReturn, &children, &count))
+		return result;
+
+	Atom netWmPid = XInternAtom(_display, "_NET_WM_PID", True);
+	Atom netWmName = XInternAtom(_display, "_NET_WM_NAME", True);
+	Atom utf8String = XInternAtom(_display, "UTF8_STRING", True);
+
+	// XQueryTree lists children bottom to top, CGWindowList is front to back
+	for (int i = (int) count - 1; i >= 0; i--)
+	{
+		Window window = children[i];
+		XWindowAttributes attributes;
+		unsigned long length;
+
+		if (!XGetWindowAttributes(_display, window, &attributes))
+			continue;
+
+		// Windows of clients that do not name their process (window manager helpers) are skipped
+		unsigned char* pidData = netWmPid != None ? windowProperty(_display, window, netWmPid, XA_CARDINAL, &length) : NULL;
+		if (!pidData)
+			continue;
+		long pid = *(long*) pidData;
+		XFree(pidData);
+
+		NSMutableDictionary* description = [NSMutableDictionary dictionary];
+		description[(NSString*) kCGWindowNumber] = @((long) window);
+		description[(NSString*) kCGWindowOwnerPID] = @(pid);
+		description[(NSString*) kCGWindowLayer] = @0;
+		description[(NSString*) kCGWindowAlpha] = @1.0;
+		description[(NSString*) kCGWindowIsOnscreen] = @(attributes.map_state == IsViewable);
+		description[(NSString*) kCGWindowBounds] = @{
+			@"X": @(attributes.x), @"Y": @(attributes.y),
+			@"Width": @(attributes.width), @"Height": @(attributes.height),
+		};
+
+		XClassHint classHint = {NULL, NULL};
+		if (XGetClassHint(_display, window, &classHint))
+		{
+			if (classHint.res_class)
+				description[(NSString*) kCGWindowOwnerName] = [NSString stringWithUTF8String: classHint.res_class];
+			if (classHint.res_name)
+				XFree(classHint.res_name);
+			if (classHint.res_class)
+				XFree(classHint.res_class);
+		}
+
+		unsigned char* name = netWmName != None ? windowProperty(_display, window, netWmName, utf8String, &length) : NULL;
+		if (name)
+		{
+			NSString* title = [[NSString alloc] initWithBytes: name length: length encoding: NSUTF8StringEncoding];
+			if (title)
+				description[(NSString*) kCGWindowName] = title;
+			[title release];
+			XFree(name);
+		}
+		else
+		{
+			char* legacyName = NULL;
+			if (XFetchName(_display, window, &legacyName) && legacyName)
+			{
+				description[(NSString*) kCGWindowName] = [NSString stringWithUTF8String: legacyName];
+				XFree(legacyName);
+			}
+		}
+
+		[result addObject: description];
+	}
+
+	if (children)
+		XFree(children);
+	return result;
 }
 
 -(CGSKeyboardLayout*) createKeyboardLayout

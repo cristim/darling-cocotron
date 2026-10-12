@@ -24,9 +24,12 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 @interface NSResponder : NSObject <NSCoding> {
     id _nextResponder;
+    id _touchBar;
 }
 
 - (NSResponder *) nextResponder;
+- (id) touchBar;
+- (void) setTouchBar: (id) touchBar;
 
 - (NSMenu *) menu;
 - (NSUndoManager *) undoManager;
@@ -69,6 +72,9 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 - (void) mouseExited: (NSEvent *) event;
 - (void) mouseDragged: (NSEvent *) event;
 
+- (void) otherMouseDown: (NSEvent *) event;
+- (void) otherMouseUp: (NSEvent *) event;
+- (void) otherMouseDragged: (NSEvent *) event;
 - (void) rightMouseUp: (NSEvent *) event;
 - (void) rightMouseDown: (NSEvent *) event;
 - (void) rightMouseDragged: (NSEvent *) event;

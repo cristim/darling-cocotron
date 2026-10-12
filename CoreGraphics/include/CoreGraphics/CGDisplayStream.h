@@ -20,3 +20,7 @@
 #import <CoreGraphics/CoreGraphicsExport.h>
 
 COREGRAPHICS_EXPORT const CFStringRef kCGDisplayStreamShowCursor;
+COREGRAPHICS_EXPORT const CFStringRef kCGDisplayStreamColorSpace;
+COREGRAPHICS_EXPORT const CFStringRef kCGDisplayStreamDestinationRect;
+COREGRAPHICS_EXPORT const CFStringRef kCGDisplayStreamMinimumFrameTime;
+COREGRAPHICS_EXPORT const CFStringRef kCGDisplayStreamPreserveAspectRatio;

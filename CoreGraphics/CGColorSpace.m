@@ -37,6 +37,8 @@ const CFStringRef kCGColorSpaceACESCGLinear =
         CFSTR("kCGColorSpaceACESCGLinear");
 const CFStringRef kCGColorSpaceITUR_709 = CFSTR("kCGColorSpaceITUR_709");
 const CFStringRef kCGColorSpaceITUR_2020 = CFSTR("kCGColorSpaceITUR_2020");
+const CFStringRef kCGColorSpaceITUR_2100_HLG = CFSTR("kCGColorSpaceITUR_2100_HLG");
+const CFStringRef kCGColorSpaceITUR_2100_PQ = CFSTR("kCGColorSpaceITUR_2100_PQ");
 const CFStringRef kCGColorSpaceROMMRGB = CFSTR("kCGColorSpaceROMMRGB");
 const CFStringRef kCGColorSpaceDCIP3 = CFSTR("kCGColorSpaceDCIP3");
 const CFStringRef kCGColorSpaceExtendedSRGB =
@@ -84,4 +86,12 @@ size_t CGColorSpaceGetNumberOfComponents(CGColorSpaceRef self) {
 
 CGColorSpaceRef CGColorSpaceCreateWithName(CFStringRef name) {
     return (CGColorSpaceRef) O2ColorSpaceCreateWithName(name);
+}
+
+CFDataRef CGColorSpaceCopyICCData(CGColorSpaceRef self) {
+    /* No ICC profile store in Darling yet; callers (e.g. Chromium display
+     * setup) treat NULL as "use default sRGB", consistent with what
+     * -[NSScreen colorSpace] reports. */
+    (void)self;
+    return NULL;
 }

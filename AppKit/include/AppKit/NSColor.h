@@ -29,6 +29,14 @@ typedef NSString *NSColorSpaceName;
 
 @class NSImage;
 @class NSPasteboard;
+@class NSColorSpace;
+
+enum {
+    NSDefaultControlTint = 0,
+    NSBlueControlTint = 1,
+    NSGraphiteControlTint = 6,
+    NSClearControlTint = 7,
+};
 
 @interface NSColor : NSObject <NSCopying, NSCoding> {
     NSColorListName _catalogName;
@@ -131,6 +139,7 @@ typedef NSString *NSColorSpaceName;
 + (NSColor *) alternateSelectedControlColor;
 + (NSColor *) alternateSelectedControlTextColor;
 + (NSColor *) controlColor;
++ (NSUInteger) currentControlTint;
 + (NSColor *) secondarySelectedControlColor;
 + (NSColor *) selectedControlColor;
 + (NSColor *) controlTextColor;
@@ -271,6 +280,7 @@ typedef NSString *NSColorSpaceName;
 - (NSColor *) colorUsingColorSpaceName: (NSString *) colorSpace;
 - (NSColor *) colorUsingColorSpaceName: (NSString *) colorSpace
                                 device: (NSDictionary *) device;
+- (NSColor *) colorUsingColorSpace: (NSColorSpace *) space;
 
 - (NSColor *) blendedColorWithFraction: (CGFloat) fraction
                                ofColor: (NSColor *) color;

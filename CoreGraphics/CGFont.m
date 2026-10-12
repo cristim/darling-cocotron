@@ -96,11 +96,27 @@ CFDataRef CGFontCopyTableForTag(CGFontRef self, uint32_t tag) {
 
 CGFontRef _Nullable CGFontCreateWithDataProvider(CGDataProviderRef _Nullable provider)
 {
-    printf("STUB %s\n", __PRETTY_FUNCTION__);
-    return nil;
+    if (!provider)
+        return nil;
+    return (CGFontRef)O2FontCreateWithDataProvider((O2DataProviderRef)provider);
 }
 
 CFStringRef const kCGFontVariationAxisName = CFSTR("kCGFontVariationAxisName");
 CFStringRef const kCGFontVariationAxisMinValue = CFSTR("kCGFontVariationAxisMinValue");
 CFStringRef const kCGFontVariationAxisDefaultValue = CFSTR("kCGFontVariationAxisDefaultValue");
 CFStringRef const kCGFontVariationAxisMaxValue = CFSTR("kCGFontVariationAxisMaxValue");
+
+
+/* darling-lol M58b: Chromium's renderer lazy-binds CGFontCopyPostScriptName
+ * (the shim lacked the symbol and the GPU-composited renderer died on a
+ * lazy-bind abort after the compositor engaged). Return the font name —
+ * a PostScript name approximation is sufficient for this path. */
+CFStringRef CGFontCopyPostScriptName(CGFontRef self) {
+    /* Chromium can probe the fallback font before CoreText has produced a
+     * concrete CGFont. Apple's implementation yields a usable family name
+     * along this path; do not pass NULL into O2FontCopyFullName. The Copy
+     * contract requires a retained result. */
+    if (self == NULL)
+        return (CFStringRef) CFRetain(CFSTR("DarlingSans"));
+    return (CFStringRef)[(O2Font *)self copyPostScriptName];
+}

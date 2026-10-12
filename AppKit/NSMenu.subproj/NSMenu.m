@@ -493,6 +493,11 @@ BOOL itemIsEnabled(NSMenuItem *item) {
     _name = copied;
 }
 
+/* Private AppKit API — no-op: Cocotron does not implement menu-edge
+ * padding. Present so Chromium/Electron's call does not raise. */
+- (void) _setHasPadding: (BOOL) padding onEdge: (NSInteger) edge {
+}
+
 - (NSMenu *) _menuWithName: (NSString *) name {
     if ([_name isEqual: name])
         return self;

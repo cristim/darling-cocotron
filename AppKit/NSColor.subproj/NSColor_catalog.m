@@ -19,6 +19,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 #import <AppKit/NSColor_CGColor.h>
 #import <AppKit/NSColor_catalog.h>
+#import <AppKit/NSColorSpace.h>
 #import <AppKit/NSDisplay.h>
 #import <AppKit/NSGraphics.h>
 
@@ -128,9 +129,47 @@ NSColor *NSColorGetCatalogColor(NSColorListName catalogName,
     if ([colorSpace isEqualToString: [self colorSpaceName]])
         return self;
 
-    _color = [_color colorUsingColorSpaceName: colorSpace device: device];
+    /* darling-lol: never let a failed conversion nil out _color; keep the
+     * original so later setFill/CGColor still work. */
+    NSColor *converted =
+            [_color colorUsingColorSpaceName: colorSpace device: device];
+    if (converted != nil)
+        _color = converted;
 
     return _color;
+}
+
+- (NSColor *) colorUsingColorSpace: (NSColorSpace *) space
+{
+    /* darling-lol: NSColor_catalog never implemented the NSColorSpace-object
+     * variant, so Chromium's accent-color lookup raised "unrecognized
+     * selector" and terminated the app. Convert the wrapped color without
+     * mutating _color (unlike the Name variant above); fall back to self so
+     * callers always get a usable color. */
+    if (space == nil || _color == nil)
+        return self;
+
+    CGColorSpaceRef cgSpace = [space CGColorSpace];
+    NSColor *converted = nil;
+    if (cgSpace != NULL) {
+        NSColorSpaceName name = nil;
+        switch (CGColorSpaceGetModel(cgSpace)) {
+            case kCGColorSpaceModelRGB:
+                name = NSDeviceRGBColorSpace;
+                break;
+            case kCGColorSpaceModelMonochrome:
+                name = NSDeviceWhiteColorSpace;
+                break;
+            case kCGColorSpaceModelCMYK:
+                name = NSDeviceCMYKColorSpace;
+                break;
+            default:
+                break;
+        }
+        if (name != nil)
+            converted = [_color colorUsingColorSpaceName: name];
+    }
+    return (converted != nil) ? converted : self;
 }
 
 - (CGColorRef) CGColorRef {

@@ -23,6 +23,38 @@
 
 @implementation NSAccessibilityRemoteUIElement
 
+/* darling-lol M57: these must return a real object. The previous
+ * forwardInvocation fallback returned an uninitialized return buffer, so
+ * Chromium's RemoteAccessibility got a garbage pointer from -initWithRemoteToken:
+ * and crashed shortly after. */
+- (id) init
+{
+    return [super init];
+}
+
+- (id) initWithRemoteToken: (id) token
+{
+    return [self init];
+}
+
++ (id) remoteTokenForLocalUIElement: (id) element
+{
+    /* Chromium treats the return value as NSData and reads [data bytes] /
+     * [data length]. Returning a non-NSData object made those land in
+     * -forwardInvocation: (uninitialized return) -> a huge length ->
+     * std::vector OOM. An empty NSData cleanly disables remote accessibility. */
+    return [NSData data];
+}
+
++ (void) setRemoteUIApp: (id) app
+{
+    /* Remote (cross-process) accessibility is not supported; accept and ignore. */
+}
+
++ (void) registerRemoteUIProcessIdentifier: (int) pid
+{
+}
+
 - (NSMethodSignature *)methodSignatureForSelector:(SEL)aSelector
 {
     return [NSMethodSignature signatureWithObjCTypes: "v@:"];

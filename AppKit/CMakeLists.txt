@@ -1,5 +1,8 @@
 project(AppKit)
 
+# NSSpellChecker's asynchronous request API accepts a native completion block.
+set_source_files_properties(NSSpellChecker.m PROPERTIES COMPILE_FLAGS "-fblocks")
+
 include(darling_framework)
 
 remove_sdk_framework(AppKit)
@@ -619,6 +622,7 @@ add_backend(X11
                 X11
 		XRandR
 		Xcursor
+		Xext
 		fontconfig
 		xkbfile
 )

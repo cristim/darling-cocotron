@@ -83,6 +83,8 @@ typedef NS_ENUM(NSUInteger, NSEventType) {
 
     NSEventTypeOtherMouseUp = 26,
     NSOtherMouseUp = 26,
+    NSEventTypeOtherMouseDragged = 27,
+    NSOtherMouseDragged = 27,
 
     NSAppKitSystem = 100,
 
@@ -212,6 +214,7 @@ enum { NSApplicationActivated = 0, NSApplicationDeactivated = 1 };
 
 + (NSPoint) mouseLocation;
 + (NSEventModifierFlags) modifierFlags;
++ (NSUInteger) pressedMouseButtons;
 
 - (instancetype) initWithType: (NSEventType) type
                      location: (NSPoint) location

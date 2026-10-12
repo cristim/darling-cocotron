@@ -18,6 +18,8 @@
 */
 
 #import <AppKit/NSSpeechSynthesizer.h>
+#import <Foundation/NSArray.h>
+#import <Foundation/NSDictionary.h>
 
 NSVoiceGenderName const NSVoiceGenderFemale = @"VoiceGenderFemale";
 NSVoiceGenderName const NSVoiceGenderMale = @"VoiceGenderMale";
@@ -31,6 +33,23 @@ NSSpeechPropertyKey const NSSpeechPitchBaseProperty = @"pbas";
 NSSpeechPropertyKey const NSSpeechVolumeProperty = @"volm";
 
 @implementation NSSpeechSynthesizer
+
++ (NSArray *)availableVoices
+{
+    /* Darling has no speech synthesis backend or installed native voices. */
+    return [NSArray array];
+}
+
++ (NSString *)defaultVoice
+{
+    return nil;
+}
+
++ (NSDictionary *)attributesForVoice:(NSString *)voice
+{
+    return nil;
+}
+
 
 - (NSMethodSignature *)methodSignatureForSelector:(SEL)aSelector
 {

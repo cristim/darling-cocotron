@@ -16,7 +16,7 @@
 #import <CoreFoundation/CFSocket.h>
 #endif
 
-@class X11Cursor;
+@class X11Cursor, X11Window;
 
 @interface X11Display : NSDisplay {
     Display *_display;
@@ -37,7 +37,10 @@
     int clickCount;
     X11Cursor *_blankCursor, *_defaultCursor;
     BOOL _cursorGrabbed;
+    Window _confinedWindow;
+    unsigned int _otherButtonsDown;
     KeySym _lastKeySym;
+    unsigned char _modifierKeysDown[256];
     int _rrEventBase;
     NSArray* _lastScreens;
 
@@ -45,7 +48,9 @@
     XIM _xim;
 }
 
+- (void) updateMouseConfinementForWindow:(X11Window *)window;
 - (Display *) display;
+- (BOOL) activateProcessIdentifier: (pid_t) processIdentifier;
 
 - (void) setWindow: (id) window forID: (XID) i;
 

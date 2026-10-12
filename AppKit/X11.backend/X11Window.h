@@ -26,7 +26,7 @@
 #import <X11/Xresource.h>
 #import <X11/Xlocale.h>
 
-@class X11Display, CAWindowOpenGLContext, NSWindow, O2Context;
+@class X11Display, CAWindowOpenGLContext, NSWindow, O2Context, NSTimer;
 
 @interface X11Window : CGWindow {
     int _level; // TODO: care about this value
@@ -49,6 +49,26 @@
     BOOL _isModal;
     BOOL _isOpaque;
     BOOL _hasShadow;
+    NSTimer *_remoteFrameTimer;
+    Window _remoteFrameWindow;
+    GC _remoteFrameGC;
+    unsigned int _remoteFrameSequence, _remoteFrameWidth, _remoteFrameHeight;
+    BOOL _remoteFrameValid;
+    char _remoteFramePath[128];
+    XWindowAttributes _remoteFrameTargets[17];
+    unsigned _remoteFrameTargetCount;
+    double _remoteFrameTargetRefresh;
+    void *_remoteFrameMapping;
+    size_t _remoteFrameMappingSize;
+    char _remoteFrameMappingPath[128];
+    double _remoteFrameSelectionRefresh;
+    void *_remoteFrameShm;
+    void (*_remoteFrameShmDestroy)(void *);
+    int (*_remoteFrameShmPut)(void *, Drawable, GC, const void *, size_t);
+    int (*_remoteFrameShmStart)(void *, Drawable, GC, const char *);
+    BOOL _remoteFrameShmPumping;
+    BOOL _remoteFrameSoftwarePublisher;
+    BOOL _remoteFrameTimerSlow;
 
 @public
     XIC _xic;
@@ -63,6 +83,7 @@
 - (O2Rect) transformFrame: (O2Rect) frame;
 
 - (Window) windowHandle;
+- (BOOL) handleRemoteFrameExpose: (Window) window;
 
 - (void) frameChanged;
 - (void) setLastKnownCursorPosition: (CGPoint) point;

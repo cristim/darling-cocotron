@@ -46,6 +46,27 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
     return CGFontCopyFullName(_font);
 }
 
+- (CGFontRef) copyGraphicsFont {
+    return CGFontRetain(_font);
+}
+
+/* CTFont and NSFont share these identity operations on Quartz fonts. */
+- (id) printerFont {
+    return self;
+}
+
+- (id) screenFont {
+    return self;
+}
+
+- (NSString *) fontName {
+    return [(id)CTFontCopyPostScriptName((CTFontRef)self) autorelease];
+}
+
+- (NSString *) familyName {
+    return [(id)CTFontCopyFamilyName((CTFontRef)self) autorelease];
+}
+
 - (CGFloat) pointSize {
     return _size;
 }
@@ -55,8 +76,12 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 }
 
 - (CGRect) boundingRect {
-    O2InvalidAbstractInvocation();
-    return CGRectZero;
+    CGRect box = CGFontGetFontBBox(_font);
+    if (_unitsPerEm == 0)
+        return CGRectZero;
+    CGFloat scale = _size / _unitsPerEm;
+    return CGRectMake(box.origin.x * scale, box.origin.y * scale,
+                      box.size.width * scale, box.size.height * scale);
 }
 
 - (CGFloat) ascender {
@@ -78,13 +103,13 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 }
 
 - (CGFloat) underlineThickness {
-    O2InvalidAbstractInvocation();
-    return 0;
+    /* FreeType's generic CGFont bridge does not expose underline metrics.
+     * Use the conventional em-relative values expected by CoreText clients. */
+    return _size / 14.0;
 }
 
 - (CGFloat) underlinePosition {
-    O2InvalidAbstractInvocation();
-    return 0;
+    return -_size / 10.0;
 }
 
 - (CGFloat) italicAngle {
@@ -157,8 +182,13 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 - (CGPathRef) createPathForGlyph: (CGGlyph) glyph
                        transform: (CGAffineTransform *) xform
 {
-    O2InvalidAbstractInvocation();
-    return nil;
+    /* Keep the CoreText Copy contract even where the generic backend cannot
+     * yet expose a native outline. An empty retained path is a valid glyph
+     * path (e.g. for whitespace) and lets clients fall back to table-based
+     * outline extraction instead of throwing an Objective-C exception. */
+    (void)glyph;
+    (void)xform;
+    return CGPathCreateMutable();
 }
 
 @end

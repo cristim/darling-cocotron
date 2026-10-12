@@ -1,10 +1,12 @@
 #import <CoreVideo/CoreVideo.h>
+#import <IOSurface/IOSurface.h>
 #import <Onyx2D/O2Surface.h>
 #import <OpenGL/OpenGL.h>
 #import <QuartzCore/CAAnimation.h>
 #import <QuartzCore/CAMediaTimingFunction.h>
 #import <QuartzCore/CARenderer.h>
 #import "CALayerInternal.h"
+#include <stdlib.h>
 
 NSString *const kCARendererColorSpace = @"kCARendererColorSpace";
 
@@ -221,13 +223,40 @@ static GLint interpolationFromName(NSString *name) {
 }
 
 void CATexImage2DCGImage(CGImageRef image) {
-    size_t imageWidth = CGImageGetWidth(image);
-    size_t imageHeight = CGImageGetHeight(image);
-    CGBitmapInfo bitmapInfo = CGImageGetBitmapInfo(image);
+    static const uint8_t kTransparent[4] = { 0, 0, 0, 0 };
 
-    CGDataProviderRef provider = CGImageGetDataProvider(image);
-    CFDataRef data = CGDataProviderCopyData(provider);
-    const uint8_t *pixelBytes = CFDataGetBytePtr(data);
+    size_t imageWidth = 0;
+    size_t imageHeight = 0;
+    CGBitmapInfo bitmapInfo = 0;
+    CGDataProviderRef provider = NULL;
+    CFDataRef data = NULL;
+    const uint8_t *pixelBytes = NULL;
+
+    /* darling-lol M57: layers can have nil contents, or a CGImage whose data
+     * provider is unavailable under Darling; the old code dereferenced those
+     * (O2DataProviderCopyData(NULL) / CFDataGetBytePtr(NULL)). */
+    if (image != NULL) {
+        provider = CGImageGetDataProvider(image);
+        if (provider != NULL)
+            data = CGDataProviderCopyData(provider);
+    }
+
+    if (data != NULL) {
+        imageWidth = CGImageGetWidth(image);
+        imageHeight = CGImageGetHeight(image);
+        bitmapInfo = CGImageGetBitmapInfo(image);
+        pixelBytes = CFDataGetBytePtr(data);
+    }
+
+    if (pixelBytes == NULL) {
+        NSLog(@"LOLTEX no pixel data: image=%p provider=%p data=%p", image,
+              provider, data);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 1, 1, 0, GL_RGBA,
+                     GL_UNSIGNED_BYTE, kTransparent);
+        if (data != NULL)
+            CFRelease(data);
+        return;
+    }
 
     GLenum glFormat = GL_BGRA;
     GLenum glType = GL_UNSIGNED_INT_8_8_8_8_REV;
@@ -272,6 +301,68 @@ void CATexImage2DCGImage(CGImageRef image) {
 
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, imageWidth, imageHeight, 0,
                  glFormat, glType, pixelBytes);
+
+    CFRelease(data);
+}
+
+/* darling-lol M57: Chromium's macOS compositor presents frames through
+ * DisplayCALayerTree, which sets CALayer.contents to an IOSurfaceRef (not a
+ * CGImage). Upload such a surface directly as a texture. */
+void CATexImage2DIOSurface(IOSurfaceRef surface) {
+    static const uint8_t kTransparent[4] = { 0, 0, 0, 0 };
+
+    size_t width = IOSurfaceGetWidth(surface);
+    size_t height = IOSurfaceGetHeight(surface);
+    size_t bytesPerRow = IOSurfaceGetBytesPerRow(surface);
+    OSType pixelFormat = IOSurfaceGetPixelFormat(surface);
+    void *base = IOSurfaceGetBaseAddress(surface);
+
+    /* darling-lol M57 diagnostic (opt-in): is the delivered compositor frame
+     * real? A zero base / all-zero pixels here means frame data never reached
+     * the browser process. */
+    if (getenv("M57_QC_TRACE") != 0) {
+        unsigned int z = 0;
+        unsigned long nonzero = 0, i;
+        if (base != NULL && width != 0) {
+            const unsigned char *p = (const unsigned char *)base;
+            for (i = 0; i < width * 4 && i < 4096; i++)
+                if (p[i]) nonzero++;
+            z = (unsigned int)nonzero;
+        }
+        NSLog(@"M57TEXIOS w=%zu h=%zu bpr=%zu fmt=%08x base=%p first4k_nonzero=%u",
+              width, height, bytesPerRow, (unsigned)pixelFormat, base, z);
+    }
+
+    if (base == NULL || width == 0 || height == 0) {
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 1, 1, 0, GL_RGBA,
+                     GL_UNSIGNED_BYTE, kTransparent);
+        return;
+    }
+
+    GLenum glFormat = GL_BGRA;
+    GLenum glType = GL_UNSIGNED_INT_8_8_8_8_REV;
+
+    switch (pixelFormat) {
+    case 'RGBA':
+        glFormat = GL_RGBA;
+        glType = GL_UNSIGNED_INT_8_8_8_8_REV;
+        break;
+    case 'BGRA':
+    default:
+        glFormat = GL_BGRA;
+        glType = GL_UNSIGNED_INT_8_8_8_8_REV;
+        break;
+    }
+
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    if (bytesPerRow != 0 && bytesPerRow >= width * 4)
+        glPixelStorei(GL_UNPACK_ROW_LENGTH, (GLint)(bytesPerRow / 4));
+
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, (GLsizei) width, (GLsizei) height,
+                 0, glFormat, glType, base);
+
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
 }
 
 - (void) _renderLayer: (CALayer *) layer
@@ -293,9 +384,14 @@ void CATexImage2DCGImage(CGImageRef image) {
     }
 
     if (loadPixelData) {
-        CGImageRef image = (CGImageRef)layer.contents;
+        id contents = (id) layer.contents;
 
-        CATexImage2DCGImage(image);
+        if (contents != nil &&
+            CFGetTypeID((CFTypeRef) contents) == IOSurfaceGetTypeID()) {
+            CATexImage2DIOSurface((IOSurfaceRef) contents);
+        } else {
+            CATexImage2DCGImage((CGImageRef) contents);
+        }
 
         GLint minFilter = interpolationFromName(layer.minificationFilter);
         GLint magFilter = interpolationFromName(layer.magnificationFilter);

@@ -795,6 +795,11 @@ NSBitmapImageRepPropertyKey NSImageCurrentFrame = @"NSImageCurrentFrame";
 
 - (CGBitmapInfo) CGBitmapInfo {
     CGBitmapInfo result = kCGBitmapByteOrderDefault;
+    // AppKit's byte samples are stored in component order (RGBA), whereas
+    // Quartz's default word order becomes ABGR on a little-endian host.
+    if (_bitsPerSample == 8 && _bitsPerPixel == 32 &&
+        !(_bitmapFormat & NSAlphaFirstBitmapFormat))
+        result = kCGBitmapByteOrder32Big;
 
     if (![self hasAlpha])
         result |= kCGImageAlphaNone;

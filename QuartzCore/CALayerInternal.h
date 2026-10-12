@@ -23,4 +23,5 @@
 - (void) _setContext: (CALayerContext *) context;
 - (NSNumber *) _textureId;
 - (void) _setTextureId: (NSNumber *) value;
+- (BOOL) _treeHasAnimations;
 @end

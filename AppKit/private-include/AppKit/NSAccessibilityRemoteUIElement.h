@@ -20,4 +20,14 @@
 #import <Foundation/Foundation.h>
 
 @interface NSAccessibilityRemoteUIElement : NSObject
+
+/* darling-lol M57: Chromium/Electron asks for a remote token for a local
+ * accessibility element; Cocotron lacked the class method entirely, so the
+ * UX aborted with an unrecognized-selector NSException during createWindow. */
++ (id) remoteTokenForLocalUIElement: (id) element;
++ (void) setRemoteUIApp: (id) app;
++ (void) registerRemoteUIProcessIdentifier: (int) pid;
+- (id) init;
+- (id) initWithRemoteToken: (id) token;
+
 @end

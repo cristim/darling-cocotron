@@ -140,6 +140,7 @@ typedef NS_OPTIONS(NSUInteger, NSApplicationPresentationOptions) {
     NSMutableArray *_orderedWindows; // get rid of
     NSTimer *_attentionTimer;
     NSApplicationPresentationOptions _presentationOptions;
+    BOOL _finishedLaunching;
 }
 
 @property(strong) NSMenu *helpMenu;
@@ -168,6 +169,7 @@ typedef NS_OPTIONS(NSUInteger, NSApplicationPresentationOptions) {
 - (BOOL) isActive;
 - (BOOL) isHidden;
 - (BOOL) isRunning;
+- (BOOL) isFullKeyboardAccessEnabled;
 
 - (NSWindow *) makeWindowsPerform: (SEL) selector inOrder: (BOOL) inOrder;
 - (void) miniaturizeAll: sender;

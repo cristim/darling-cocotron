@@ -30,6 +30,7 @@ extern const CFStringRef kCGWindowAlpha;
 extern const CFStringRef kCGWindowBounds;
 extern const CFStringRef kCGWindowLayer;
 extern const CFStringRef kCGWindowName;
+extern const CFStringRef kCGWindowNumber;
 extern const CFStringRef kCGWindowIsOnscreen;
 extern const CFStringRef kCGWindowOwnerName;
 extern const CFStringRef kCGWindowOwnerPID;
@@ -172,6 +173,7 @@ typedef uint32_t CGWindowID;
 CF_IMPLICIT_BRIDGING_ENABLED
 
 COREGRAPHICS_EXPORT CFArrayRef CGWindowListCreate(CGWindowListOption option, CGWindowID relativeToWindow);
+COREGRAPHICS_EXPORT CFArrayRef CGWindowListCopyWindowInfo(CGWindowListOption option, CGWindowID relativeToWindow);
 COREGRAPHICS_EXPORT CFArrayRef CGWindowListCreateDescriptionFromArray(CFArrayRef windowArray);
 COREGRAPHICS_EXPORT CGImageRef CGWindowListCreateImageFromArray(CGRect screenBounds, CFArrayRef  windowArray, CGWindowImageOption imageOption);
 

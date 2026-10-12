@@ -45,6 +45,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
     NSImage *_onStateImage;
     NSImage *_offStateImage;
     NSImage *_mixedStateImage;
+    NSView *_view;
+    NSString *_toolTip; /* darling-lol M42b: -setToolTip: (Electron menus) */
     BOOL _alternate;
     BOOL _allowsKeyEquivalentWhenHidden;
     NSUserInterfaceItemIdentifier _identifier;
@@ -72,6 +74,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 - (NSString *) keyEquivalent;
 - (unsigned) keyEquivalentModifierMask;
 - (NSImage *) image;
+- (NSView *) view;
 - (NSImage *) onStateImage;
 - (NSImage *) offStateImage;
 - (NSImage *) mixedStateImage;
@@ -86,6 +89,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 - (BOOL) isHidden;
 
 - (void) setTitle: (NSString *) title;
+- (NSString *) toolTip;
+- (void) setToolTip: (NSString *) toolTip;
 - (void) setAttributedTitle: (NSAttributedString *) title;
 - (void) setTitleWithMnemonic: (NSString *) mnemonic;
 - (void) setMnemonicLocation: (unsigned) location;
@@ -97,6 +102,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 - (void) setKeyEquivalent: (NSString *) keyEquivalent;
 - (void) setKeyEquivalentModifierMask: (unsigned) mask;
 - (void) setImage: (NSImage *) image;
+- (void) setView: (NSView *) view;
 - (void) setOnStateImage: (NSImage *) image;
 - (void) setOffStateImage: (NSImage *) image;
 - (void) setMixedStateImage: (NSImage *) image;

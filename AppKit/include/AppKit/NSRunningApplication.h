@@ -18,6 +18,7 @@
 */
 
 #import <Foundation/NSObject.h>
+#include <sys/types.h>
 
 typedef enum {
     NSApplicationActivationPolicyRegular,
@@ -26,7 +27,14 @@ typedef enum {
 } NSApplicationActivationPolicy;
 
 @interface NSRunningApplication : NSObject
+{
+    pid_t _processIdentifier;
+}
 
 + (NSArray<NSRunningApplication *> *) runningApplicationsWithBundleIdentifier: (NSString *) bundleIdentifier;
++ (NSRunningApplication *) runningApplicationWithProcessIdentifier: (pid_t) processIdentifier;
+- (pid_t) processIdentifier;
+- (BOOL) isTerminated;
+- (BOOL) activateWithOptions: (NSUInteger) options;
 
 @end

@@ -21,7 +21,24 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <Onyx2D/O2Font.h>
 
 @implementation O2Font
+
+- (NSString *) copyPostScriptName {
+    return [_name copy];
+}
+
+- (NSString *) copyFamilyName {
+    return [_name copy];
+}
+
+- (NSArray *) copyTableTags {
+    return [[NSArray alloc] init];
+}
+
 static NSArray *_preferredFontNames = nil;
+
+- (O2Rect) boundingRectForGlyph: (O2Glyph) glyph {
+    return _bbox;
+}
 
 + (void) initialize {
     if (self == [O2Font class]) {

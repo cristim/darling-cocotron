@@ -18,6 +18,11 @@ COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSEvent_mouse.h>
+#import <CoreGraphics/CGEvent.h>
+
+@interface NSObject (MouseCGEventFlags)
+- (void)setFlags:(CGEventFlags)flags;
+@end
 
 @implementation NSEvent_mouse
 
@@ -34,6 +39,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
             modifierFlags: modifierFlags
                    window: window];
 
+    _buttonNumber = (type == NSRightMouseDown || type == NSRightMouseUp || type == NSRightMouseDragged) ? 1 :
+        (type == NSOtherMouseDown || type == NSOtherMouseUp || type == NSOtherMouseDragged) ? 2 : 0;
     _clickCount = clickCount;
     _deltaX = deltaX;
     _deltaY = deltaY;
@@ -43,6 +50,13 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 - (NSInteger) clickCount {
     return _clickCount;
+}
+
+- (short) subtype {
+    // Ordinary mouse events use NSMouseEventSubtype (0). The base method
+    // raises for event classes that do not have a subtype; Chromium queries
+    // this before forwarding every mouse event to its renderer.
+    return 0;
 }
 
 - (instancetype) initWithType: (NSEventType) type
@@ -96,6 +110,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
                  location: location
             modifierFlags: modifierFlags
                    window: (id) windowNumber];
+    _buttonNumber = (type == NSRightMouseDown || type == NSRightMouseUp || type == NSRightMouseDragged) ? 1 :
+        (type == NSOtherMouseDown || type == NSOtherMouseUp || type == NSOtherMouseDragged) ? 2 : 0;
     _clickCount = clickCount;
     return self;
 }
@@ -110,6 +126,37 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 - (CGFloat) deltaZ {
     return 0.0;
+}
+
+// X11 wheel buttons are discrete mouse-wheel notches, without trackpad
+// gesture phases or momentum. Chromium queries these before forwarding them.
+- (NSUInteger) phase { return 0; }
+- (NSUInteger) momentumPhase { return 0; }
+- (BOOL) hasPreciseScrollingDeltas { return NO; }
+- (BOOL) isDirectionInvertedFromDevice { return NO; }
+- (CGFloat) scrollingDeltaX { return _deltaX; }
+- (CGFloat) scrollingDeltaY { return _deltaY; }
+
+- (CGEventRef) CGEvent {
+    if (_type != NSScrollWheel) {
+        switch (_type) {
+        case NSLeftMouseDown: case NSLeftMouseUp: case NSRightMouseDown: case NSRightMouseUp:
+        case NSMouseMoved: case NSLeftMouseDragged: case NSRightMouseDragged:
+        case NSOtherMouseDown: case NSOtherMouseUp: case NSOtherMouseDragged: {
+            CGEventRef event = CGEventCreateMouseEvent(NULL, (CGEventType)_type,
+                NSPointToCGPoint([self locationInWindow]), (CGMouseButton)_buttonNumber);
+            CGEventSetIntegerValueField(event, kCGMouseEventButtonNumber, _buttonNumber);
+            CGEventSetIntegerValueField(event, kCGMouseEventClickState, _clickCount);
+            [(id)event setFlags:(CGEventFlags)[self modifierFlags]];
+            return (CGEventRef)[(id)event autorelease];
+        }
+        default: return NULL;
+        }
+    }
+    CGEventRef event = CGEventCreateScrollWheelEvent(NULL,
+        kCGScrollEventUnitLine, 2, (int32_t)_deltaY, (int32_t)_deltaX);
+    CGEventSetIntegerValueField(event, kCGScrollWheelEventIsContinuous, 0);
+    return (CGEventRef)[(id)event autorelease];
 }
 
 // Apple's documentation is a bit confusing here. NSEvent exposes no API to pass

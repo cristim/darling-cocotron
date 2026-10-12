@@ -13,6 +13,32 @@
 
 @implementation MacWorkspace
 
+/* darling-lol M57: Chromium's NativeThemeMac / accessibility display code
+ * calls these NSWorkspace accessibility-display getters. Cocotron did not
+ * implement them, so the first call raised -[MacWorkspace
+ * accessibilityDisplayShouldIncreaseContrast]: unrecognized selector and
+ * aborted the Electron UX right after createWindow(). Report the default
+ * (no accessibility overrides) like macOS does when the features are off. */
+- (BOOL) accessibilityDisplayShouldIncreaseContrast {
+    return NO;
+}
+
+- (BOOL) accessibilityDisplayShouldReduceMotion {
+    return NO;
+}
+
+- (BOOL) accessibilityDisplayShouldReduceTransparency {
+    return NO;
+}
+
+- (BOOL) accessibilityDisplayShouldDifferentiateWithoutColor {
+    return NO;
+}
+
+- (BOOL) accessibilityDisplayShouldInvertColors {
+    return NO;
+}
+
 - (NSImage *) iconForFile: (NSString *) path {
     // TODO: call GetIconRefFromFileInfo()
     NSUnimplementedMethod();

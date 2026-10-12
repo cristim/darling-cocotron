@@ -24,6 +24,19 @@ CORETEXT_EXPORT const CFStringRef kCTFontEnabledAttribute;
 CORETEXT_EXPORT const CFStringRef kCTFontFormatAttribute;
 CORETEXT_EXPORT const CFStringRef kCTFontRegistrationScopeAttribute;
 CORETEXT_EXPORT const CFStringRef kCTFontPriorityAttribute;
+CORETEXT_EXPORT const CFStringRef kCTFontSlantTrait;
+CORETEXT_EXPORT const CFStringRef kCTFontWeightTrait;
+CORETEXT_EXPORT const CFStringRef kCTFontWidthTrait;
+CORETEXT_EXPORT const CFStringRef kCTFontSymbolicTrait;
+CORETEXT_EXPORT const CFStringRef kCTFontVariationAxisIdentifierKey;
+CORETEXT_EXPORT const CFStringRef kCTFontVariationAxisMinimumValueKey;
+CORETEXT_EXPORT const CFStringRef kCTFontVariationAxisMaximumValueKey;
+CORETEXT_EXPORT const CFStringRef kCTFontVariationAxisDefaultValueKey;
+CORETEXT_EXPORT const CFStringRef kCTFontFamilyNameKey;
+CORETEXT_EXPORT const CFStringRef kCTFontFullNameKey;
+CORETEXT_EXPORT const CFStringRef kCTFontPostScriptNameKey;
+CORETEXT_EXPORT const CFStringRef kCTFontCollectionRemoveDuplicatesOption;
+CORETEXT_EXPORT const CFStringRef kCTFontManagerRegisteredFontsChangedNotification;
 
 CF_IMPLICIT_BRIDGING_ENABLED
 
@@ -39,5 +52,6 @@ typedef enum CTFontOrientation : uint32_t {
 } CTFontOrientation;
 
 CORETEXT_EXPORT CFTypeRef CTFontDescriptorCopyAttribute(CTFontDescriptorRef descriptor, CFStringRef attribute);
+CORETEXT_EXPORT CTFontDescriptorRef CTFontDescriptorCreateWithAttributes(CFDictionaryRef attributes);
 
 CF_IMPLICIT_BRIDGING_DISABLED

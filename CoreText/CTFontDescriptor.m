@@ -24,9 +24,23 @@ const CFStringRef kCTFontEnabledAttribute = CFSTR("NSCTFontEnabledAttribute");
 const CFStringRef kCTFontFormatAttribute = CFSTR("NSCTFontFormatAttribute");
 const CFStringRef kCTFontRegistrationScopeAttribute = CFSTR("NSCTFontRegistrationScopeAttribute");
 const CFStringRef kCTFontPriorityAttribute = CFSTR("NSCTFontPriorityAttribute");
+const CFStringRef kCTFontCollectionRemoveDuplicatesOption = CFSTR("kCTFontCollectionRemoveDuplicatesOption");
+
+CTFontDescriptorRef CTFontDescriptorCreateWithAttributes(CFDictionaryRef attributes)
+{
+    if (!attributes)
+        return NULL;
+    /* Back descriptors directly by an immutable dictionary copy. */
+    return (CTFontDescriptorRef)CFDictionaryCreateCopy(NULL, attributes);
+}
 
 CFTypeRef CTFontDescriptorCopyAttribute(CTFontDescriptorRef descriptor, CFStringRef attribute)
 {
-    printf("STUB %s\n", __PRETTY_FUNCTION__);
-    return nil;
+    CFTypeRef value;
+    if (!descriptor || !attribute)
+        return nil;
+    value = CFDictionaryGetValue((CFDictionaryRef)descriptor, attribute);
+    if (value)
+        CFRetain(value);
+    return value;
 }

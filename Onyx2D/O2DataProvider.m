@@ -97,6 +97,10 @@ void O2DataProviderRelease(O2DataProviderRef self) {
 }
 
 CFDataRef O2DataProviderCopyData(O2DataProviderRef self) {
+    /* darling-lol M57: callers (CoreGraphics/QuartzCore) can pass a NULL
+     * provider; dereferencing it crashed with addr=0x10. */
+    if (self == NULL)
+        return NULL;
     if (self->_data != nil)
         return (CFDataRef)[self->_data copy];
     else

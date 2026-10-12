@@ -17,6 +17,9 @@ COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
+#if defined(DARLING)
+#include <mach/mach_time.h>
+#endif
 #import <AppKit/NSAlert.h>
 #import <AppKit/NSApplication.h>
 #import <AppKit/NSColorPanel.h>
@@ -271,6 +274,11 @@ NSApplication *NSApp = nil;
     return _isRunning;
 }
 
+/* darling-lol M57: Chromium/Electron queries NSApp for full keyboard access. */
+- (BOOL) isFullKeyboardAccessEnabled {
+    return NO;
+}
+
 - (NSWindow *) makeWindowsPerform: (SEL) selector inOrder: (BOOL) inOrder {
     NSUnimplementedMethod();
     return nil;
@@ -382,7 +390,18 @@ NSApplication *NSApp = nil;
 - (void) setDelegate: delegate {
     if (delegate != _delegate) {
         [self unregisterDelegate];
-        _delegate = delegate;
+        /* darling-lol: retain the delegate (Cocoa specifies assign, but a
+         * non-retained delegate is a dangling-observer trap here).
+         * RiotClientServices' nib-loaded delegate was freed between
+         * NSApplicationWillFinishLaunching and NSApplicationDidFinishLaunching
+         * (pool drain); the recycled memory (an __NSCFString) then received
+         * -applicationDidFinishLaunching:, whose caught exception stalled the
+         * app before Electron ever started. Retaining turns that crash into
+         * at most a one-object leak, and keeps unregisterDelegate messaging
+         * a live object. NSApplication is a singleton (no -dealloc), so no
+         * matching release is required. */
+        [_delegate release];
+        _delegate = [delegate retain];
         [self registerDelegate];
     }
 }
@@ -550,6 +569,13 @@ NSApplication *NSApp = nil;
 }
 
 - (void) finishLaunching {
+    // AppKit guarantees that launch notifications are delivered once. Some
+    // clients call finishLaunching from their delegate path and NSApplication
+    // -run calls it as well, so make the operation explicitly idempotent.
+    if (_finishedLaunching)
+        return;
+    _finishedLaunching = YES;
+
     NSAutoreleasePool *pool = [NSAutoreleasePool new];
     BOOL needsUntitled = YES;
 
@@ -558,7 +584,6 @@ NSApplication *NSApp = nil;
                           object: self];
     NS_HANDLER [self reportException: localException];
     NS_ENDHANDLER
-
     // Load the application icon if we have one
     NSString *iconName = [[[NSBundle mainBundle] infoDictionary]
             objectForKey: @"CFBundleIconFile"];
@@ -614,7 +639,6 @@ NSApplication *NSApp = nil;
                           object: self];
     NS_HANDLER [self reportException: localException];
     NS_ENDHANDLER
-
             [pool release];
 }
 
@@ -652,7 +676,15 @@ NSApplication *NSApp = nil;
         }
     }
 
-    [self terminate: self];
+    // darling-lol: match AppKit and only terminate when the delegate opts
+    // in via applicationShouldTerminateAfterLastWindowClosed:. The previous
+    // unconditional terminate killed faceless/splash-screen apps (notably
+    // the Riot launcher, whose splash closes right after install verify)
+    // on the first runloop turn with no visible window.
+    if ([_delegate respondsToSelector: @selector(applicationShouldTerminateAfterLastWindowClosed:)] &&
+        [_delegate applicationShouldTerminateAfterLastWindowClosed: self]) {
+        [self terminate: self];
+    }
 }
 
 - (void) _checkForAppActivation {
@@ -666,17 +698,13 @@ NSApplication *NSApp = nil;
 }
 
 - (void) run {
-    static BOOL didlaunch = NO;
     NSAutoreleasePool *pool;
 
     _isRunning = YES;
 
-    if (!didlaunch) {
-        didlaunch = YES;
-        pool = [NSAutoreleasePool new];
-        [self finishLaunching];
-        [pool release];
-    }
+    pool = [NSAutoreleasePool new];
+    [self finishLaunching];
+    [pool release];
 
     do {
         pool = [NSAutoreleasePool new];
@@ -716,6 +744,12 @@ NSApplication *NSApp = nil;
 }
 
 - (void) sendEvent: (NSEvent *) event {
+    static int inputTrace = -1;
+    if (inputTrace < 0) inputTrace = getenv("RCLOL_INPUT_TRACE") != NULL;
+    if (inputTrace && ([event type] == NSKeyDown || [event type] == NSLeftMouseDown))
+        NSLog(@"LOLINPUT app type=%ld eventWindow=%@ number=%ld", (long)[event type],
+            [[event window] class], (long)[event windowNumber]);
+
     if ([event type] == NSKeyDown) {
         unsigned modifierFlags = [event modifierFlags];
 
@@ -741,6 +775,61 @@ NSApplication *NSApp = nil;
 
     do {
         NSAutoreleasePool *pool = [NSAutoreleasePool new];
+
+        /* Service the run loop (and with it the main libdispatch queue)
+         * on every poll, matching AppKit: manual event pumping must
+         * still deliver main-queue blocks. Without this, apps that
+         * poll with distantPast while awaiting dispatch_async(main)
+         * completions deadlock. Zero timeout: never block here, the
+         * X11 wait below handles untilDate.
+         * Note: map NSDefaultRunLoopMode to kCFRunLoopDefaultMode;
+         * they are distinct strings and the main-queue source lives
+         * in the latter, so passing NSDefaultRunLoopMode through
+         * verbatim would service nothing. */
+        {
+#if defined(DARLING)
+            /* darling-lol: the game polls this method ~10x per frame. Each run-loop pass costs several darlingserver
+             * round trips, so service the CF run loop at most once per 4 ms on zero-timeout polls;
+             * X11 input is still read on every call. Blocking waits (future deadline) always service it. */
+            extern BOOL _NSDisplayRunLoopServicedByApp;
+            static uint64_t lastService;
+            static mach_timebase_info_data_t tb;
+            if (tb.denom == 0) mach_timebase_info(&tb);
+            uint64_t nowTicks = mach_absolute_time();
+            BOOL poll = [untilDate timeIntervalSinceNow] <= 0.0;
+            BOOL due = !poll || (nowTicks - lastService) * tb.numer / tb.denom >= 4000000ULL;
+            if (due) lastService = nowTicks;
+            _NSDisplayRunLoopServicedByApp = YES; /* NSDisplay skips its own zero-timeout pass after this poll */
+            if (due) {
+#endif
+            CFStringRef rlMode;
+            if (mode == nil || [mode isEqual:NSDefaultRunLoopMode])
+                rlMode = kCFRunLoopDefaultMode;
+            else
+                rlMode = (CFStringRef)mode;
+            (void)CFRunLoopRunInMode(rlMode, 0.0, true);
+#if defined(DARLING)
+            }
+            /* Deliver ready main-queue work on every event poll. A render
+             * worker can queue a presentation just after the last CF pass;
+             * gating this drain for 4 ms can defer it to the next game frame
+             * and produce a late frame followed by a burst. The empty-queue
+             * drain returns immediately; keep only CFRunLoop throttled.
+             *
+             * darling-lol M14i: drain the libdispatch main queue explicitly.
+             * Evidence (live counters, 2026-09-16): LOLPUSH>0 with
+             * LOLDRAIN==0 and CFRunLoopRunInMode(0s)==Finished in the
+             * launcher hot path — Darling's dispatch->CF wakeup never
+             * connects the main-queue handle to this runloop's source
+             * set, so queued main-queue blocks are unreachable while an
+             * app poll-loops instead of -run. Apple's CF services them
+             * during manual pumping via this exact hook; do the same. */
+            {
+                extern void _dispatch_main_queue_callback_4CF(void *);
+                _dispatch_main_queue_callback_4CF(NULL);
+            }
+#endif
+        }
 
         NS_DURING [NSClassFromString(@"Win32RunningCopyPipe")
                 performSelector: @selector(createRunningCopyPipe)];

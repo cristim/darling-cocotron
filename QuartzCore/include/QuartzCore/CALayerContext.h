@@ -20,6 +20,7 @@
 }
 
 @property(readonly) CGLContextObj glContext;
+@property(readonly) CGSubWindow *subwindow;
 
 - initWithFrame: (CGRect) rect;
 

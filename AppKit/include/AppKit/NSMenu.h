@@ -99,6 +99,11 @@ APPKIT_EXPORT const NSNotificationName NSMenuDidEndTrackingNotification;
 - (void) setDelegate: (id<NSMenuDelegate>) object;
 - (id<NSMenuDelegate>) delegate;
 
+/* Private AppKit API. Chromium/Electron calls this when building menu
+ * padding metadata; Cocotron has no such layout, so it is a no-op setter
+ * (without it the call raises NSException and the process terminates). */
+- (void) _setHasPadding: (BOOL) padding onEdge: (NSInteger) edge;
+
 @end
 
 @interface NSObject (NSMenu_validateItem)

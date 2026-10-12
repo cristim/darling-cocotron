@@ -26,6 +26,7 @@ along with Darling.  If not, see <http://www.gnu.org/licenses/>.
     Display *_display;
     Window _window;
     Atom _selectionName;
+    Window _observedSelectionOwner;
 
     NSMutableDictionary<NSPasteboardType, NSData *> *_typeToData;
     NSMutableDictionary<NSPasteboardType, id<NSPasteboardTypeOwner>>

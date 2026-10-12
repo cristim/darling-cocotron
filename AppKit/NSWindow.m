@@ -45,6 +45,20 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSWindowAnimationContext.h>
 #import <ApplicationServices/ApplicationServices.h>
 #import <CoreGraphics/CGWindow.h>
+#import <objc/runtime.h>
+#include <unistd.h>
+#include <string.h>
+
+
+/* darling-lol M57: the initializer must not dispatch -contentRectForFrameRect:
+ * to a subclass override. Electron's ElectronNSWindow overrides it and reads
+ * its shell_ ivar, which is only assigned after [super init...] returns; on
+ * macOS NSWindow's initializer does not call that overridable method, but
+ * Cocotron did, so the UX SIGSEGV'd on nil shell_ (+0x198) while constructing
+ * the BrowserWindow. Route both through a private helper instead. */
+@interface NSWindow (DarlingM57Private)
+- (NSRect) _darlingContentRectForFrameRect: (NSRect) frameRect;
+@end
 
 const NSNotificationName NSWindowDidBecomeKeyNotification =
         @"NSWindowDidBecomeKeyNotification";
@@ -218,7 +232,8 @@ static BOOL _allowsAutomaticWindowTabbing;
 /* This method is Cococtron specific and can be override by subclasses, do not
  * change method name */
 + (BOOL) hasMainMenuForStyleMask: (NSWindowStyleMask) styleMask {
-    return styleMask & NSTitledWindowMask;
+    return (styleMask & NSTitledWindowMask) &&
+           !(styleMask & NSWindowStyleMaskFullSizeContentView);
 }
 
 /* This method is Cococtron specific and can be override by subclasses, do not
@@ -318,6 +333,7 @@ static BOOL _allowsAutomaticWindowTabbing;
         [NSApplication sharedApplication];
     }
     _styleMask = styleMask;
+    _isMovable = YES;
     _backingType = backing;
     _isDeferred = defer;
 
@@ -351,7 +367,7 @@ static BOOL _allowsAutomaticWindowTabbing;
     [_backgroundView _setWindow: self];
     [_backgroundView setNextResponder: self];
 
-    NSRect contentViewFrame = [self contentRectForFrameRect: backgroundFrame];
+    NSRect contentViewFrame = [self _darlingContentRectForFrameRect: backgroundFrame];
     _contentView = [[NSView alloc] initWithFrame: contentViewFrame];
     [_contentView setAutoresizesSubviews: YES];
     [_contentView
@@ -399,6 +415,8 @@ static BOOL _allowsAutomaticWindowTabbing;
 }
 
 - (void) dealloc {
+	for (NSUInteger i = 0; i < 3; ++i)
+		[_standardWindowButtons[i] release];
     [[NSNotificationCenter defaultCenter] removeObserver: self];
     [_childWindows release];
     [_title release];
@@ -1025,7 +1043,34 @@ static BOOL _allowsAutomaticWindowTabbing;
 }
 
 - (void) setMovable: (BOOL) movable {
-    NSUnimplementedMethod();
+    _isMovable = movable;
+}
+
+- (BOOL) isMovable {
+    return _isMovable;
+}
+
+/* Chromium's frameless titlebar explicitly asks NSWindow to drag itself. */
+- (void) performWindowDragWithEvent:(NSEvent *)event {
+    if (getenv("RCLOL_INPUT_TRACE")) {
+        FILE *trace=fopen("/tmp/rclol-window-drag.log","a");
+        if(trace) {fprintf(trace,"DRAG pid=%d movable=%d type=%ld\n",getpid(),_isMovable,(long)[event type]);fclose(trace);}
+    }
+    if (!_isMovable || [event type] != NSLeftMouseDown) return;
+    /* darling-lol: follow the pointer in absolute screen coordinates. The window-relative location of every drag event is
+     * measured against where the window really is, which lags behind setFrameOrigin: (the compositor moves the window
+     * later), so converting it back with the new frame fed the lag into the next position and the window jumped (League's
+     * client window ended 120-190 px away from where it was dragged to). The pointer's screen position does not depend on
+     * the window at all. */
+    NSPoint origin = [self frame].origin;
+    NSPoint first = [NSEvent mouseLocation];
+    for (;;) {
+        NSEvent *next = [self nextEventMatchingMask:NSLeftMouseUpMask | NSLeftMouseDraggedMask];
+        if (!next || [next type] == NSLeftMouseUp) break;
+        NSPoint point = [NSEvent mouseLocation];
+        [self setFrameOrigin:NSMakePoint(origin.x + point.x - first.x,
+                                         origin.y + point.y - first.y)];
+    }
 }
 
 - (void) setBackingType: (NSBackingStoreType) value {
@@ -1234,6 +1279,7 @@ static BOOL _allowsAutomaticWindowTabbing;
 
 - (void) setIgnoresMouseEvents: (BOOL) value {
     _ignoresMouseEvents = value;
+    [_platformWindow syncDelegateProperties];
 }
 
 - (void) setAspectRatio: (NSSize) value {
@@ -1413,8 +1459,14 @@ static BOOL _allowsAutomaticWindowTabbing;
 }
 
 - (NSButton *) standardWindowButton: (NSWindowButton) value {
-    NSUnimplementedMethod();
-    return nil;
+	if (value > NSWindowZoomButton || !(_styleMask & NSTitledWindowMask))
+		return nil;
+	if (_standardWindowButtons[value] == nil) {
+		_standardWindowButtons[value] = [[NSButton alloc]
+			initWithFrame: NSMakeRect(0, 0, 14, 14)];
+		[_standardWindowButtons[value] setBordered: NO];
+	}
+	return _standardWindowButtons[value];
 }
 
 - (NSButtonCell *) defaultButtonCell {
@@ -1423,6 +1475,17 @@ static BOOL _allowsAutomaticWindowTabbing;
 
 - (NSWindow *) attachedSheet {
     return [_sheetContext sheet];
+}
+
+- (NSWindow *) sheetParent {
+    // Sheet ownership is recorded on the presenting window, independently
+    // of ordinary child-window relationships. Query that existing state so
+    // attachment and detachment cannot leave a stale parent pointer behind.
+    for (NSWindow *window in [NSApp windows]) {
+        if (window != self && [window attachedSheet] == self)
+            return window;
+    }
+    return nil;
 }
 
 - (id) windowController {
@@ -1511,10 +1574,7 @@ static BOOL _allowsAutomaticWindowTabbing;
     return [_platformWindow isMiniaturized];
 }
 
-- (BOOL) isMovable {
-    NSUnimplementedMethod();
-    return NO;
-}
+
 
 - (BOOL) inLiveResize {
     return _isInLiveResize;
@@ -1561,6 +1621,108 @@ static BOOL _allowsAutomaticWindowTabbing;
     return point;
 }
 
+/* darling-lol M57: modern screen-conversion API. Chromium calls these on the
+ * NSWindow; without them the struct-returning messages hit CF's stret
+ * forwarding and crash. */
+- (NSPoint) convertPointToScreen: (NSPoint) point {
+    return [self convertBaseToScreen: point];
+}
+
+- (NSPoint) convertPointFromScreen: (NSPoint) point {
+    return [self convertScreenToBase: point];
+}
+
+- (NSRect) convertRectToScreen: (NSRect) rect {
+    NSPoint origin = [self convertBaseToScreen: rect.origin];
+    return NSMakeRect(origin.x, origin.y, rect.size.width, rect.size.height);
+}
+
+- (NSRect) convertRectFromScreen: (NSRect) rect {
+    NSPoint origin = [self convertScreenToBase: rect.origin];
+    return NSMakeRect(origin.x, origin.y, rect.size.width, rect.size.height);
+}
+
+- (BOOL) titlebarAppearsTransparent {
+    return _titlebarAppearsTransparent;
+}
+
+- (void) setTitlebarAppearsTransparent: (BOOL) value {
+    _titlebarAppearsTransparent = value;
+}
+
+- (NSInteger) titleVisibility {
+    return _titleVisibility;
+}
+
+- (void) setTitleVisibility: (NSInteger) value {
+    _titleVisibility = value;
+}
+
+- (BOOL) movableByWindowBackground {
+    return _isMovableByWindowBackground;
+}
+
+/* darling-lol M57: NSWindowOcclusionStateVisible == 1 << 1. */
+- (NSUInteger) occlusionState {
+    return _isVisible ? (NSUInteger)(1 << 1) : (NSUInteger)0;
+}
+
+- (BOOL) isRestorable {
+    return _restorable;
+}
+
+- (BOOL) restorable {
+    return _restorable;
+}
+
+- (void) setRestorable: (BOOL) value {
+    _restorable = value;
+}
+
+- (NSString *) subtitle {
+    return _subtitle;
+}
+
+- (void) setSubtitle: (NSString *) value {
+    value = [value copy];
+    [_subtitle release];
+    _subtitle = value;
+}
+
+- (NSInteger) tabbingMode {
+    return _tabbingMode;
+}
+
+- (void) setTabbingMode: (NSInteger) value {
+    _tabbingMode = value;
+}
+
+- (NSString *) tabbingIdentifier {
+    return _tabbingIdentifier;
+}
+
+- (void) setTabbingIdentifier: (NSString *) value {
+    value = [value copy];
+    [_tabbingIdentifier release];
+    _tabbingIdentifier = value;
+}
+
+- (NSInteger) titlebarSeparatorStyle {
+    return _titlebarSeparatorStyle;
+}
+
+- (void) setTitlebarSeparatorStyle: (NSInteger) value {
+    _titlebarSeparatorStyle = value;
+}
+
+- (NSInteger) toolbarStyle {
+    return _toolbarStyle;
+}
+
+- (void) setToolbarStyle: (NSInteger) value {
+    _toolbarStyle = value;
+}
+
 - (NSRect) frameRectForContentRect: (NSRect) contentRect {
     // hasMainMenu is an instance method so we can't just use the class method
     //  frameRectForContentRect:styleMask:
@@ -1580,6 +1742,10 @@ static BOOL _allowsAutomaticWindowTabbing;
 }
 
 - (NSRect) contentRectForFrameRect: (NSRect) frameRect {
+    return [self _darlingContentRectForFrameRect: frameRect];
+}
+
+- (NSRect) _darlingContentRectForFrameRect: (NSRect) frameRect {
     NSRect result = [[NSDisplay currentDisplay] insetRect: frameRect
                            forNativeWindowBorderWithStyle: [self styleMask]];
 
@@ -2155,6 +2321,7 @@ static BOOL _allowsAutomaticWindowTabbing;
 - (void) orderWindow: (NSWindowOrderingMode) place
           relativeTo: (NSInteger) relativeTo
 {
+    BOOL wasVisible = _isVisible;
     // The move notifications are sent under unknown conditions around
     // orderFront: in the Apple AppKit, we do them all the time here until it's
     // figured out. I suspect it is a side effect of off-screen windows being at
@@ -2208,6 +2375,8 @@ static BOOL _allowsAutomaticWindowTabbing;
         break;
     }
 
+    if (wasVisible != _isVisible)
+        [self postNotificationName: NSWindowDidChangeOcclusionStateNotification];
     [self postNotificationName: NSWindowDidMoveNotification];
 }
 
@@ -2257,6 +2426,12 @@ static BOOL _allowsAutomaticWindowTabbing;
 }
 
 - (void) sendEvent: (NSEvent *) event {
+    static int inputTrace = -1;
+    if (inputTrace < 0) inputTrace = getenv("RCLOL_INPUT_TRACE") != NULL;
+    if (inputTrace && ([event type] == NSKeyDown || [event type] == NSLeftMouseDown))
+        NSLog(@"LOLINPUT NS type=%ld window=%ld responder=%@ visible=%d", (long)[event type],
+            (long)[self windowNumber], [_firstResponder class], _isVisible);
+
     // Some events can cause our window to be destroyed
     // So make sure self lives at least through this current run loop...
     [[self retain] autorelease];
@@ -2300,6 +2475,10 @@ static BOOL _allowsAutomaticWindowTabbing;
 
     case NSLeftMouseDown: {
         NSView *view = [_backgroundView hitTest: [event locationInWindow]];
+        if (inputTrace) {
+            FILE *trace=fopen("/tmp/rclol-window-drag.log","a");
+            if(trace) {fprintf(trace,"DOWN pid=%d view=%s movable=%d at=%.0f,%.0f\n",getpid(),class_getName([view class]),_isMovable,[event locationInWindow].x,[event locationInWindow].y);fclose(trace);}
+        }
 
         if ([view acceptsFirstResponder]) {
             if ([view needsPanelToBecomeKey]) {
@@ -2307,6 +2486,14 @@ static BOOL _allowsAutomaticWindowTabbing;
             }
         }
 
+        // A view's permission to pass a click through is not a request to
+        // drag. Only windows opting into background dragging intercept it;
+        // CEF otherwise handles clicks and invokes performWindowDragWithEvent:
+        // itself for its native titlebar regions.
+        if (_isMovable && _isMovableByWindowBackground && [view mouseDownCanMoveWindow]) {
+            [self performWindowDragWithEvent:event];
+            break;
+        }
         // Event goes to view, not first responder.
         [view mouseDown: event];
         _mouseDownLocationInWindow = [event locationInWindow];
@@ -2329,6 +2516,31 @@ static BOOL _allowsAutomaticWindowTabbing;
                 rightMouseUp: event];
         _mouseDownLocationInWindow = NSMakePoint(NAN, NAN);
         break;
+
+    case NSOtherMouseDown: {
+        NSMutableDictionary *locations = objc_getAssociatedObject(self, @selector(otherMouseDown:));
+        if (!locations) {
+            locations = [NSMutableDictionary dictionary];
+            objc_setAssociatedObject(self, @selector(otherMouseDown:), locations, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        }
+        [locations setObject:[NSValue valueWithPoint:[event locationInWindow]]
+                      forKey:[NSNumber numberWithInteger:[event buttonNumber]]];
+        [[_backgroundView hitTest:[event locationInWindow]] otherMouseDown:event];
+        break;
+    }
+    case NSOtherMouseUp:
+    case NSOtherMouseDragged: {
+        NSMutableDictionary *locations = objc_getAssociatedObject(self, @selector(otherMouseDown:));
+        NSNumber *button = [NSNumber numberWithInteger:[event buttonNumber]];
+        NSValue *location = [locations objectForKey:button];
+        NSPoint point = location ? [location pointValue] : [event locationInWindow];
+        NSView *view = [_backgroundView hitTest:point];
+        if ([event type] == NSOtherMouseUp) {
+            [locations removeObjectForKey:button];
+            [view otherMouseUp:event];
+        } else [view otherMouseDragged:event];
+        break;
+    }
 
     case NSMouseMoved: {
         NSView *hit = [_backgroundView hitTest: [event locationInWindow]];
@@ -2536,6 +2748,7 @@ static BOOL _allowsAutomaticWindowTabbing;
     } else {
         [[self platformWindow] hideWindow];
     }
+    [self postNotificationName: NSWindowDidChangeOcclusionStateNotification];
 }
 
 - (void) orderFront: (id) sender {
@@ -3260,8 +3473,7 @@ static BOOL _allowsAutomaticWindowTabbing;
                 mouseWasInside && !mouseIsInside) {
                 [exited addObject: area];
             }
-            if (options & NSTrackingMouseMoved &&
-                [self acceptsMouseMovedEvents]) {
+            if (options & NSTrackingMouseMoved && mouseIsInside) {
                 [moved addObject: area];
             }
             if (options & NSTrackingCursorUpdate && !mouseWasInside &&
@@ -3459,7 +3671,7 @@ static BOOL _allowsAutomaticWindowTabbing;
 }
 
 - (CGSubWindow *) _createSubWindowWithFrame: (CGRect) frame {
-    return [_platformWindow createSubWindowWithFrame: frame];
+    return [[self platformWindow] createSubWindowWithFrame: frame];
 }
 
 + (BOOL) allowsAutomaticWindowTabbing {

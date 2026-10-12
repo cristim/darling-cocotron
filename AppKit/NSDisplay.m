@@ -43,6 +43,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
     return NSThreadSharedInstance(@"NSDisplay");
 }
 
+- (BOOL) activateProcessIdentifier: (pid_t) processIdentifier {
+    return NO;
+}
+
 - (instancetype) init {
     if ([self class] != [NSDisplay class]) {
         // Initializing a concrete subclass.
@@ -146,28 +150,46 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
     NSInvalidAbstractInvocation();
 }
 
+#ifdef DARLING
+BOOL _NSDisplayRunLoopServicedByApp = NO;
+#endif
+
 - (NSEvent *) nextEventMatchingMask: (NSEventMask) mask
                           untilDate: (NSDate *) untilDate
                              inMode: (NSString *) mode
                             dequeue: (BOOL) dequeue
 {
     NSEvent *result = nil;
+    static int inputTrace = -1;
+    if (inputTrace < 0) inputTrace = getenv("RCLOL_INPUT_TRACE") != NULL;
 
     if ([_eventQueue count])
         untilDate = [NSDate date];
 
+#ifdef DARLING
+    /* darling-lol: NSApplication already ran the run loop (zero timeout) and drained the main queue for this poll;
+     * a second zero-timeout pass costs two darlingserver round trips (mach_msg poll) per call for nothing. */
+    BOOL serviced = _NSDisplayRunLoopServicedByApp;
+    _NSDisplayRunLoopServicedByApp = NO;
+    if (!(serviced && [untilDate timeIntervalSinceNow] <= 0.0005))
+#endif
     [[NSRunLoop currentRunLoop] runMode: mode beforeDate: untilDate];
 
-    while (result == nil && [_eventQueue count] > 0) {
-        NSEvent *event = _eventQueue[0];
+    // A filtered poll must leave events of other types queued. Game loops
+    // interleave mouse and keyboard masks; discarding unmatched events here
+    // silently loses keys and button transitions.
+    for (NSUInteger index = 0; index < [_eventQueue count]; ++index) {
+        NSEvent *event = _eventQueue[index];
+        if (inputTrace && ([event type] == NSKeyDown || [event type] == NSLeftMouseDown))
+            NSLog(@"LOLINPUT queue type=%ld mask=%llu eventWindow=%@ number=%ld",
+                (long)[event type], (unsigned long long)mask, [[event window] class],
+                (long)[event windowNumber]);
 
-        if (!(NSEventMaskFromType([event type]) & mask)) {
-            [_eventQueue removeObjectAtIndex: 0];
-        } else {
+        if (NSEventMaskFromType([event type]) & mask) {
             result = [[event retain] autorelease];
-
             if (dequeue)
-                [_eventQueue removeObjectAtIndex: 0];
+                [_eventQueue removeObjectAtIndex: index];
+            break;
         }
     }
 
@@ -193,7 +215,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
     }
 
     while (--count >= 0) {
-        if (NSEventMaskFromType([event type]) & mask) {
+        NSEvent *queuedEvent = [_eventQueue objectAtIndex: count];
+        if (NSEventMaskFromType([queuedEvent type]) & mask) {
             [_eventQueue removeObjectAtIndex: count];
         }
     }
@@ -307,6 +330,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 - (NSUInteger) currentModifierFlags {
     NSInvalidAbstractInvocation();
+    return 0;
+}
+
+- (NSUInteger) pressedMouseButtons {
     return 0;
 }
 

@@ -189,6 +189,15 @@ static inline CGFloat calibratedWhiteFromRGB(CGFloat r, CGFloat g, CGFloat b) {
 }
 
 - (NSColor *) colorUsingColorSpaceName: (NSString *) otherSpaceName
+{
+    /* darling-lol: the single-arg variant was missing, so any caller
+     * (including -[NSColor colorUsingColorSpace:] and NSColor_catalog)
+     * fell through to the abstract base and raised. Forward to the
+     * two-arg implementation. */
+    return [self colorUsingColorSpaceName: otherSpaceName device: nil];
+}
+
+- (NSColor *) colorUsingColorSpaceName: (NSString *) otherSpaceName
                                 device: (NSDictionary *) device
 {
     if (otherSpaceName == nil ||
@@ -223,6 +232,35 @@ static inline CGFloat calibratedWhiteFromRGB(CGFloat r, CGFloat g, CGFloat b) {
                                         magenta: 0
                                          yellow: 0
                                           black: 1 - white
+                                          alpha: alpha];
+    } else if ([_colorSpaceName isEqualToString: NSNamedColorSpace]) {
+        /* darling-lol: +colorWithSRGBRed:... stores a device-RGB CGColor
+         * tagged NSNamedColorSpace. Treat components as RGB so catalog
+         * colors (e.g. controlAccentBlueColor) convert instead of
+         * returning nil. */
+        CGFloat red = components[0];
+        CGFloat green = components[1];
+        CGFloat blue = components[2];
+        CGFloat alpha = components[3];
+
+        if ([otherSpaceName isEqualToString: NSDeviceRGBColorSpace] ||
+            [otherSpaceName isEqualToString: NSCalibratedRGBColorSpace])
+            return [NSColor colorWithCalibratedRed: red
+                                             green: green
+                                              blue: blue
+                                             alpha: alpha];
+
+        if ([otherSpaceName isEqualToString: NSDeviceWhiteColorSpace] ||
+            [otherSpaceName isEqualToString: NSCalibratedWhiteColorSpace])
+            return [NSColor colorWithCalibratedWhite: calibratedWhiteFromRGB(
+                                                              red, green, blue)
+                                               alpha: alpha];
+
+        if ([otherSpaceName isEqualToString: NSDeviceCMYKColorSpace])
+            return [NSColor colorWithDeviceCyan: 1.0 - red
+                                        magenta: 1.0 - green
+                                         yellow: 1.0 - blue
+                                          black: 0.0
                                           alpha: alpha];
     } else if ([_colorSpaceName isEqualToString: NSDeviceRGBColorSpace]) {
         CGFloat red = components[0];

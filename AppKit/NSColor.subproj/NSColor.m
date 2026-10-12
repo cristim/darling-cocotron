@@ -21,6 +21,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSColor.h>
 #import <AppKit/NSColor_CGColor.h>
 #import <AppKit/NSColor_catalog.h>
+#import <AppKit/NSColorSpace.h>
 #import <AppKit/NSImage.h>
 #import <AppKit/NSRaise.h>
 
@@ -42,6 +43,12 @@ NSNotificationName const NSSystemColorsDidChangeNotification = @"NSSystemColorsD
 @end
 
 @implementation NSColor
+
+/* darling-lol M57: Chromium queries the system control tint to pick the
+ * native theme; Cocotron lacked the class method entirely. */
++ (NSUInteger) currentControlTint {
+    return NSBlueControlTint;
+}
 
 - (void) encodeWithCoder: (NSCoder *) coder {
 
@@ -914,6 +921,39 @@ static void releasePatternInfo(void *info) {
 {
     NSInvalidAbstractInvocation();
     return nil;
+}
+
+- (NSColor *) colorUsingColorSpace: (NSColorSpace *) space
+{
+    /* darling-lol: bridge NSColorSpace objects to the Name-based conversion
+     * subclasses implement. Cocotron's NSColorSpace carries only a
+     * CGColorSpaceRef, so map by color model to the closest space our
+     * conversion matrix handles. Chromium calls this on catalog colors
+     * during UI setup; previously it raised "unrecognized selector" and
+     * killed the app. Fail soft: unknown/nil space returns self. */
+    if (space == nil)
+        return self;
+
+    CGColorSpaceRef cgSpace = [space CGColorSpace];
+    if (cgSpace == NULL)
+        return self;
+
+    NSColorSpaceName name = nil;
+    switch (CGColorSpaceGetModel(cgSpace)) {
+        case kCGColorSpaceModelRGB:
+            name = NSDeviceRGBColorSpace;
+            break;
+        case kCGColorSpaceModelMonochrome:
+            name = NSDeviceWhiteColorSpace;
+            break;
+        case kCGColorSpaceModelCMYK:
+            name = NSDeviceCMYKColorSpace;
+            break;
+        default:
+            return self;
+    }
+    NSColor *converted = [self colorUsingColorSpaceName: name];
+    return (converted != nil) ? converted : self;
 }
 
 - (NSColor *) blendedColorWithFraction: (CGFloat) fraction

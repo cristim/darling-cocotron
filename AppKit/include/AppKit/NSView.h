@@ -139,6 +139,12 @@ APPKIT_EXPORT const NSViewFullScreenModeOptionKey NSFullScreenModeApplicationPre
     NSLayoutPriority _verticalContentCompressionResistancePriority;
 
     NSAppearance *_appearance;
+
+    /* darling-lol M57: modern NSView properties Chromium reads. */
+    NSUInteger _allowedTouchTypes;
+    BOOL _wantsUpdateLayer;
+    BOOL _canDrawSubviewsIntoLayer;
+    BOOL _wantsBestResolutionOpenGLSurface;
 }
 
 @property(class, readonly) BOOL requiresConstraintBasedLayout;
@@ -213,6 +219,18 @@ APPKIT_EXPORT const NSViewFullScreenModeOptionKey NSFullScreenModeApplicationPre
 
 - (NSPoint) convertPoint: (NSPoint) point fromView: (NSView *) viewOrNil;
 - (NSPoint) convertPoint: (NSPoint) point toView: (NSView *) viewOrNil;
+- (NSUInteger) allowedTouchTypes;
+- (void) setAllowedTouchTypes: (NSUInteger) value;
+- (BOOL) wantsUpdateLayer;
+- (void) setWantsUpdateLayer: (BOOL) value;
+- (BOOL) canDrawSubviewsIntoLayer;
+- (void) setCanDrawSubviewsIntoLayer: (BOOL) value;
+- (BOOL) wantsBestResolutionOpenGLSurface;
+- (void) setWantsBestResolutionOpenGLSurface: (BOOL) value;
+- (NSPoint) convertPointFromBacking: (NSPoint) point;
+- (NSPoint) convertPointToBacking: (NSPoint) point;
+- (NSRect) convertRectFromBacking: (NSRect) rect;
+- (NSRect) convertRectToBacking: (NSRect) rect;
 - (NSSize) convertSize: (NSSize) size fromView: (NSView *) viewOrNil;
 - (NSSize) convertSize: (NSSize) size toView: (NSView *) viewOrNil;
 - (NSRect) convertRect: (NSRect) rect fromView: (NSView *) viewOrNil;

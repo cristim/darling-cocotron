@@ -133,8 +133,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 }
 
 - (void) mouseDown: (NSEvent *) event {
-    if (![[self window] isMovableByWindowBackground])
+    if (![[self window] isMovableByWindowBackground]) {
+        [super mouseDown:event];
         return;
+    }
 
     NSPoint origin = [[self window] frame].origin;
     NSPoint firstLocation =

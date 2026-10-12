@@ -22,6 +22,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSDisplay.h>
 #import <AppKit/NSScreen.h>
 #import <AppKit/NSWindow.h>
+#import <AppKit/NSColorSpace.h>
 
 NSNotificationName const NSScreenColorSpaceDidChangeNotification = @"NSScreenColorSpaceDidChangeNotification";
 
@@ -68,6 +69,19 @@ NSNotificationName const NSScreenColorSpaceDidChangeNotification = @"NSScreenCol
     return 1.0;
 }
 
+- (CGFloat) backingScaleFactor {
+    /* X11 has no per-screen backing scale concept; report 1.0 so
+     * clients (e.g. Chromium display setup) proceed with unscaled
+     * coordinates. HiDPI VNC/Xvfb could upgrade this later. */
+    return 1.0;
+}
+
+- (NSColorSpace *) colorSpace {
+    /* No EDID/ICC profile plumbing from X11 yet; report sRGB so
+     * color-management clients (e.g. Chromium) get a valid space. */
+    return [NSColorSpace sRGBColorSpace];
+}
+
 - (id) description {
     return [NSString stringWithFormat: @"< %@ - frame %@, visible %@ >",
                                        [super description],
@@ -76,7 +90,12 @@ NSNotificationName const NSScreenColorSpaceDidChangeNotification = @"NSScreenCol
 }
 
 - (NSDictionary<NSDeviceDescriptionKey, id> *) deviceDescription {
-    return @{};
+    /* darling-lol M57: Chromium reads [screen deviceDescription]
+     * [@"NSScreenNumber"] to get the CGDirectDisplayID and rejects a zero id
+     * (DisplayLinkMac::GetForDisplay). Provide the screen number. */
+    if (_directDisplayID != 0)
+        return @{ @"NSScreenNumber": [NSNumber numberWithUnsignedInt: _directDisplayID] };
+    return @{ @"NSScreenNumber": [NSNumber numberWithUnsignedInt: 1] };
 }
 
 @end

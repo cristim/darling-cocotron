@@ -30,6 +30,8 @@ APPKIT_EXPORT NSTouchBarItemIdentifier const
         NSTouchBarItemIdentifierFlexibleSpace;
 APPKIT_EXPORT NSTouchBarItemIdentifier const
         NSTouchBarItemIdentifierOtherItemsProxy;
+APPKIT_EXPORT NSTouchBarItemIdentifier const
+        NSTouchBarItemIdentifierCandidateList;
 
 @interface NSTouchBarItem : NSObject <NSCoding>
 

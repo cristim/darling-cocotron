@@ -48,14 +48,20 @@
 #import "X11KeySymToUCS.h"
 #import <X11/XKBlib.h>
 #import <X11/Xutil.h>
+#import <X11/Xatom.h>
 #import <X11/extensions/XKBrules.h>
 #import <X11/extensions/Xrandr.h>
 #import <X11/keysym.h>
 #import <fcntl.h>
 #import <fontconfig/fontconfig.h>
 #import <stddef.h>
+#include <stdlib.h>
 
 void NSColorSetCatalogColor(NSColorListName catalogName, NSColorName colorName, NSColor *color);
+
+@interface NSCursor (X11CursorVisibility)
++ (void) _unhideOnMouseMove;
+@end
 
 @implementation X11Display
 
@@ -75,6 +81,15 @@ static void socketCallback(CFSocketRef s, CFSocketCallBackType type,
 - init {
     if (self = [super init]) {
 
+#ifdef DARLING
+        // EGL also uses this Display from compositor threads. Enable Xlib's
+        // connection locks before opening it or issuing any Xlib requests.
+        if (!XInitThreads()) {
+            NSLog(@"Unable to initialize Xlib thread support");
+            [self release];
+            return nil;
+        }
+#endif
         _display = XOpenDisplay(NULL);
 
         if (_display == NULL) {
@@ -148,14 +163,16 @@ static void socketCallback(CFSocketRef s, CFSocketCallBackType type,
     [_blankCursor release];
     [_defaultCursor release];
 
-    XCloseIM(_xim);
+    if (_xim)
+        XCloseIM(_xim);
 
     if (_display)
         XCloseDisplay(_display);
 #ifdef DARLING
-    CFRunLoopRemoveSource(CFRunLoopGetMain(), _source, kCFRunLoopCommonModes);
-    if (_source != NULL)
+    if (_source != NULL) {
+        CFRunLoopRemoveSource(CFRunLoopGetMain(), _source, kCFRunLoopCommonModes);
         CFRelease(_source);
+    }
     if (_cfSocket != NULL)
         CFRelease(_cfSocket);
 #endif
@@ -170,6 +187,56 @@ static void socketCallback(CFSocketRef s, CFSocketCallBackType type,
 
 - (Display *) display {
     return _display;
+}
+
+- (BOOL) activateProcessIdentifier: (pid_t) processIdentifier {
+    if (!_display || processIdentifier <= 0) return NO;
+
+    Window root = DefaultRootWindow(_display), parent = None;
+    Window *children = NULL;
+    unsigned int count = 0;
+    if (!XQueryTree(_display, root, &root, &parent, &children, &count))
+        return NO;
+
+    Atom pidAtom = XInternAtom(_display, "_NET_WM_PID", False);
+    Atom activeAtom = XInternAtom(_display, "_NET_ACTIVE_WINDOW", False);
+    BOOL activated = NO;
+    for (unsigned int index = count; index > 0; --index) {
+        Window window = children[index - 1];
+        Atom actualType = None;
+        int actualFormat = 0;
+        unsigned long items = 0, remaining = 0;
+        unsigned char *value = NULL;
+        int status = XGetWindowProperty(_display, window, pidAtom, 0, 1, False,
+                                        XA_CARDINAL, &actualType, &actualFormat,
+                                        &items, &remaining, &value);
+        BOOL matches = status == Success && actualType == XA_CARDINAL &&
+                       actualFormat == 32 && items == 1 && value &&
+                       *(unsigned long *)value == (unsigned long)processIdentifier;
+        if (value) XFree(value);
+        if (!matches) continue;
+
+        XWindowAttributes attributes;
+        if (!XGetWindowAttributes(_display, window, &attributes) ||
+            attributes.map_state != IsViewable) continue;
+
+        XEvent event = {0};
+        event.xclient.type = ClientMessage;
+        event.xclient.window = window;
+        event.xclient.message_type = activeAtom;
+        event.xclient.format = 32;
+        event.xclient.data.l[0] = 1;
+        event.xclient.data.l[1] = CurrentTime;
+        XSendEvent(_display, root, False,
+                   SubstructureRedirectMask | SubstructureNotifyMask, &event);
+        XRaiseWindow(_display, window);
+        XSetInputFocus(_display, window, RevertToPointerRoot, CurrentTime);
+        XFlush(_display);
+        activated = YES;
+        break;
+    }
+    if (children) XFree(children);
+    return activated;
 }
 
 - (void) _enableDetectableAutoRepeat {
@@ -536,12 +603,52 @@ static NSDictionary *modeInfoToDictionary(const XRRModeInfo *mi, int depth) {
     return &layout->layout;
 }
 
-- (NSUInteger) currentModifierFlags {
-    XkbStateRec r;
-    if (XkbGetState(_display, XkbUseCoreKbd, &r) != Success)
-        return 0;
+/* darling-lol: the game asks for the pointer position, the pressed buttons and the modifier state about a thousand
+ * times per second. Each answer was a synchronous X round trip (XQueryPointer / XkbGetState) that puts the main thread
+ * to sleep until XWayland replies; while the mouse moves they dominated the slow frames. Reuse a reply for 8 ms, keep it
+ * current from the input events themselves (a motion event carries position and button state), and drop it on every
+ * button, key, crossing or focus event so the next question after a state change is always asked for real. */
+#include <mach/mach_time.h>
+static BOOL rclolFresh(uint64_t *stamp) {
+    static mach_timebase_info_data_t tb;
+    if (tb.denom == 0) mach_timebase_info(&tb);
+    uint64_t now = mach_absolute_time();
+    if (*stamp != 0 && (now - *stamp) * tb.numer / tb.denom < 8000000ULL) return YES;
+    *stamp = now;
+    return NO;
+}
+static uint64_t rclolPointerStamp, rclolModsStamp;
+static int rclolRootX, rclolRootY;
+static unsigned int rclolPointerState;
+static NSUInteger rclolMods;
+static BOOL rclolQueryPointer(Display *display) {
+    if (rclolFresh(&rclolPointerStamp)) return YES;
+    for (int screen = 0; screen < ScreenCount(display); ++screen) {
+        Window root, child;
+        int windowX, windowY;
+        if (XQueryPointer(display, RootWindow(display, screen), &root, &child, &rclolRootX, &rclolRootY,
+                          &windowX, &windowY, &rclolPointerState))
+            return YES;
+    }
+    rclolPointerStamp = 0;
+    return NO;
+}
 
-    return [self modifierFlagsForState: r.mods];
+- (NSUInteger) currentModifierFlags {
+    if (rclolFresh(&rclolModsStamp)) return rclolMods;
+    XkbStateRec r;
+    if (XkbGetState(_display, XkbUseCoreKbd, &r) != Success) {
+        rclolModsStamp = 0;
+        return 0;
+    }
+    return rclolMods = [self modifierFlagsForState: r.mods];
+}
+
+- (NSUInteger) pressedMouseButtons {
+    if (!rclolQueryPointer(_display)) return 0;
+    unsigned int state = rclolPointerState;
+    // AppKit numbers left/right/middle as 0/1/2; X11 uses 1/3/2.
+    return ((state & Button1Mask) ? 1u : 0u) | ((state & Button3Mask) ? 2u : 0u) | ((state & Button2Mask) ? 4u : 0u);
 }
 
 - (NSPasteboard *) pasteboardWithName: (NSString *) name {
@@ -674,6 +781,15 @@ static NSDictionary *modeInfoToDictionary(const XRRModeInfo *mi, int depth) {
                                    green: 0.40f
                                     blue: 0.60f
                                     alpha: 1.0f];
+
+    if ([colorName isEqual: @"controlAccentBlueColor"])
+        /* darling-lol: macOS 10.14+ system accent blue (sRGB 0,122,255);
+         * Chromium queries it during UI setup and previously fell back to
+         * red. */
+        return [NSColor colorWithSRGBRed: 0.0f
+                                   green: 0.478431f
+                                    blue: 1.0f
+                                   alpha: 1.0f];
 
     NSLog(@"missing color for %@", colorName);
     return [NSColor redColor];
@@ -921,15 +1037,9 @@ static NSDictionary *modeInfoToDictionary(const XRRModeInfo *mi, int depth) {
 }
 
 - (NSPoint) mouseLocation {
-    Window child, root = DefaultRootWindow(_display);
-    int root_x, root_y;
-    int win_x, win_y;
-    unsigned int mask;
-
-    XQueryPointer(_display, root, &root, &child, &root_x, &root_y, &win_x,
-                  &win_y, &mask);
+    rclolQueryPointer(_display);
     int height = DisplayHeight(_display, DefaultScreen(_display));
-    return NSMakePoint(root_x, height - root_y);
+    return NSMakePoint(rclolRootX, height - rclolRootY);
 }
 
 - (void) setWindow: (id) window forID: (XID) i {
@@ -962,20 +1072,82 @@ static NSDictionary *modeInfoToDictionary(const XRRModeInfo *mi, int depth) {
 {
 #ifndef DARLING
     [[NSRunLoop currentRunLoop] addInputSource: _inputSource forMode: mode];
-#else
-    [self processPendingEvents];
-#endif
 
     NSEvent *result = [super nextEventMatchingMask: mask
                                          untilDate: untilDate
                                             inMode: mode
                                            dequeue: dequeue];
 
-#ifndef DARLING
     [[NSRunLoop currentRunLoop] removeInputSource: _inputSource forMode: mode];
-#endif
 
     return result;
+#else
+    // Darling: the CFSocket runloop source watching the X connection is not
+    // guaranteed to wake us, so a single blocking wait can sleep through
+    // input forever (X events queue unread, app looks frozen). Poll with a
+    // short slice instead. (darling-lol M2b)
+    /* A past deadline means poll, not skip queued input. Chromium's event
+     * pump regularly uses distantPast while checking for pending events. */
+    [self processPendingEvents];
+    NSEvent *result = [super nextEventMatchingMask:mask untilDate:[NSDate date]
+                                           inMode:mode dequeue:dequeue];
+    if (result != nil && [result type] == NSAppKitSystem)
+        result = nil;
+    NSTimeInterval remaining;
+    while (result == nil && (remaining = [untilDate timeIntervalSinceNow]) > 0) {
+        /* Display-link and input sources have no CF timer deadline. A 20ms
+         * fallback can sleep past every 60Hz source wakeup; bound its latency
+         * below a refresh interval while the socket wakeup path is polled. */
+        NSTimeInterval slice = remaining < 0.004 ? remaining : 0.004;
+        /* A quiet X connection must not prevent main-queue callbacks or
+         * CF timers from running while AppKit waits for its next event. */
+        CFStringRef cfMode = (mode == nil || [mode isEqual:NSDefaultRunLoopMode])
+                ? kCFRunLoopDefaultMode : (CFStringRef)mode;
+        SInt32 runResult = CFRunLoopRunInMode(cfMode, 0.0, true);
+        extern void _dispatch_main_queue_callback_4CF(void *);
+        _dispatch_main_queue_callback_4CF(NULL);
+        [self processPendingEvents];
+        /* Do not let NSRunLoop perform the timed wait here. Darling's
+         * socket-backed Mach receive can ignore the CF timer deadline and
+         * sleep forever, preventing Electron readiness promises, dispatch
+         * work, and repeating timers from being serviced. Poll the nested
+         * run loop without blocking, then bound the idle wait ourselves. */
+        result = [super nextEventMatchingMask: mask
+                                    untilDate: [NSDate date]
+                                       inMode: mode
+                                      dequeue: dequeue];
+        if (result != nil && [result type] == NSAppKitSystem) {
+            result = nil;
+        }
+        /* A handled source can immediately queue more work (Chromium and
+         * libuv do this). Drain it before the idle poll delay; sleeping after
+         * every callback caps a busy source at 50 callbacks per second. */
+        if (result == nil && runResult == kCFRunLoopRunHandledSource)
+            continue;
+        if (result == nil) {
+            /* Polling must honor timers in both the Cocoa mode and the CF
+             * main-queue mode. A fixed 20ms sleep misses 60Hz deadlines. */
+            CFRunLoopRef loop = CFRunLoopGetCurrent();
+            CFAbsoluteTime now = CFAbsoluteTimeGetCurrent();
+            CFAbsoluteTime next = CFRunLoopGetNextTimerFireDate(loop, cfMode);
+            if (mode && !CFEqual((CFStringRef)mode, cfMode)) {
+                CFAbsoluteTime cocoaNext = CFRunLoopGetNextTimerFireDate(loop, (CFStringRef)mode);
+                if (cocoaNext > 0 && (next <= 0 || cocoaNext < next)) next = cocoaNext;
+            }
+            if (next > 0 && next - now < slice)
+                slice = next > now ? next - now : 0;
+        }
+        if (result == nil && slice > 0) {
+            /* Keep this polling deadline independent of Mach wait timers. */
+            struct { long seconds, nanoseconds; } delay = {
+                0, (long)(slice * 1000000000.0)
+            };
+            extern long __lolsys_syscall(long, long, long, long, long, long, int);
+            __lolsys_syscall((long)&delay, 0, 0, 0, 0, 0, 35 /* Linux nanosleep */);
+        }
+    }
+    return result;
+#endif
 }
 
 - (NSEventModifierFlags) modifierFlagsForState: (unsigned int) state {
@@ -1010,17 +1182,93 @@ static NSDictionary *modeInfoToDictionary(const XRRModeInfo *mi, int depth) {
     return result;
 }
 
+/* X key events carry the state BEFORE the transition. Cocoa flagsChanged
+ * carries the state AFTER it. Keep both sides separately so releasing one
+ * Shift/Command key does not clear the other, and reconcile missed releases
+ * when the compositor intercepts a shortcut or changes keyboard focus. */
+static unsigned int rclolModifierMask(unsigned int key) {
+    switch (key) {
+    case 50: case 62: return ShiftMask;
+    case 37: case 105: return ControlMask;
+    case 64: return Mod1Mask;
+    case 108: return Mod5Mask;
+    case 133: case 134: return Mod4Mask;
+    default: return 0;
+    }
+}
+
+- (void) postModifierKey:(unsigned int)key state:(unsigned int)state window:(id)delegate {
+    NSEvent *event = [NSEvent keyEventWithType:NSFlagsChanged
+        location:NSZeroPoint modifierFlags:[self modifierFlagsForState:state]
+        timestamp:0 windowNumber:[delegate windowNumber] context:nil
+        characters:@"" charactersIgnoringModifiers:@"" isARepeat:NO
+        keyCode:x11ToCarbon[key]];
+    [self postEvent:event atStart:NO];
+}
+
+- (void) reconcileModifierKeys:(const char *)keys window:(id)delegate {
+    unsigned int state = 0;
+    for (unsigned int key = 0; key < 256; ++key)
+        if (_modifierKeysDown[key]) state |= rclolModifierMask(key);
+    for (unsigned int key = 0; key < 256; ++key) {
+        unsigned int mask = rclolModifierMask(key);
+        if (!mask) continue;
+        BOOL down = keys && (keys[key / 8] & (1 << (key % 8)));
+        if (down == _modifierKeysDown[key]) continue;
+        _modifierKeysDown[key] = down;
+        state &= ~mask;
+        for (unsigned int other = 0; other < 256; ++other)
+            if (_modifierKeysDown[other]) state |= rclolModifierMask(other);
+        [self postModifierKey:key state:state window:delegate];
+    }
+}
+
 - (void) postXEvent: (XEvent *) ev {
     id event = nil;
     NSEventType type;
     X11Window* window = (X11Window*) [self windowForID: ev->xany.window];
 
     id delegate = [window delegate];
+    static int inputTrace = -1;
+    if (inputTrace < 0) inputTrace = getenv("RCLOL_INPUT_TRACE") != NULL;
+    if (inputTrace && (ev->type == KeyPress || ev->type == KeyRelease || ev->type == ButtonPress))
+        NSLog(@"LOLINPUT X type=%d window=%lu mapped=%@ number=%ld", ev->type,
+            (unsigned long)ev->xany.window, [delegate class], (long)[delegate windowNumber]);
+
+    switch (ev->type) {
+    case MotionNotify:
+        rclolRootX = ev->xmotion.x_root;
+        rclolRootY = ev->xmotion.y_root;
+        rclolPointerState = ev->xmotion.state;
+        rclolPointerStamp = mach_absolute_time();
+        break;
+    case KeyPress: case KeyRelease: case ButtonPress: case ButtonRelease:
+    case EnterNotify: case LeaveNotify: case FocusIn: case FocusOut: case KeymapNotify:
+        rclolPointerStamp = rclolModsStamp = 0;
+        break;
+    default:
+        break;
+    }
 
     switch (ev->type) {
     case KeyPress:
     case KeyRelease:;
 
+        unsigned int key = ev->xkey.keycode;
+        unsigned int mask = rclolModifierMask(key);
+        if (mask || key == 66) {
+            unsigned int state = ev->xkey.state;
+            if (key == 66) {
+                if (ev->type == KeyPress) state ^= LockMask;
+            } else {
+                _modifierKeysDown[key] = ev->type == KeyPress;
+                state &= ~mask;
+                for (unsigned int other = 0; other < 256; ++other)
+                    if (_modifierKeysDown[other]) state |= rclolModifierMask(other);
+            }
+            [self postModifierKey:key state:state window:delegate];
+            break;
+        }
         NSEventModifierFlags modifierFlags = [self modifierFlagsForState: ev->xkey.state];
         char buf[20] = {0};
         KeySym keySym;
@@ -1036,6 +1284,18 @@ static NSDictionary *modeInfoToDictionary(const XRRModeInfo *mi, int depth) {
             // Xutf8LookupString() may not be used with KeyRelease
             strLen = XLookupString((XKeyEvent*) ev, buf, sizeof(buf) - 1, &keySym, NULL);
             buf[strLen] = 0;
+        }
+
+        /* Host clipboard shortcuts use Control; the guest app expects Command.
+         * Preserve other Control bindings, AltGr and explicit Super shortcuts. */
+        if ((modifierFlags & NSControlKeyMask) &&
+            !(modifierFlags & (NSCommandKeyMask | NSAlternateKeyMask)) &&
+            (keySym == XK_v || keySym == XK_V || keySym == XK_c ||
+             keySym == XK_C || keySym == XK_x || keySym == XK_X)) {
+            modifierFlags = (modifierFlags & ~NSControlKeyMask) | NSCommandKeyMask;
+            buf[0] = (char) ((keySym >= XK_A && keySym <= XK_Z) ?
+                            keySym - XK_A + 'a' : keySym);
+            buf[1] = 0;
         }
 
         id str = [[NSString alloc] initWithCString: buf
@@ -1077,6 +1337,29 @@ static NSDictionary *modeInfoToDictionary(const XRRModeInfo *mi, int depth) {
         break;
 
     case ButtonPress:;
+        if (ev->xbutton.button >= Button4 && ev->xbutton.button <= 7) {
+            pos = [window transformPoint:NSMakePoint(ev->xbutton.x, ev->xbutton.y)];
+            CGFloat wheelX = ev->xbutton.button == 6 ? 1.0 :
+                ev->xbutton.button == 7 ? -1.0 : 0.0;
+            CGFloat wheelY = ev->xbutton.button == Button4 ? 1.0 :
+                ev->xbutton.button == Button5 ? -1.0 : 0.0;
+            static int scrollLines;
+            if (!scrollLines) {
+                const char *setting = getenv("RCLOL_SCROLL_SPEED");
+                int requested = setting ? atoi(setting) : 3;
+                scrollLines = requested >= 1 && requested <= 20 ? requested : 3;
+            }
+            wheelX *= scrollLines; wheelY *= scrollLines;
+            event = [NSEvent mouseEventWithType:NSScrollWheel location:pos
+                modifierFlags:[self modifierFlagsForState:ev->xbutton.state]
+                window:delegate clickCount:0 deltaX:wheelX deltaY:wheelY];
+            [self postEvent:event atStart:NO];
+            break;
+        }
+        if (ev->xbutton.button == Button2 || ev->xbutton.button >= 8) {
+            unsigned b = ev->xbutton.button == Button2 ? 2 : ev->xbutton.button - 5;
+            if (b < 32) _otherButtonsDown |= 1u << b;
+        }
         NSTimeInterval now = [[NSDate date] timeIntervalSinceReferenceDate];
 
         if (now - lastClickTimeStamp < [self doubleClickInterval]) {
@@ -1096,10 +1379,6 @@ static NSDictionary *modeInfoToDictionary(const XRRModeInfo *mi, int depth) {
         case Button3:
             type = NSRightMouseDown;
             break;
-        case Button4:
-        case Button5:
-            // Skip these, we'll send NSScrollWheel on release.
-            return;
         default:
             type = NSOtherMouseDown;
         }
@@ -1113,14 +1392,22 @@ static NSDictionary *modeInfoToDictionary(const XRRModeInfo *mi, int depth) {
                         clickCount: clickCount
                             deltaX: 0.0
                             deltaY: 0.0];
-        [(NSEvent_mouse *) event _setButtonNumber: ev->xbutton.button];
+        [(NSEvent_mouse *) event _setButtonNumber:
+            ev->xbutton.button == Button1 ? 0 : ev->xbutton.button == Button3 ? 1 :
+            ev->xbutton.button == Button2 ? 2 : ev->xbutton.button - 5];
         [self postEvent: event atStart: NO];
         break;
 
     case ButtonRelease:
+        // One scroll event per notch, sent on press; releases are not clicks.
+        if (ev->xbutton.button >= Button4 && ev->xbutton.button <= 7) break;
         pos = [window
                 transformPoint: NSMakePoint(ev->xbutton.x, ev->xbutton.y)];
 
+        if (ev->xbutton.button == Button2 || ev->xbutton.button >= 8) {
+            unsigned b = ev->xbutton.button == Button2 ? 2 : ev->xbutton.button - 5;
+            if (b < 32) _otherButtonsDown &= ~(1u << b);
+        }
         CGFloat deltaY = 0.0;
 
         switch (ev->xbutton.button) {
@@ -1129,14 +1416,6 @@ static NSDictionary *modeInfoToDictionary(const XRRModeInfo *mi, int depth) {
             break;
         case Button3:
             type = NSRightMouseUp;
-            break;
-        case Button4:
-            type = NSScrollWheel;
-            deltaY = 1.0;
-            break;
-        case Button5:
-            type = NSScrollWheel;
-            deltaY = -1.0;
             break;
         default:
             type = NSOtherMouseUp;
@@ -1151,11 +1430,14 @@ static NSDictionary *modeInfoToDictionary(const XRRModeInfo *mi, int depth) {
                         clickCount: clickCount
                             deltaX: 0.0
                             deltaY: deltaY];
-        [event _setButtonNumber: ev->xbutton.button];
+        [event _setButtonNumber:
+            ev->xbutton.button == Button1 ? 0 : ev->xbutton.button == Button3 ? 1 :
+            ev->xbutton.button == Button2 ? 2 : ev->xbutton.button - 5];
         [self postEvent: event atStart: NO];
         break;
 
     case MotionNotify:; {
+            [NSCursor _unhideOnMouseMove];
             // NSLog(@"MotionNotify, x=%d, y=%d, xroot=%d, yroot=%d\n",
             // ev->xmotion.x, ev->xmotion.y, ev->xmotion.x_root,
             // ev->xmotion.y_root);
@@ -1195,14 +1477,28 @@ static NSDictionary *modeInfoToDictionary(const XRRModeInfo *mi, int depth) {
 
             if (ev->xmotion.state & Button1Mask) {
                 type = NSLeftMouseDragged;
-            } else if (ev->xmotion.state & Button2Mask) {
+            } else if (ev->xmotion.state & Button3Mask) {
                 type = NSRightMouseDragged;
+            } else if ((ev->xmotion.state & Button2Mask) || _otherButtonsDown) {
+                type = NSOtherMouseDragged;
             }
 
-            if (type == NSMouseMoved && ![delegate acceptsMouseMovedEvents])
-                break;
+            if (inputTrace) {
+                static NSTimeInterval lastMotionTrace;
+                NSTimeInterval now = [NSDate timeIntervalSinceReferenceDate];
+                if (now - lastMotionTrace >= 1.0) {
+                    lastMotionTrace = now;
+                    NSLog(@"LOLINPUT motion window=%lu mapped=%@ pos=%.0f,%.0f delta=%.0f,%.0f state=%u grabbed=%d forward=%d",
+                        (unsigned long)ev->xany.window, [delegate class],
+                        pos.x, pos.y, deltaX, deltaY, ev->xmotion.state,
+                        _cursorGrabbed, type != NSMouseMoved || [delegate acceptsMouseMovedEvents] ||
+                        getenv("RCLOL_FORWARD_MOUSE_MOVED") != NULL);
+                }
+            }
 
-            event = [NSEvent
+            if (type != NSMouseMoved || [delegate acceptsMouseMovedEvents] ||
+                getenv("RCLOL_FORWARD_MOUSE_MOVED")) {
+              event = [NSEvent
                     mouseEventWithType: type
                               location: pos
                          modifierFlags:
@@ -1211,25 +1507,40 @@ static NSDictionary *modeInfoToDictionary(const XRRModeInfo *mi, int depth) {
                             clickCount: 1
                                 deltaX: deltaX
                                 deltaY: deltaY];
+            if (type == NSOtherMouseDragged) {
+                unsigned buttons = _otherButtonsDown | ((ev->xmotion.state & Button2Mask) ? 4u : 0u);
+                [event _setButtonNumber: __builtin_ctz(buttons)];
+            }
             [self postEvent: event atStart: NO];
-            [self discardEventsMatchingMask: NSLeftMouseDraggedMask
+            [self discardEventsMatchingMask: NSEventMaskFromType(type)
                                 beforeEvent: event];
+            }
 
+            /* Tracking areas need motion even when the window doesn't ask
+             * for general mouseMoved events (Chromium uses this mode). */
             [delegate platformWindowSetCursorEvent: window];
             break;
         }
 
     case EnterNotify:
+        [self updateMouseConfinementForWindow:window];
         NSLog(@"EnterNotify");
         if (!_cursorGrabbed)
             [window setLastKnownCursorPosition:
                             [window transformPoint: NSMakePoint(
                                                             ev->xcrossing.x,
                                                             ev->xcrossing.y)]];
+        if (!_cursorGrabbed && ev->xcrossing.detail != NotifyInferior)
+            [delegate platformWindowSetCursorEvent: window];
         break;
 
     case LeaveNotify:
         NSLog(@"LeaveNotify");
+        if (!_cursorGrabbed && ev->xcrossing.detail != NotifyInferior) {
+            [window setLastKnownCursorPosition:
+                [window transformPoint: NSMakePoint(ev->xcrossing.x, ev->xcrossing.y)]];
+            [delegate platformWindowSetCursorEvent: window];
+        }
         break;
 
     case FocusIn:
@@ -1243,28 +1554,42 @@ static NSDictionary *modeInfoToDictionary(const XRRModeInfo *mi, int depth) {
                                  checkForAppDeactivation: NO];
             lastFocusedWindow = nil;
         }
+        char modifierKeys[32];
+        XQueryKeymap(_display, modifierKeys);
+        [self reconcileModifierKeys:modifierKeys window:delegate];
         [delegate platformWindowActivated: window displayIfNeeded: YES];
         lastFocusedWindow = delegate;
         if (window != nil)
             XSetICFocus(window->_xic);
+        [self updateMouseConfinementForWindow:window];
         break;
 
     case FocusOut:
         NSLog(@"FocusOut");
+        [self reconcileModifierKeys:NULL window:delegate];
+        _lastKeySym = 0;
         [delegate platformWindowDeactivated: window
                     checkForAppDeactivation: NO];
         lastFocusedWindow = nil;
         if (_cursorGrabbed)
             [self grabMouse: NO];
+        if (_confinedWindow) {
+            XUngrabPointer(_display, CurrentTime);
+            _confinedWindow = None;
+        }
+        _otherButtonsDown = 0;
         if (window != nil)
             XUnsetICFocus(window->_xic);
         break;
 
     case KeymapNotify:
         NSLog(@"KeymapNotify");
+        [self reconcileModifierKeys:ev->xkeymap.key_vector window:lastFocusedWindow];
         break;
 
     case Expose:;
+        if ([window handleRemoteFrameExpose: ev->xany.window])
+            break;
         O2Rect rect = NSMakeRect(ev->xexpose.x, ev->xexpose.y,
                                  ev->xexpose.width, ev->xexpose.height);
 
@@ -1301,11 +1626,20 @@ static NSDictionary *modeInfoToDictionary(const XRRModeInfo *mi, int depth) {
         break;
 
     case UnmapNotify:
-        NSLog(@"UnmapNotify");
-        break;
-
     case MapNotify:
-        NSLog(@"MapNotify");
+        /* Map state belongs to the top-level native window. Remote frame and
+         * GL children must not change its Cocoa visibility or occlusion state. */
+        if(window && ev->xany.window == [window windowHandle] &&
+           [delegate respondsToSelector: @selector(_setVisible:)]) {
+            BOOL visible = ev->type == MapNotify;
+            [self updateMouseConfinementForWindow:window];
+            if([delegate isVisible] != visible) {
+                [delegate _setVisible: visible];
+                [[NSNotificationCenter defaultCenter]
+                    postNotificationName: NSWindowDidChangeOcclusionStateNotification
+                    object: delegate];
+            }
+        }
         break;
 
     case MapRequest:
@@ -1321,6 +1655,7 @@ static NSDictionary *modeInfoToDictionary(const XRRModeInfo *mi, int depth) {
         [delegate platformWindow: window
                     frameChanged: [window frame]
                          didSize: YES];
+        [self updateMouseConfinementForWindow:window];
         break;
 
     case ConfigureRequest:
@@ -1344,6 +1679,8 @@ static NSDictionary *modeInfoToDictionary(const XRRModeInfo *mi, int depth) {
         break;
 
     case PropertyNotify:
+        if (ev->xproperty.atom == XInternAtom(_display, "_NET_WM_STATE", False))
+            [self updateMouseConfinementForWindow:window];
         if ([window respondsToSelector: @selector(propertyNotify:)]) {
             [window propertyNotify: &ev->xproperty];
         }
@@ -1483,6 +1820,64 @@ void CGNativeBorderFrameWidthsForStyle(NSUInteger styleMask, CGFloat *top,
     XSync(_display, False);
 }
 
+/* Confinement preserves absolute motion and edge panning. Relative-mode
+ * capture remains separate: it deliberately warps to the center. */
+- (void) updateMouseConfinementForWindow:(X11Window *)window {
+    if (getenv("RCLOL_INPUT_TRACE")) fprintf(stderr,"CONFINEMENT check window=%p delegate=%p focused=%p relative=%d\n",window,[window delegate],lastFocusedWindow,_cursorGrabbed);
+    if (!window || _cursorGrabbed) return;
+    Window win = [window windowHandle];
+    Window focus; int revert;
+    XGetInputFocus(_display, &focus, &revert);
+    Window ancestor = focus;
+    while (ancestor != win && ancestor != None && ancestor != PointerRoot && ancestor != DefaultRootWindow(_display)) {
+        Window root, parent, *children=NULL; unsigned nchildren;
+        if (!XQueryTree(_display, ancestor, &root, &parent, &children, &nchildren)) break;
+        if (children) XFree(children);
+        ancestor=parent;
+    }
+    if (getenv("RCLOL_INPUT_TRACE")) fprintf(stderr,"CONFINEMENT focus=%lu target=%lu ancestor=%lu\n",focus,win,ancestor);
+    if (ancestor != win) return;
+    XWindowAttributes attrs;
+    if (!XGetWindowAttributes(_display, win, &attrs)) return;
+    BOOL fullscreen = NO;
+    Atom actual; int format; unsigned long count, remaining; unsigned char *data = NULL;
+    Atom state = XInternAtom(_display, "_NET_WM_STATE", False);
+    Atom fs = XInternAtom(_display, "_NET_WM_STATE_FULLSCREEN", False);
+    if (XGetWindowProperty(_display, win, state, 0, 64, False, XA_ATOM,
+        &actual, &format, &count, &remaining, &data) == Success && format == 32) {
+        for (unsigned long i=0; i<count; ++i) if (((Atom *)data)[i] == fs) fullscreen = YES;
+    }
+    if (data) XFree(data);
+    /* League's borderless fullscreen does not set the EWMH fullscreen bit.
+     * Recognize a borderless window covering one monitor, including monitor 2. */
+    if (!fullscreen && !([[window delegate] styleMask] & NSTitledWindowMask)) {
+        Window child; int x, y;
+        XTranslateCoordinates(_display, win, DefaultRootWindow(_display), 0, 0, &x, &y, &child);
+        XRRScreenResources *resources = XRRGetScreenResourcesCurrent(_display, DefaultRootWindow(_display));
+        if (resources) {
+            for (int i=0; i<resources->ncrtc; ++i) {
+                XRRCrtcInfo *crtc = XRRGetCrtcInfo(_display, resources, resources->crtcs[i]);
+                if (crtc) {
+                    if (crtc->mode && abs(x-crtc->x)<=2 && abs(y-crtc->y)<=2 &&
+                        abs(attrs.width-(int)crtc->width)<=2 && abs(attrs.height-(int)crtc->height)<=2) fullscreen=YES;
+                    XRRFreeCrtcInfo(crtc);
+                }
+            }
+            XRRFreeScreenResources(resources);
+        }
+    }
+    if (!fullscreen || attrs.map_state != IsViewable) {
+        if (_confinedWindow == win) { XUngrabPointer(_display, CurrentTime); _confinedWindow=None; }
+        return;
+    }
+    if (_confinedWindow == win) return;
+    unsigned mask = ButtonPressMask | ButtonReleaseMask | PointerMotionMask;
+    int status=XGrabPointer(_display, win, True, mask, GrabModeAsync, GrabModeAsync,
+        win, None, CurrentTime);
+    if (getenv("RCLOL_INPUT_TRACE")) fprintf(stderr,"CONFINEMENT fullscreen=%d window=%lu result=%d\n",fullscreen,win,status);
+    if (status == GrabSuccess) _confinedWindow=win;
+}
+
 - (void) grabMouse: (BOOL) doGrab {
     if (doGrab) {
         NSWindow *nswin = [NSApp keyWindow];
@@ -1495,9 +1890,10 @@ void CGNativeBorderFrameWidthsForStyle(NSUInteger styleMask, CGFloat *top,
         const unsigned int mask = ButtonPressMask | ButtonReleaseMask |
                                   PointerMotionMask | FocusChangeMask;
         int result = XGrabPointer(_display, win, False, mask, GrabModeAsync,
-                                  GrabModeAsync, None, None, CurrentTime);
+                                  GrabModeAsync, win, None, CurrentTime);
         if (result == GrabSuccess) {
             _cursorGrabbed = YES;
+            _confinedWindow = None;
             NSLog(@"XGrabPointer() succeeded for window %lu\n", win);
 
             NSRect frame = [xwin transformFrame: nswin.frame];
@@ -1522,6 +1918,9 @@ void CGNativeBorderFrameWidthsForStyle(NSUInteger styleMask, CGFloat *top,
     } else {
         XUngrabPointer(_display, CurrentTime);
         _cursorGrabbed = NO;
+        _confinedWindow = None;
+        NSWindow *nswin = [NSApp keyWindow];
+        if (nswin) [self updateMouseConfinementForWindow:(X11Window *)[nswin platformWindow]];
     }
     XSync(_display, False);
 }

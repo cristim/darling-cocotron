@@ -79,6 +79,7 @@ typedef enum {
 + (NSFont *) messageFontOfSize: (CGFloat) size;
 + (NSFont *) paletteFontOfSize: (CGFloat) size;
 + (NSFont *) systemFontOfSize: (CGFloat) size;
++ (NSFont *) systemFontOfSize: (CGFloat) size weight: (CGFloat) weight;
 + (NSFont *) titleBarFontOfSize: (CGFloat) size;
 + (NSFont *) toolTipsFontOfSize: (CGFloat) size;
 + (NSFont *) userFontOfSize: (CGFloat) size;
@@ -98,6 +99,7 @@ typedef enum {
 + (NSArray *) preferredFontNames;
 + (void) setPreferredFontNames: (NSArray *) fontNames;
 
+- (CTFontRef) _coreTextFont;
 - (CGFloat) pointSize;
 - (NSString *) fontName;
 - (const CGFloat *) matrix;
@@ -112,6 +114,9 @@ typedef enum {
 - (NSFont *) printerFont;
 - (NSFont *) screenFont;
 - (NSFont *) screenFontWithRenderingMode: (NSFontRenderingMode) mode;
+
+/* CoreText bridge used when an NSFont is accepted as a CTFontRef. */
+- (CGFontRef) copyGraphicsFont;
 
 - (NSRect) boundingRectForFont;
 - (NSRect) boundingRectForGlyph: (NSGlyph) glyph;

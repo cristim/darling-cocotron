@@ -13,6 +13,8 @@ NSString *const NSAccessibilityEnabledAttribute =
         @"NSAccessibilityEnabledAttribute";
 NSString *const NSAccessibilityFocusedAttribute =
         @"NSAccessibilityFocusedAttribute";
+NSString *const NSAccessibilityRequiredAttribute =
+        @"AXRequired";
 NSString *const NSAccessibilityHelpAttribute = @"NSAccessibilityHelpAttribute";
 NSString *const NSAccessibilityMaxValueAttribute =
         @"NSAccessibilityMaxValueAttribute";

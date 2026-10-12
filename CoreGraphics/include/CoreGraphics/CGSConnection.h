@@ -38,6 +38,10 @@
 -(CGSWindow*) newWindow:(CGSRegionRef)region;
 -(CGError) destroyWindow:(CGSWindowID)winId;
 
+// Top-level windows of all clients of the display server, front to back, described with the
+// kCGWindow* keys. Backends that cannot enumerate windows return an empty array.
+-(NSArray<NSDictionary*>*) copyWindowDescriptions;
+
 // Mouse location in CG coordinates, i.e. relative to the upper left corner
 -(CGPoint) mouseLocation;
 

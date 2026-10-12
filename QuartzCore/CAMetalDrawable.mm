@@ -401,6 +401,10 @@ CAMetalDrawableTexture::CAMetalDrawableTexture(CGSize size, Indium::PixelFormat 
 	glTextureParameteri(_textureID, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTextureParameteri(_textureID, GL_TEXTURE_WRAP_S, GL_REPEAT);
 	glTextureParameteri(_textureID, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	// A Metal layer is opaque: macOS ignores the drawable's alpha channel. The game's blended effects lower destination
+	// alpha as a side effect, and the layer compositor (CARenderer: blending plus an alpha test against 0, over a
+	// cleared-to-black window) then showed those regions as black quads. Always present alpha = 1.
+	glTextureParameteri(_textureID, GL_TEXTURE_SWIZZLE_A, GL_ONE);
 	reportGLErrors();
 
 	glTextureStorageMem2DEXT(_textureID, 1, GL_RGBA8, _size.width, _size.height, _memoryObject, 0);
@@ -605,35 +609,16 @@ void CAMetalDrawableActual::present() {
 			return;
 		}
 
-		[layer queuePresent: _drawableID];
 
 		_semaphore = _texture->synchronizePresentation();
 
-		if (_semaphore) {
-			int fd = -1;
-			VkSemaphoreGetFdInfoKHR info {};
+        // present() may run on the deferred encoding worker. The window's
+        // EGL context remains current on the main thread, so attempting to
+        // import a semaphore here fails and leaks the exported syncobj FD.
+        // Import it in synchronizeRender(), with the compositor context
+        // current, immediately before the GPU-side wait.
 
-			info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_GET_FD_INFO_KHR;
-			info.semaphore = _semaphore->semaphore;
-			info.handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT;
-
-			if (DynamicVK::vkGetSemaphoreFdKHR(_semaphore->device->device(), &info, &fd) != VK_SUCCESS) {
-				// TODO
-				abort();
-			}
-
-			CGLContextObj prev = CGLGetCurrentContext();
-			CGLSetCurrentContext(_glContext);
-
-			reportGLErrors();
-			glGenSemaphoresEXT(1, &_glSemaphore);
-			reportGLErrors();
-			glImportSemaphoreFdEXT(_glSemaphore, GL_HANDLE_TYPE_OPAQUE_FD_EXT, fd); // this consumes the FD
-			fd = -1;
-			reportGLErrors();
-
-			CGLSetCurrentContext(prev);
-		}
+        [layer queuePresent: _drawableID];
 	}
 }
 
@@ -702,9 +687,24 @@ void CAMetalDrawableActual::reset() {
 };
 
 void CAMetalDrawableActual::synchronizeRender() {
-	GLuint tex = _texture->glTexture();
-	GLenum layout = GL_LAYOUT_GENERAL_EXT;
-	glWaitSemaphoreEXT(_glSemaphore, 0, NULL, 1, &tex, &layout);
+    if (!_semaphore) return;
+    if (_glSemaphore == 0) {
+        // prepareRender() has made the layer's GL context current on this
+        // thread. Never try to steal it from the submission worker.
+        glGenSemaphoresEXT(1, &_glSemaphore);
+        if (_glSemaphore == 0) abort();
+        int fd = -1;
+        VkSemaphoreGetFdInfoKHR info {};
+        info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_GET_FD_INFO_KHR;
+        info.semaphore = _semaphore->semaphore;
+        info.handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT;
+        if (DynamicVK::vkGetSemaphoreFdKHR(_semaphore->device->device(), &info, &fd) != VK_SUCCESS) abort();
+        glImportSemaphoreFdEXT(_glSemaphore, GL_HANDLE_TYPE_OPAQUE_FD_EXT, fd);
+        // A successful import transfers the native FD to the GL driver.
+    }
+    GLuint tex = _texture->glTexture();
+    GLenum layout = GL_LAYOUT_GENERAL_EXT;
+    glWaitSemaphoreEXT(_glSemaphore, 0, NULL, 1, &tex, &layout);
 };
 
 static void glDebugCallback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar* message, const void* context) {

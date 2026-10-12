@@ -101,6 +101,47 @@ CGError CGSSetWindowTitle(CGSConnectionID cid, CGSWindowID wid,
     return CGSSetWindowProperty(cid, wid, kCGSWindowTitle, title);
 }
 
+// Windows of every client of the display server, front to back. The option and the reference
+// window select the same subsets as on macOS.
+CFArrayRef __nullable CGWindowListCopyWindowInfo(CGWindowListOption option, CGWindowID relativeToWindow)
+{
+	CGSConnection* connection = _CGSConnectionForID(_CGSDefaultConnection());
+	NSArray<NSDictionary*>* all = connection ? [connection copyWindowDescriptions] : [[NSArray alloc] init];
+	NSMutableArray<NSDictionary*>* selected = [[NSMutableArray alloc] init];
+
+	NSInteger referenceIndex = NSNotFound;
+	for (NSUInteger i = 0; i < [all count]; i++)
+	{
+		if ([all[i][(NSString*) kCGWindowNumber] unsignedIntValue] == relativeToWindow)
+			referenceIndex = i;
+	}
+
+	for (NSUInteger i = 0; i < [all count]; i++)
+	{
+		NSDictionary* window = all[i];
+		BOOL isReference = (NSInteger) i == referenceIndex;
+		BOOL haveReference = referenceIndex != NSNotFound;
+		BOOL include = YES;
+
+		if ((option & kCGWindowListOptionOnScreenOnly) && ![window[(NSString*) kCGWindowIsOnscreen] boolValue])
+			continue;
+
+		// The list is front to back: earlier entries are above the reference window
+		if (option & kCGWindowListOptionOnScreenAboveWindow)
+			include = (haveReference && (NSInteger) i < referenceIndex) || ((option & kCGWindowListOptionIncludingWindow) && isReference);
+		else if (option & kCGWindowListOptionOnScreenBelowWindow)
+			include = (haveReference && (NSInteger) i > referenceIndex) || ((option & kCGWindowListOptionIncludingWindow) && isReference);
+		else if (option & kCGWindowListOptionIncludingWindow)
+			include = isReference;
+
+		if (include)
+			[selected addObject: window];
+	}
+
+	[all release];
+	return (CFArrayRef) selected;
+}
+
 CFArrayRef __nullable CGWindowListCreate(CGWindowListOption option, CGWindowID relativeToWindow)
 {
     printf("STUB %s\n", __PRETTY_FUNCTION__);

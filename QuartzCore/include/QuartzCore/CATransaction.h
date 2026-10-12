@@ -10,6 +10,23 @@ CA_EXPORT NSString *const kCATransactionCompletionBlock;
 
 @interface CATransaction : NSObject
 
+/* darling-lol M57: Chromium schedules post-commit work with
+ * +[CATransaction addCommitHandler:forPhase:]; Cocotron did not implement it,
+ * so the UX aborted with an unrecognized-selector NSException right after
+ * createWindow(). The phase constants match macOS. */
+typedef NSInteger CATransactionPhase;
+enum {
+    kCATransactionPhasePreLayout = 0,
+    kCATransactionPhasePreCommit = 1,
+    kCATransactionPhasePostCommit = 2,
+};
+
++ (void) addCommitHandler: (void (^)(void)) handler
+                 forPhase: (CATransactionPhase) phase;
+
++ (void) setCompletionBlock: (void (^)(void)) block;
++ (void (^)(void)) completionBlock;
+
 + (BOOL) disableActions;
 + (CFTimeInterval) animationDuration;
 + (CAMediaTimingFunction *) animationTimingFunction;

@@ -188,6 +188,16 @@ APPKIT_EXPORT const NSNotificationName NSWindowDidExposeNotification;
     int _cursorRectsDisabled;
     int _flushDisabled;
 
+    /* darling-lol M57: modern AppKit window properties Chromium reads. */
+    BOOL _titlebarAppearsTransparent;
+    NSInteger _titleVisibility;
+    BOOL _restorable;
+    NSString *_subtitle;
+    NSInteger _tabbingMode;
+    NSString *_tabbingIdentifier;
+    NSInteger _titlebarSeparatorStyle;
+    NSInteger _toolbarStyle;
+
     BOOL _isOpaque;
     BOOL _isVisible;
     BOOL _isDocumentEdited;
@@ -217,6 +227,7 @@ APPKIT_EXPORT const NSNotificationName NSWindowDidExposeNotification;
     BOOL _showsToolbarButton;
     BOOL _ignoresMouseEvents;
     BOOL _isMovableByWindowBackground;
+    BOOL _isMovable;
     BOOL _allowsToolTipsWhenApplicationIsInactive;
     BOOL _defaultButtonCellKeyEquivalentDisabled;
     BOOL _autorecalculatesKeyViewLoop;
@@ -240,6 +251,7 @@ APPKIT_EXPORT const NSNotificationName NSWindowDidExposeNotification;
     NSMutableArray *_drawers;
     NSToolbar *_toolbar;
     NSWindowAnimationContext *_animationContext;
+	NSButton *_standardWindowButtons[3];
 
     NSRect _savedFrame;
     NSPoint _mouseDownLocationInWindow;
@@ -425,6 +437,7 @@ APPKIT_EXPORT const NSNotificationName NSWindowDidExposeNotification;
 - (NSButton *) standardWindowButton: (NSWindowButton) value;
 - (NSButtonCell *) defaultButtonCell;
 - (NSWindow *) attachedSheet;
+- (NSWindow *) sheetParent;
 
 - (id) windowController;
 - (NSArray *) drawers;
@@ -450,6 +463,7 @@ APPKIT_EXPORT const NSNotificationName NSWindowDidExposeNotification;
 - (BOOL) isMainWindow;
 - (BOOL) isMiniaturized;
 - (BOOL) isMovable;
+- (void) performWindowDragWithEvent:(NSEvent *)event;
 - (BOOL) inLiveResize;
 - (BOOL) canBecomeKeyWindow;
 - (BOOL) canBecomeMainWindow;
@@ -458,6 +472,30 @@ APPKIT_EXPORT const NSNotificationName NSWindowDidExposeNotification;
 
 - (NSPoint) convertBaseToScreen: (NSPoint) point;
 - (NSPoint) convertScreenToBase: (NSPoint) point;
+- (NSPoint) convertPointToScreen: (NSPoint) point;
+- (NSPoint) convertPointFromScreen: (NSPoint) point;
+- (NSRect) convertRectToScreen: (NSRect) rect;
+- (NSRect) convertRectFromScreen: (NSRect) rect;
+
+- (BOOL) titlebarAppearsTransparent;
+- (void) setTitlebarAppearsTransparent: (BOOL) value;
+- (NSInteger) titleVisibility;
+- (void) setTitleVisibility: (NSInteger) value;
+- (BOOL) movableByWindowBackground;
+- (NSUInteger) occlusionState;
+- (BOOL) isRestorable;
+- (BOOL) restorable;
+- (void) setRestorable: (BOOL) value;
+- (NSString *) subtitle;
+- (void) setSubtitle: (NSString *) value;
+- (NSInteger) tabbingMode;
+- (void) setTabbingMode: (NSInteger) value;
+- (NSString *) tabbingIdentifier;
+- (void) setTabbingIdentifier: (NSString *) value;
+- (NSInteger) titlebarSeparatorStyle;
+- (void) setTitlebarSeparatorStyle: (NSInteger) value;
+- (NSInteger) toolbarStyle;
+- (void) setToolbarStyle: (NSInteger) value;
 
 - (NSRect) frameRectForContentRect: (NSRect) rect;
 - (NSRect) contentRectForFrameRect: (NSRect) rect;

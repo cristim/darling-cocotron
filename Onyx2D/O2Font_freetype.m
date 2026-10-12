@@ -4,6 +4,55 @@
 
 @implementation O2Font_freetype
 
+- (NSString *) copyPostScriptName {
+    const char *name = FT_Get_Postscript_Name(_face);
+    return name ? [[NSString alloc] initWithUTF8String:name] : [super copyPostScriptName];
+}
+
+- (NSString *) copyFamilyName {
+    return _face->family_name ? [[NSString alloc] initWithUTF8String:_face->family_name] : [super copyFamilyName];
+}
+
+- (NSArray *) copyTableTags {
+    NSMutableArray *tags = [[NSMutableArray alloc] init];
+    @synchronized(self) {
+        for (FT_UInt index = 0; ; ++index) {
+            FT_ULong tag, length;
+            if (FT_Sfnt_Table_Info(_face, index, &tag, &length) != 0)
+                break;
+            [tags addObject:[NSNumber numberWithUnsignedLong:tag]];
+        }
+    }
+    return tags;
+}
+
+
+- (O2Rect) boundingRectForGlyph: (O2Glyph) glyph {
+    @synchronized(self) {
+        if (FT_Load_Glyph(_face, glyph, FT_LOAD_NO_SCALE | FT_LOAD_IGNORE_TRANSFORM) != 0)
+            return O2RectMake(0, 0, 0, 0);
+        FT_Glyph_Metrics metrics = _face->glyph->metrics;
+        return O2RectMake(metrics.horiBearingX, metrics.horiBearingY - metrics.height,
+                metrics.width, metrics.height);
+    }
+}
+
+- (NSData *) copyTableForTag: (uint32_t) tag {
+    FT_ULong length = 0;
+    if (FT_Load_Sfnt_Table(_face, tag, 0, NULL, &length) != 0 || length == 0)
+        return nil;
+    unsigned char *bytes = malloc(length);
+    if (!bytes)
+        return nil;
+    if (FT_Load_Sfnt_Table(_face, tag, 0, bytes, &length) != 0) {
+        free(bytes);
+        return nil;
+    }
+    NSData *result = [[NSData alloc] initWithBytes:bytes length:length];
+    free(bytes);
+    return result;
+}
+
 #ifdef DARLING
 
 O2FontRef O2FontCreateWithFontName_platform(NSString *name) {
@@ -208,6 +257,7 @@ FT_Face O2FontFreeTypeFace(O2Font_freetype *self) {
 }
 
 - (void) fetchAdvances {
+    @synchronized(self) {
     FT_Set_Char_Size(_face, 0, _unitsPerEm * 64, 72, 72);
 
     _advances = NSZoneMalloc(NULL, sizeof(NSInteger) * _numberOfGlyphs);
@@ -216,6 +266,7 @@ FT_Face O2FontFreeTypeFace(O2Font_freetype *self) {
         FT_Load_Glyph(_face, glyph, FT_LOAD_DEFAULT);
 
         _advances[glyph] = _face->glyph->advance.x / (O2Float)(2 << 5);
+    }
     }
 }
 

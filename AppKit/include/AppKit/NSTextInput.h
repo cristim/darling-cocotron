@@ -23,7 +23,17 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 APPKIT_EXPORT NSString *const NSTextInputContextKeyboardSelectionDidChangeNotification;
 
-@interface NSTextInputContext : NSObject
+@class NSEvent;
+@interface NSTextInputContext : NSObject {
+    id _client;
+}
+- (instancetype)initWithClient:(id)client;
+- (id)client;
+- (BOOL)handleEvent:(NSEvent *)event;
+- (void)activate;
+- (void)deactivate;
+- (void)discardMarkedText;
+- (void)invalidateCharacterCoordinates;
 
 @end
 

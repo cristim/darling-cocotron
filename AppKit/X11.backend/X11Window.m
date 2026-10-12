@@ -38,6 +38,34 @@
 #import "X11Window.h"
 #import <X11/Xatom.h>
 #import <X11/Xutil.h>
+#import <X11/extensions/shape.h>
+#include <fcntl.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <dirent.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <sys/mman.h>
+#include <dlfcn.h>
+#include <sys/signal.h>
+#include <errno.h>
+
+#define DARLING_CA_FRAME_MAGIC 0x43414652u
+#define DARLING_CA_FRAME_BUFFERED_MAGIC 0x43414632u
+static size_t framePayloadOffset(uint32_t magic, uint32_t format) {
+    return magic == DARLING_CA_FRAME_BUFFERED_MAGIC && (format & 0x40000000u)
+        ? 32u * 1024u * 1024u : 0;
+}
+typedef struct {
+    uint32_t magic;
+    volatile uint32_t sequence;
+    uint32_t width;
+    uint32_t height;
+    uint32_t bytesPerRow;
+    uint32_t pixelFormat;
+    uint64_t dataSize;
+} DarlingCARemoteFrame;
 
 @implementation X11Window
 
@@ -193,8 +221,13 @@ static NSData *makeWindowIcon() {
 
     XSetWindowAttributes xattr;
     unsigned long xattr_mask;
-    xattr.override_redirect =
-            _styleMask == NSBorderlessWindowMask ? True : False;
+    // A borderless game is still a focusable application window. Leaving it
+    // override-redirect makes XWayland bypass compositor keyboard activation.
+    // Menus and nonactivating popups keep their unmanaged behavior.
+    xattr.override_redirect = _styleMask == NSBorderlessWindowMask &&
+            ([delegate isKindOfClass:[NSMenuWindow class]] ||
+             [delegate isKindOfClass:[NSPopUpWindow class]] ||
+             ![delegate canBecomeKeyWindow]) ? True : False;
     xattr_mask = CWOverrideRedirect | CWColormap;
     xattr.colormap = cmap;
 
@@ -205,6 +238,12 @@ static NSData *makeWindowIcon() {
             InputOutput,
             (_visualInfo == NULL) ? CopyFromParent : _visualInfo->visual,
             xattr_mask, &xattr);
+
+    /* Keep Cocoa's process identifier available to cross-process activation. */
+    unsigned long windowPID = (unsigned long)getpid();
+    XChangeProperty(_display, _window, XInternAtom(_display, "_NET_WM_PID", False),
+                    XA_CARDINAL, 32, PropModeReplace,
+                    (unsigned char *)&windowPID, 1);
 
     [self syncDelegateProperties];
 
@@ -265,6 +304,11 @@ static NSData *makeWindowIcon() {
     [self setStyleMaskInternal: _styleMask force: YES];
 
     [self setWindowIcon];
+
+    /* Poll the host-visible remote CA frame on the AppKit/main runloop. */
+    _remoteFrameTimer = [[NSTimer scheduledTimerWithTimeInterval: 1.0 / 60.0
+        target: self selector: @selector(presentRemoteCAFrame:)
+        userInfo: nil repeats: YES] retain];
 
     return self;
 }
@@ -338,7 +382,6 @@ static NSData *makeWindowIcon() {
 }
 
 + (void) removeDecorationForWindow: (Window) w onDisplay: (Display *) dpy {
-    return;
     struct {
         unsigned long flags;
         unsigned long functions;
@@ -358,6 +401,7 @@ static NSData *makeWindowIcon() {
     if (!_mapped) {
         XMapWindow(_display, _window);
         _mapped = YES;
+        _remoteFrameTargetRefresh = 0;
     }
 }
 
@@ -377,14 +421,26 @@ static NSData *makeWindowIcon() {
 - (void) syncDelegateProperties {
     long mask = KeyPressMask | KeyReleaseMask | ExposureMask |
                 StructureNotifyMask | EnterWindowMask | LeaveWindowMask |
-                ButtonPressMask | ButtonReleaseMask | ButtonMotionMask |
-                VisibilityChangeMask | FocusChangeMask |
+                ButtonPressMask | ButtonReleaseMask | ButtonMotionMask | PointerMotionMask |
+                VisibilityChangeMask | FocusChangeMask | PropertyChangeMask |
                 SubstructureRedirectMask;
 
-    if ([_delegate acceptsMouseMovedEvents]) {
-        mask |= PointerMotionMask;
-    }
+    /* Motion also restores a cursor hidden while typing. App-level motion
+     * delivery is still filtered by acceptsMouseMovedEvents in X11Display. */
     XSelectInput(_display, _window, mask);
+
+    /* Mouse-transparent windows must not steal crossing events from the
+     * view below them. Filtering dispatched events leaves X11 hit testing
+     * unchanged and can repeatedly hide/recreate tooltip windows. */
+    if ([_delegate respondsToSelector: @selector(ignoresMouseEvents)]) {
+        if ([_delegate ignoresMouseEvents])
+            XShapeCombineRectangles(_display, _window, ShapeInput,
+                                    0, 0, NULL, 0, ShapeSet, Unsorted);
+        else
+            XShapeCombineMask(_display, _window, ShapeInput,
+                              0, 0, None, ShapeSet);
+        XFlush(_display);
+    }
 
     // TODO: background color
 }
@@ -393,6 +449,28 @@ static NSData *makeWindowIcon() {
     // This is essentially dealloc; we release our contexts
     // and windows, but unlike dealloc, this method can be called
     // several times, so set everything to nil/NULL/0.
+    [_remoteFrameTimer invalidate];
+    [_remoteFrameTimer release];
+    _remoteFrameTimer = nil;
+    if (_remoteFrameShm) {
+        _remoteFrameShmDestroy(_remoteFrameShm);
+        _remoteFrameShm = NULL;
+        _remoteFrameShmPumping = NO;
+    }
+    if (_remoteFrameMapping) {
+        munmap(_remoteFrameMapping, _remoteFrameMappingSize);
+        _remoteFrameMapping = NULL;
+        _remoteFrameMappingSize = 0;
+    }
+
+    if (_remoteFrameWindow) {
+        [(X11Display *) [NSDisplay currentDisplay] setWindow: nil forID: _remoteFrameWindow];
+        if (_remoteFrameGC) XFreeGC(_display, _remoteFrameGC);
+        XDestroyWindow(_display, _remoteFrameWindow);
+        _remoteFrameWindow = 0;
+        _remoteFrameGC = NULL;
+        _remoteFrameValid = NO;
+    }
     [_context release];
     _context = nil;
 
@@ -419,6 +497,379 @@ static NSData *makeWindowIcon() {
         XDestroyWindow(_display, _window);
         _window = 0;
     }
+}
+
+- (void) setRemoteFrameTimerSlow: (BOOL) slow {
+    if (_remoteFrameTimerSlow == slow) return;
+    _remoteFrameTimerSlow = slow;
+    [_remoteFrameTimer invalidate];
+    [_remoteFrameTimer release];
+    _remoteFrameTimer = [[NSTimer scheduledTimerWithTimeInterval: slow ? 0.25 : 1.0 / 60.0
+        target: self selector: @selector(presentRemoteCAFrame:)
+        userInfo: nil repeats: YES] retain];
+}
+
+- (BOOL) presentRemoteCAFrame: (NSTimer *) timer {
+    static unsigned char *pixels;
+    static size_t pixelCapacity;
+    if (!_mapped) return NO;
+    double now = CFAbsoluteTimeGetCurrent();
+    /* X geometry queries are synchronous round trips. Cache stable targets
+     * across animation ticks, invalidating on native resize/mapping changes. */
+    if (!_remoteFrameTargetCount || now >= _remoteFrameTargetRefresh) {
+        XWindowAttributes attributes;
+        if (!XGetWindowAttributes(_display, _window, &attributes) ||
+            attributes.map_state != IsViewable)
+            return NO;
+        _remoteFrameTargetCount = 1;
+        _remoteFrameTargets[0] = attributes;
+        Window root, parent, *children = NULL;
+        unsigned childCount = 0;
+        if (XQueryTree(_display, _window, &root, &parent, &children, &childCount)) {
+            for (unsigned i = 0; i < childCount && _remoteFrameTargetCount < 17; ++i)
+                if (children[i] != _remoteFrameWindow &&
+                    XGetWindowAttributes(_display, children[i],
+                        &_remoteFrameTargets[_remoteFrameTargetCount]))
+                    ++_remoteFrameTargetCount;
+        }
+        if (children) XFree(children);
+        _remoteFrameTargetRefresh = now + 1.0;
+    }
+    XWindowAttributes *frameTargets = _remoteFrameTargets;
+    unsigned frameTargetCount = _remoteFrameTargetCount;
+    DarlingCARemoteFrame before, after;
+    if (_remoteFrameValid && _remoteFrameMapping &&
+        (((DarlingCARemoteFrame *)_remoteFrameMapping)->sequence & 1)) {
+        XRaiseWindow(_display, _remoteFrameWindow);
+        XFlush(_display);
+        return YES;
+    }
+    /* darling-lol M58c diagnostic (opt-in via M58_PRES_TRACE): one character
+     * per event appended to /dev/shm/m58c-present-<pid> so the consumer's
+     * behavior can be observed from the host without guest logging noise.
+     * t=timer fired, s=no candidate slot, S=slot chosen, s=same sequence,
+     * b=blit performed, v=header validation failed. */
+    int (*_tputc)(int) = NULL;
+    (void) _tputc;
+    static FILE *tlog;
+    if (getenv("M58_PRES_TRACE")) {
+        if (!tlog) {
+            char tpath[128];
+            snprintf(tpath, sizeof(tpath),
+                "/dev/shm/m58c-present-%d", (int) getpid());
+            tlog = fopen(tpath, "a");
+        }
+        if (tlog) {
+            fputc('t', tlog);
+            fflush(tlog);
+        }
+    }
+    /* darling-lol M58c: the publisher side now writes one slot file per
+     * process (/dev/shm/darling-ca-frame-<uid>-<pid>) because concurrent
+     * publishers corrupt a shared slot's seqlock. Several processes publish
+     * same-size surfaces (measured: the browser's own surface is all black
+     * while the GPU's compositor output carries the real frame), so scan
+     * every publisher's slot and display the most recently updated one that
+     * actually contains pixels; an all-black frame is only used when nothing
+     * else is available. */
+    char path[128], bestPath[128], bestBlackPath[128];
+    /* A window no publisher has a slot for (a Metal game window never gets one) used to rescan /dev/shm on every
+     * 60 Hz tick: opendir, readdir and stat/open/pread/close per slot file on the main thread. */
+    if (!_remoteFrameMapping && now < _remoteFrameSelectionRefresh)
+        return _remoteFrameValid;
+    if (_remoteFrameMapping && now < _remoteFrameSelectionRefresh) {
+        snprintf(path, sizeof(path), "%s", _remoteFrameMappingPath);
+        goto selectedFrame;
+    }
+    _remoteFrameSelectionRefresh = now + 0.25;
+    bestPath[0] = bestBlackPath[0] = '\0';
+    uint64_t bestMtime = 0, bestBlackMtime = 0;
+    BOOL bestSoftware = NO;
+
+    char prefix[32];
+    snprintf(prefix, sizeof(prefix), "darling-ca-frame-%u-", getuid());
+    size_t prefixLen = strlen(prefix);
+    DIR *dir = opendir("/dev/shm");
+    if (dir) {
+        struct dirent *ent;
+        while ((ent = readdir(dir)) != NULL) {
+            if (strncmp(ent->d_name, prefix, prefixLen) != 0)
+                continue;
+            char candidate[128];
+            snprintf(candidate, sizeof(candidate), "/dev/shm/%s",
+                ent->d_name);
+            struct stat st;
+            if (stat(candidate, &st) != 0)
+                continue;
+            uint64_t updateTime = (uint64_t)st.st_mtimespec.tv_sec * 1000000000u +
+                                  st.st_mtimespec.tv_nsec;
+            DarlingCARemoteFrame head = {0};
+            int cfd = open(candidate, O_RDONLY);
+            if (cfd < 0)
+                continue;
+            BOOL ok = (pread(cfd, &head, sizeof(head), 0) == sizeof(head) &&
+                (head.magic == DARLING_CA_FRAME_MAGIC || head.magic == DARLING_CA_FRAME_BUFFERED_MAGIC) &&
+                !(head.sequence & 1) &&
+                head.width && head.height &&
+                head.bytesPerRow >= head.width * 4 &&
+                head.dataSize == (uint64_t)head.bytesPerRow * head.height &&
+                head.dataSize <= 64u * 1024u * 1024u);
+            close(cfd);
+            BOOL matchesWindow = NO;
+            for (unsigned i = 0; i < frameTargetCount; ++i)
+                if (head.width == (unsigned)frameTargets[i].width &&
+                    head.height == (unsigned)frameTargets[i].height)
+                    matchesWindow = YES;
+            if (!ok || !matchesWindow)
+                continue;
+
+            /* Peek the top rows to distinguish a rendered frame from an
+             * empty (all-zero) surface of the same size. */
+            BOOL hasPixels = NO;
+            size_t peekRows = head.height < 40 ? (size_t) head.height : 40;
+            size_t peekLen = peekRows * head.bytesPerRow;
+            unsigned char peek[40 * 4096];
+            if (peekLen > sizeof(peek))
+                peekLen = sizeof(peek);
+            int pfd = open(candidate, O_RDONLY);
+            if (pfd >= 0) {
+                if (pread(pfd, peek, peekLen, sizeof(head) + framePayloadOffset(head.magic, head.pixelFormat)) ==
+                    (ssize_t) peekLen) {
+                    for (size_t i = 0; i + 3 < peekLen; i += 4) {
+                        if (peek[i] | peek[i + 1] | peek[i + 2]) {
+                            hasPixels = YES;
+                            break;
+                        }
+                    }
+                }
+                close(pfd);
+            }
+
+            if (hasPixels) {
+                BOOL software = (head.pixelFormat & 0x80000000u) != 0;
+                if ((software && !bestSoftware) ||
+                    (software == bestSoftware && updateTime > bestMtime)) {
+                    bestSoftware = software;
+                    bestMtime = updateTime;
+                    snprintf(bestPath, sizeof(bestPath), "%s", candidate);
+                }
+            } else if (updateTime > bestBlackMtime) {
+                bestBlackMtime = updateTime;
+                snprintf(bestBlackPath, sizeof(bestBlackPath), "%s", candidate);
+            }
+        }
+        closedir(dir);
+    }
+
+    /* Keep the software compositor owner across its other window updates.
+     * Otherwise a temporary size mismatch selects stale browser readback. */
+    if (_remoteFrameSoftwarePublisher && _remoteFrameMapping && !bestSoftware) {
+        const char *pidText = strrchr(_remoteFrameMappingPath, '-');
+        int publisher = pidText ? atoi(pidText + 1) : 0;
+        if (publisher > 0 && (kill(publisher, 0) == 0 || errno != ESRCH)) {
+            snprintf(path, sizeof(path), "%s", _remoteFrameMappingPath);
+            goto selectedFrame;
+        }
+    }
+    if (bestPath[0] != '\0')
+        snprintf(path, sizeof(path), "%s", bestPath);
+    else if (bestBlackPath[0] != '\0')
+        snprintf(path, sizeof(path), "%s", bestBlackPath);
+    else {
+        /* A writer's odd sequence is a temporary gap, not a hidden window.
+         * Keep the last complete frame instead of exposing local GL pixels. */
+        if (tlog) { fputc('S', tlog); }
+        if (!_remoteFrameMapping) _remoteFrameSelectionRefresh = now + 0.5;
+        return _remoteFrameValid;
+    }
+
+    if (tlog) { fputc('S', tlog); }
+
+    /* Only the presentation child owns remote pixels. GL swaps in sibling
+     * views cannot clear it, so unchanged frames need no repeated pixel copy. */
+selectedFrame:
+    if (!_remoteFrameMapping || strcmp(_remoteFrameMappingPath, path)) {
+        int fd = open(path, O_RDONLY);
+        if (fd < 0) return _remoteFrameValid;
+        struct stat st;
+        if (fstat(fd, &st) || st.st_size < sizeof(before) ||
+            st.st_size > sizeof(before) + 64u * 1024u * 1024u) {
+            close(fd); return _remoteFrameValid;
+        }
+        void *mapping = mmap(NULL, st.st_size, PROT_READ, MAP_SHARED, fd, 0);
+        close(fd);
+        if (mapping == MAP_FAILED) return _remoteFrameValid;
+        if (_remoteFrameMapping) munmap(_remoteFrameMapping, _remoteFrameMappingSize);
+        _remoteFrameMapping = mapping;
+        _remoteFrameSoftwarePublisher = NO;
+        _remoteFrameMappingSize = st.st_size;
+        snprintf(_remoteFrameMappingPath, sizeof(_remoteFrameMappingPath), "%s", path);
+    }
+    memcpy(&before, _remoteFrameMapping, sizeof(before));
+    __sync_synchronize();
+    if ((before.magic != DARLING_CA_FRAME_MAGIC && before.magic != DARLING_CA_FRAME_BUFFERED_MAGIC) || (before.sequence & 1) ||
+        !before.width || !before.height || before.bytesPerRow < before.width * 4 ||
+        before.dataSize != (uint64_t)before.bytesPerRow * before.height ||
+        framePayloadOffset(before.magic, before.pixelFormat) > _remoteFrameMappingSize - sizeof(before) ||
+        before.dataSize > _remoteFrameMappingSize - sizeof(before) - framePayloadOffset(before.magic, before.pixelFormat))
+        return _remoteFrameValid;
+    if (before.pixelFormat & 0x80000000u) _remoteFrameSoftwarePublisher = YES;
+    BOOL matchesTarget = NO;
+    for (unsigned i = 0; i < frameTargetCount; ++i)
+        if (before.width == (unsigned)frameTargets[i].width &&
+            before.height == (unsigned)frameTargets[i].height) matchesTarget = YES;
+    /* A GPU process may publish several windows into its slot. Never resize
+     * our presentation child to another window's intervening surface. */
+    if (!matchesTarget) return _remoteFrameValid;
+    int frameX = 0, frameY = 0;
+    for (unsigned i = 0; i < frameTargetCount; ++i) {
+        if (before.width == (unsigned)frameTargets[i].width &&
+            before.height == (unsigned)frameTargets[i].height) {
+            if (i) { frameX = frameTargets[i].x; frameY = frameTargets[i].y; }
+            break;
+        }
+    }
+    if (_remoteFrameWindow)
+        XMoveWindow(_display, _remoteFrameWindow, frameX, frameY);
+    if (_remoteFrameShmPumping && _remoteFrameWidth == before.width &&
+        _remoteFrameHeight == before.height) {
+        _remoteFrameShmStart(_remoteFrameShm, _remoteFrameWindow, _remoteFrameGC, path);
+        if (!_remoteFrameValid)
+            _remoteFrameShmPut(_remoteFrameShm, _remoteFrameWindow, _remoteFrameGC, NULL, 0);
+        XRaiseWindow(_display, _remoteFrameWindow);
+        XFlush(_display);
+        _remoteFrameSequence = before.sequence;
+        snprintf(_remoteFramePath, sizeof(_remoteFramePath), "%s", path);
+        _remoteFrameValid = YES;
+        return YES;
+    }
+    if (_remoteFrameValid && _remoteFrameWindow &&
+        _remoteFrameSequence == before.sequence &&
+        _remoteFrameWidth == before.width && _remoteFrameHeight == before.height &&
+        strcmp(_remoteFramePath, path) == 0) {
+        XRaiseWindow(_display, _remoteFrameWindow);
+        XFlush(_display);
+        return YES;
+    }
+    if (pixelCapacity < before.dataSize) {
+        unsigned char *newPixels = realloc(pixels, before.dataSize);
+        if (!newPixels) {
+            return _remoteFrameValid;
+        }
+        pixels = newPixels;
+        pixelCapacity = before.dataSize;
+    }
+    memcpy(pixels, (char *)_remoteFrameMapping + sizeof(before) + framePayloadOffset(before.magic, before.pixelFormat), before.dataSize);
+    __sync_synchronize();
+    memcpy(&after, _remoteFrameMapping, sizeof(after));
+    if (after.sequence != before.sequence || (after.sequence & 1)) {
+        if (tlog) { fputc('T', tlog); }
+        return _remoteFrameValid;
+    }
+
+    XImage *image = XCreateImage(_display, _visualInfo->visual,
+        _visualInfo->depth, ZPixmap, 0, (char *)pixels, before.width,
+        before.height, 32, before.bytesPerRow);
+    if (!image)
+        return _remoteFrameValid;
+
+    if (!_remoteFrameWindow) {
+        int shapeMajor, shapeMinor;
+        if (!XShapeQueryVersion(_display, &shapeMajor, &shapeMinor) ||
+            shapeMajor < 1 || (shapeMajor == 1 && shapeMinor < 1)) {
+            image->data = NULL;
+            XDestroyImage(image);
+            return _remoteFrameValid;
+        }
+        XSetWindowAttributes attrs = {0};
+        attrs.background_pixmap = None;
+        attrs.event_mask = ExposureMask;
+        _remoteFrameWindow = XCreateWindow(_display, _window, frameX, frameY,
+            before.width, before.height, 0, CopyFromParent, InputOutput,
+            CopyFromParent, CWBackPixmap | CWEventMask, &attrs);
+        /* An empty input shape lets clicks and motion reach native views. */
+        XShapeCombineRectangles(_display, _remoteFrameWindow, ShapeInput,
+            0, 0, NULL, 0, ShapeSet, Unsorted);
+        [(X11Display *) [NSDisplay currentDisplay] setWindow: self forID: _remoteFrameWindow];
+        _remoteFrameGC = XCreateGC(_display, _remoteFrameWindow, 0, NULL);
+    }
+    if (_remoteFrameWidth != before.width || _remoteFrameHeight != before.height) {
+        if (_remoteFrameShm) {
+            _remoteFrameShmDestroy(_remoteFrameShm);
+            _remoteFrameShm = NULL;
+            _remoteFrameShmPumping = NO;
+            [self setRemoteFrameTimerSlow: NO];
+        }
+        XResizeWindow(_display, _remoteFrameWindow, before.width, before.height);
+        _remoteFrameWidth = before.width;
+        _remoteFrameHeight = before.height;
+    }
+    XMapRaised(_display, _remoteFrameWindow);
+    typedef void *(*CreateShm)(Display *, Visual *, unsigned, unsigned, unsigned);
+    typedef int (*PutShm)(void *, Drawable, GC, const void *, size_t);
+    static CreateShm createShm;
+    static PutShm putShm;
+    static void (*destroyShm)(void *);
+    static int (*startShm)(void *, Drawable, GC, const char *);
+    static BOOL checkedShm;
+    if (!checkedShm) {
+        checkedShm = YES;
+        const char *transportPath = getenv("DARLING_XSHM_LIBRARY");
+        const char *shmOption = getenv("RCLOL_XSHM");
+        void *transport = (shmOption && shmOption[0] == '0') ? NULL :
+            dlopen(transportPath ? transportPath : "/usr/lib/native/libDarlingXShm.dylib",
+                RTLD_NOW | RTLD_LOCAL);
+        void *(*getCreate)(void) = transport ? dlsym(transport, "DarlingXShmGetCreate") : NULL;
+        void *(*getPut)(void) = transport ? dlsym(transport, "DarlingXShmGetPut") : NULL;
+        void *(*getDestroy)(void) = transport ? dlsym(transport, "DarlingXShmGetDestroy") : NULL;
+        void *(*getStart)(void) = transport ? dlsym(transport, "DarlingXShmGetStart") : NULL;
+        if (getCreate && getPut && getDestroy) {
+            createShm = (CreateShm)getCreate();
+            putShm = (PutShm)getPut();
+            destroyShm = (void (*)(void *))getDestroy();
+            if (getStart) startShm = (int (*)(void *, Drawable, GC, const char *))getStart();
+        }
+    }
+    if (!_remoteFrameShm && createShm && putShm && destroyShm) {
+        /* The independent connection must see this client's child creation
+         * before issuing its first upload or creating its private GC. */
+        XSync(_display, False);
+        _remoteFrameShm = createShm(_display, _visualInfo->visual,
+            _visualInfo->depth, before.width, before.height);
+        _remoteFrameShmDestroy = destroyShm;
+        _remoteFrameShmPut = putShm;
+        _remoteFrameShmStart = startShm;
+        if (getenv("RCLOL_XSHM_TRACE")) {
+            extern int __simple_printf(const char *, ...);
+            __simple_printf("REMOTE_XSHM width=%u height=%u active=%d\n",
+                before.width, before.height, _remoteFrameShm != NULL);
+        }
+    }
+    if (!_remoteFrameShm || !putShm(_remoteFrameShm, _remoteFrameWindow,
+            _remoteFrameGC, pixels, before.bytesPerRow)) {
+        XPutImage(_display, _remoteFrameWindow, _remoteFrameGC, image, 0, 0, 0, 0,
+            before.width, before.height);
+        XFlush(_display);
+    }
+    if (_remoteFrameShm && startShm && !_remoteFrameShmPumping) {
+        _remoteFrameShmPumping = startShm(_remoteFrameShm, _remoteFrameWindow, _remoteFrameGC, path);
+        if (_remoteFrameShmPumping) [self setRemoteFrameTimerSlow: YES];
+    }
+    _remoteFrameSequence = before.sequence;
+    snprintf(_remoteFramePath, sizeof(_remoteFramePath), "%s", path);
+    _remoteFrameValid = YES;
+    image->data = NULL; /* pixels is reused by the next frame */
+    XDestroyImage(image);
+    if (tlog) { fputc('b', tlog); fflush(tlog); }
+    return YES;
+}
+
+- (BOOL) handleRemoteFrameExpose: (Window) window {
+    if (!window || window != _remoteFrameWindow)
+        return NO;
+    _remoteFrameValid = NO;
+    [self presentRemoteCAFrame: nil];
+    return YES;
 }
 
 - (Window) windowHandle {
@@ -478,6 +929,15 @@ static NSData *makeWindowIcon() {
                       frame.size.width, frame.size.height);
     [self invalidateContextWithNewSize: frame.size];
     _frame = frame;
+    // Nonresizable windows can be created at 1x1 and enlarged before display.
+    // Refresh the constraints so a managing compositor sees the current size.
+    if (!(_styleMask & NSWindowStyleMaskResizable)) {
+        XSizeHints hints = {0};
+        hints.flags = PMinSize | PMaxSize;
+        hints.min_width = hints.max_width = frame.size.width;
+        hints.min_height = hints.max_height = frame.size.height;
+        XSetWMSizeHints(_display, _window, &hints, XA_WM_NORMAL_HINTS);
+    }
 }
 
 - (void) setHasShadow: (BOOL) value {
@@ -559,7 +1019,29 @@ static NSData *makeWindowIcon() {
     XRaiseWindow(_display, _window);
 }
 
+/* darling-lol: AppKit asks every window whether it is miniaturized on every event poll (NSWindow
+ * _makeSureIsOnAScreen), and each answer was a synchronous X round trip (XGetWindowProperty): about 13 blocking waits
+ * per game frame. Reuse the answer for 100 ms per window. */
+#include <mach/mach_time.h>
+#define RCLOL_MINI_SLOTS 32
+static struct { Window window; uint64_t stamp; BOOL value; } rclolMini[RCLOL_MINI_SLOTS];
+
 - (BOOL) isMiniaturized {
+    static mach_timebase_info_data_t tb;
+    if (tb.denom == 0) mach_timebase_info(&tb);
+    uint64_t now = mach_absolute_time();
+    unsigned slot = (unsigned) (_window % RCLOL_MINI_SLOTS);
+    if (rclolMini[slot].window == _window && rclolMini[slot].stamp != 0 &&
+        (now - rclolMini[slot].stamp) * tb.numer / tb.denom < 100000000ULL)
+        return rclolMini[slot].value;
+    BOOL value = [self rclolQueryMiniaturized];
+    rclolMini[slot].window = _window;
+    rclolMini[slot].value = value;
+    rclolMini[slot].stamp = now;
+    return value;
+}
+
+- (BOOL) rclolQueryMiniaturized {
     Atom wmState = XInternAtom(_display, "_NET_WM_STATE", FALSE);
     Atom hiddenState = XInternAtom(_display, "_NET_WM_STATE_HIDDEN", FALSE);
 
@@ -615,6 +1097,12 @@ static NSData *makeWindowIcon() {
 }
 
 - (void) openGLFlushBuffer {
+    /* A remote compositor surface owns this drawable while it is present.
+     * Swapping the local Onyx surface would erase it until the next timer
+     * tick. Keep local presentation for windows without a usable remote frame. */
+    if ([self presentRemoteCAFrame: nil])
+        return;
+
     CGLError error;
 
     CGLContextObj prevContext = CGLGetCurrentContext();
@@ -666,6 +1154,7 @@ static int ignoreBadWindow(Display *display, XErrorEvent *errorEvent) {
 }
 
 - (void) frameChanged {
+    _remoteFrameTargetRefresh = 0;
     XErrorHandler previousHandler = XSetErrorHandler(ignoreBadWindow);
     @try {
         Window root, parent;

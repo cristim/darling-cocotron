@@ -28,6 +28,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <Foundation/NSNumber.h>
 #import <Foundation/NSOrthography.h>
 #import <Foundation/NSSpellEngine.h>
+#import <dispatch/dispatch.h>
 
 NSString *const NSSpellCheckerDidChangeAutomaticTextReplacementNotification =
         @"NSSpellCheckerDidChangeAutomaticTextReplacementNotification";
@@ -345,7 +346,7 @@ static NSSpellChecker *shared = nil;
     return results;
 }
 
-#ifdef NS_BLOCKS
+#if defined(NS_BLOCKS) || defined(__BLOCKS__)
 - (NSInteger) requestCheckingOfString: (NSString *) stringToCheck
                                 range: (NSRange) range
                                 types: (NSTextCheckingTypes) checkingTypes
@@ -357,8 +358,25 @@ static NSSpellChecker *shared = nil;
                                       NSOrthography *orthography,
                                       NSInteger wordCount)) completionHandler
 {
-    NSUnimplementedMethod();
-    return 0;
+    static NSInteger nextSequence = 0;
+    NSInteger sequence = __sync_add_and_fetch(&nextSequence, 1);
+    NSString *text = [stringToCheck copy];
+    NSDictionary *settings = [options copy];
+    // Serialize access to the existing spell engine and document state on
+    // the UI queue. Dispatch copies the block and retains its captured values.
+    dispatch_async(dispatch_get_main_queue(), ^{
+        NSOrthography *orthography = nil;
+        NSInteger wordCount = 0;
+        NSArray *results = [self checkString: text range: range
+                                      types: checkingTypes options: settings
+                     inSpellDocumentWithTag: tag orthography: &orthography
+                                  wordCount: &wordCount];
+        if (completionHandler)
+            completionHandler(sequence, results ?: @[], orthography, wordCount);
+    });
+    [text release];
+    [settings release];
+    return sequence;
 }
 #endif
 

@@ -1125,6 +1125,22 @@ NSImageName const NSImageNameTouchBarVolumeUpTemplate =
 }
 
 - (void) drawAtPoint: (NSPoint) point
+{
+    [self drawAtPoint: point
+             fromRect: NSZeroRect
+            operation: NSCompositeSourceOver
+             fraction: 1.0];
+}
+
+- (void) drawInRect: (NSRect) rect
+{
+    [self drawInRect: rect
+            fromRect: NSZeroRect
+           operation: NSCompositeSourceOver
+            fraction: 1.0];
+}
+
+- (void) drawAtPoint: (NSPoint) point
             fromRect: (NSRect) source
            operation: (NSCompositingOperation) operation
             fraction: (CGFloat) fraction

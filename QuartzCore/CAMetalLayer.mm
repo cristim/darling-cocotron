@@ -26,6 +26,74 @@
 #import <Metal/stubs.h>
 
 #include <algorithm>
+#include <cstdio>
+#include <unistd.h>
+#include <map>
+#include <mutex>
+#include <string>
+#include <vector>
+#import <dispatch/dispatch.h>
+
+// Diagnostics are off unless /tmp/metal-debug-trace exists when the process starts.
+static bool darlingMetalDebug()
+{
+	static const bool enabled = access("/tmp/metal-debug-trace", F_OK) == 0;
+	return enabled;
+}
+
+// Diagnostic trace of the drawable/presentation flow, written to the guest's /tmp/metal-trace.log.
+// Rate limited: the first events and then every hundredth.
+static void darlingMetalTrace(const char* what, long a, long b)
+{
+	if (!darlingMetalDebug()) {
+		return;
+	}
+	static int count = 0;
+	int n = __sync_add_and_fetch(&count, 1);
+	if (n > 80 && n % 100 != 0) {
+		return;
+	}
+	if (FILE* log = fopen("/tmp/metal-trace.log", "a")) {
+		fprintf(log, "%.3f #%d %s main=%d a=%ld b=%ld\n", CACurrentMediaTime(), n, what, (int) [NSThread isMainThread], a, b);
+		fclose(log);
+	}
+}
+
+// Cheap aggregated timings (flag file /tmp/metal-debug-timing in the guest when the process starts), printed every 5 s.
+static void darlingMetalTiming(const char* what, double seconds)
+{
+	static const bool enabled = access("/tmp/metal-debug-timing", F_OK) == 0;
+	if (!enabled) {
+		return;
+	}
+	struct Stat { double sum = 0, max = 0; unsigned long count = 0; };
+	static std::mutex lock;
+	static std::map<std::string, Stat> stats;
+	static double last = 0;
+	std::lock_guard<std::mutex> guard(lock);
+	Stat& stat = stats[what];
+	stat.sum += seconds;
+	stat.count++;
+	if (seconds > stat.max) stat.max = seconds;
+	double now = CACurrentMediaTime();
+	if (now - last >= 5) {
+		last = now;
+		if (FILE* log = fopen("/tmp/metal-trace.log", "a")) {
+			fprintf(log, "timing@%.0f:", now);
+			for (auto& entry: stats) {
+				fprintf(log, " %s[n=%lu avg=%.0fms max=%.0fms]", entry.first.c_str(), entry.second.count, entry.second.sum / entry.second.count * 1000, entry.second.max * 1000);
+			}
+			fprintf(log, "\n");
+			fclose(log);
+		}
+		stats.clear();
+	}
+}
+
+extern "C" void darlingQCTiming(const char* what, double seconds)
+{
+	darlingMetalTiming(what, seconds);
+}
 
 #import "CALayerInternal.h"
 
@@ -205,6 +273,65 @@ static void reportGLErrors(void) {
 
 @end
 
+#include <array>
+#include <atomic>
+#include <chrono>
+#include <mutex>
+#include <unistd.h>
+namespace {
+struct PresentIntervalSample { std::atomic<int64_t> queued{0}, renderStart{0}, renderDone{0}, flushDone{0}; };
+static int64_t presentIntervalNow() { return std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count(); }
+static PresentIntervalSample* beginPresentIntervalSample() {
+ static const bool enabled = [] { FILE* flag = fopen("/tmp/metal-frame-interval-capture", "r"); if (!flag) return false; fclose(flag); return true; }();
+ if (!enabled) return nullptr;
+ static std::atomic<bool> finished{false};
+ static std::mutex captureMutex;
+ // Never reuse a callback's timestamp storage. A delayed main-queue callback
+ // must not stall the recorder or write into a subsequent capture. All
+ // storage stays alive until process exit; 64 blocks cap its size at 4 MiB.
+ static std::array<std::array<PresentIntervalSample,2048>,64> blocks;
+ static size_t count = 0;
+ static unsigned block = 0, seriesBlocks = 0;
+ static const bool testing = getenv("RIOT_FRAME_CAPTURE_TEST") != nullptr;
+ if (finished.load(std::memory_order_relaxed)) {
+  static std::atomic<unsigned> checks{0};
+  if (checks.fetch_add(1, std::memory_order_relaxed) % (testing ? 8 : 128)) return nullptr;
+  // Explicitly rearm a bounded eight-block capture in the same match. Keep
+  // filenames increasing so an earlier workload's measurements survive.
+  if (access("/tmp/metal-frame-interval-repeat", F_OK) != 0) return nullptr;
+  std::lock_guard<std::mutex> guard(captureMutex);
+  if (finished.load(std::memory_order_relaxed) && block < blocks.size() &&
+      unlink("/tmp/metal-frame-interval-repeat") == 0) {
+   count = 0; seriesBlocks = 0;
+   finished.store(false, std::memory_order_relaxed);
+  }
+ }
+ std::lock_guard<std::mutex> guard(captureMutex);
+ if (finished.load(std::memory_order_relaxed)) return nullptr;
+ static const int64_t start = presentIntervalNow();
+ const int64_t now = presentIntervalNow();
+ if (!testing && now - start < 90000000000LL) return nullptr;
+ auto& samples = blocks[block];
+ static const size_t limit = testing ? 8 : samples.size();
+ if (count < limit) { samples[count].queued.store(now); return &samples[count++]; }
+ // Completion columns may still be zero; the analyzer labels incomplete rows.
+ // Queued timestamps already cover every request in the bounded block.
+ char path[96];
+ if (block == 0) snprintf(path,sizeof(path),"/tmp/metal-present-intervals.csv");
+ else snprintf(path,sizeof(path),"/tmp/metal-present-intervals-%u.csv",block);
+ if (FILE* log=fopen(path,"w")) {
+  fprintf(log,"queued_ns,render_start_ns,render_done_ns,flush_done_ns\n");
+  for (size_t i=0;i<limit;++i) { const auto& sample=samples[i]; fprintf(log,"%lld,%lld,%lld,%lld\n",(long long)sample.queued.load(),(long long)sample.renderStart.load(),(long long)sample.renderDone.load(),(long long)sample.flushDone.load()); }
+  fclose(log);
+ }
+ ++block;
+ if (++seriesBlocks >= 8 || block >= blocks.size()) { finished.store(true, std::memory_order_relaxed); return nullptr; }
+ count=0;
+ // This request covers file I/O and is deliberately outside both sample blocks.
+ return nullptr;
+}
+}
+
 @implementation CAMetalLayerInternal
 
 #if DARLING_METAL_ENABLED
@@ -363,6 +490,7 @@ static void reportGLErrors(void) {
 - (id<CAMetalDrawable>)nextDrawable
 {
 	std::shared_ptr<CAMetalDrawableActual> drawable = nullptr;
+	CFTimeInterval waitStart = CACurrentMediaTime();
 
 	[_drawableCondition lock];
 
@@ -380,6 +508,8 @@ static void reportGLErrors(void) {
 
 	if (_usableDrawablesBitmap == 0) {
 		// timeout reached
+		darlingMetalTiming("nextDrawableTimeout", CACurrentMediaTime() - waitStart);
+		darlingMetalTrace("nextDrawable-timeout", (long) _queuedDrawableCount, 0);
 		[_drawableCondition unlock];
 		return nil;
 	}
@@ -400,6 +530,8 @@ static void reportGLErrors(void) {
 	}
 
 	_usableDrawablesBitmap &= ~(1u << drawableID);
+	darlingMetalTiming("nextDrawableWait", CACurrentMediaTime() - waitStart);
+	darlingMetalTrace("nextDrawable-ok", (long) drawableID, (long) _usableDrawablesBitmap);
 
 	drawable = _drawables[drawableID];
 
@@ -410,20 +542,36 @@ static void reportGLErrors(void) {
 
 - (void)queuePresent: (NSUInteger)drawableID
 {
+    auto* intervalSample = beginPresentIntervalSample();
 	[_drawableCondition lock];
 	_queuedDrawables[_queuedDrawableCount] = drawableID;
 	++_queuedDrawableCount;
+	darlingMetalTrace("queuePresent", (long) drawableID, (long) _queuedDrawableCount);
 	[_drawableCondition unlock];
 
 	// we now need to schedule a render
 	//
 	// FIXME: once we fix up CALayer and make it more featureful, this needs to change to `self.needsDisplay = YES` or equivalently `[self setNeedsDisplay: YES]`
 	// right now, CALayer is missing all the needs-display logic (which is currently in NSView)
-	[self display];
+    // Present only after the Vulkan/GL synchronization has been prepared, on
+    // the window thread. display alone does not drive the layer compositor.
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if (intervalSample) intervalSample->renderStart.store(presentIntervalNow());
+        darlingMetalTrace("present-block-runs", 0, 0);
+        CFTimeInterval blockStart = CACurrentMediaTime();
+        [self->_context render];
+        if (intervalSample) intervalSample->renderDone.store(presentIntervalNow());
+        CFTimeInterval renderDone = CACurrentMediaTime();
+        darlingMetalTiming("mainBlockRender", renderDone - blockStart);
+        [self->_context flush];
+        if (intervalSample) intervalSample->flushDone.store(presentIntervalNow(), std::memory_order_release);
+        darlingMetalTiming("mainBlockFlush", CACurrentMediaTime() - renderDone);
+    });
 }
 
 - (void)releaseDrawable: (NSUInteger)drawableID
 {
+	darlingMetalTrace("releaseDrawable", (long) drawableID, 0);
 	[_drawableCondition lock];
 	_usableDrawablesBitmap |= 1u << drawableID;
 	[_drawableCondition signal];
@@ -455,7 +603,7 @@ static void reportGLErrors(void) {
 	}
 	_usableDrawablesBitmap = 0;
 
-	if (!_device || !_context || _drawableSize.width == 0 || _drawableSize.height == 0) {
+	if (!_device || !_context || !_context.glContext || _drawableSize.width == 0 || _drawableSize.height == 0) {
 		// can't create new drawables
 		[_drawableCondition unlock];
 		return;
@@ -506,6 +654,10 @@ static void reportGLErrors(void) {
 			glTextureParameteri(_tex, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 			glTextureParameteri(_tex, GL_TEXTURE_WRAP_S, GL_REPEAT);
 			glTextureParameteri(_tex, GL_TEXTURE_WRAP_T, GL_REPEAT);
+			// The layer is opaque, as on macOS: never let the drawable's alpha reach the compositor (its blending and
+			// alpha test turned the game's low-alpha effect regions into black quads). The drawable is copied in with
+			// glCopyImageSubData, so the swizzle has to be on this texture, the one that is actually sampled.
+			glTextureParameteri(_tex, GL_TEXTURE_SWIZZLE_A, GL_ONE);
 			reportGLErrors();
 		}
 	}
@@ -516,6 +668,10 @@ static void reportGLErrors(void) {
 - (void)prepareRender
 {
 	std::shared_ptr<CAMetalDrawableActual> drawable = nullptr;
+	static CFTimeInterval lastPrepare = 0;
+	CFTimeInterval prepareStart = CACurrentMediaTime();
+	if (lastPrepare != 0) darlingMetalTiming("prepareRenderInterval", prepareStart - lastPrepare);
+	lastPrepare = prepareStart;
 
 	[_drawableCondition lock];
 	if (_queuedDrawableCount > 0) {
@@ -528,11 +684,62 @@ static void reportGLErrors(void) {
 	if (drawable) {
 		// wait for the drawable to be fully rendered before copying it to the render texture
 		// (this is a GPU-side wait)
+		CFTimeInterval syncStart = CACurrentMediaTime();
 		drawable->synchronizeRender();
+		darlingMetalTiming("synchronizeRender", CACurrentMediaTime() - syncStart);
 
+		reportGLErrors();
+		{
+			// Diagnostic: statistics of the imported Vulkan image itself, before the copy
+			static unsigned long sourceCounter = 0;
+			if (darlingMetalDebug() && access("/tmp/metal-debug-frames", F_OK) == 0 && (++sourceCounter <= 30 || sourceCounter % 150 == 0)) {
+				size_t width = _drawableSize.width, height = _drawableSize.height;
+				std::vector<uint8_t> source(width * height * 4);
+				glGetTextureImage(drawable->texture()->glTexture(), 0, GL_RGBA, GL_UNSIGNED_BYTE, (GLsizei) source.size(), source.data());
+				unsigned long lit = 0, total = 0;
+				for (size_t i = 0; i < source.size(); i += 4) {
+					unsigned v = source[i] + source[i + 1] + source[i + 2];
+					total += v;
+					if (v > 6) ++lit;
+				}
+				darlingMetalTrace("source-stats", (long) lit, (long) (total / (width * height)));
+			}
+		}
 		reportGLErrors();
 		glCopyImageSubData(drawable->texture()->glTexture(), GL_TEXTURE_2D, 0, 0, 0, 0, _tex, GL_TEXTURE_2D, 0, 0, 0, 0, _drawableSize.width, _drawableSize.height, 1);
 		reportGLErrors();
+
+		// Diagnostic: every 150th presented frame, log pixel statistics of what is about to be shown
+		// and save a few of them as /tmp/metal-frame-<n>.ppm.
+		static unsigned long frameCounter = 0;
+		++frameCounter;
+		if (darlingMetalDebug() && access("/tmp/metal-debug-frames", F_OK) == 0 && (frameCounter <= 30 || frameCounter % 150 == 0) && frameCounter <= 1800) {
+			size_t width = _drawableSize.width, height = _drawableSize.height;
+			std::vector<uint8_t> pixels(width * height * 4);
+			glGetTextureImage(_tex, 0, GL_RGBA, GL_UNSIGNED_BYTE, (GLsizei) pixels.size(), pixels.data());
+			unsigned long nonBlack = 0, sum = 0;
+			for (size_t i = 0; i < pixels.size(); i += 4) {
+				unsigned v = pixels[i] + pixels[i + 1] + pixels[i + 2];
+				sum += v;
+				if (v > 6) ++nonBlack;
+			}
+			darlingMetalTrace("frame-stats", (long) nonBlack, (long) (sum / (width * height)));
+			if (frameCounter == 5 || frameCounter == 30 || frameCounter == 300 || frameCounter == 900) {
+				char path[64];
+				snprintf(path, sizeof(path), "/tmp/metal-frame-%lu.ppm", frameCounter);
+				if (FILE* out = fopen(path, "wb")) {
+					fprintf(out, "P6\n%zu %zu\n255\n", width, height);
+					for (size_t row = 0; row < height; ++row) {
+						// GL rows run bottom to top
+						const uint8_t* line = pixels.data() + (height - 1 - row) * width * 4;
+						for (size_t x = 0; x < width; ++x) {
+							fwrite(line + x * 4, 1, 3, out);
+						}
+					}
+					fclose(out);
+				}
+			}
+		}
 	}
 
 	@synchronized(self) {
@@ -575,6 +782,11 @@ static void reportGLErrors(void) {
 {
 	[super _setContext: context];
 
+    if (!context || !context.glContext) {
+        [self recreateDrawables];
+        return;
+    }
+
 	if (_tex == 0) {
 		// create our textures now using the context's CGLContext
 		CGLContextObj prev = CGLGetCurrentContext();
@@ -589,10 +801,15 @@ static void reportGLErrors(void) {
 		glTextureParameteri(_tex, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 		glTextureParameteri(_tex, GL_TEXTURE_WRAP_S, GL_REPEAT);
 		glTextureParameteri(_tex, GL_TEXTURE_WRAP_T, GL_REPEAT);
+			// The layer is opaque, as on macOS: never let the drawable's alpha reach the compositor (its blending and
+			// alpha test turned the game's low-alpha effect regions into black quads). The drawable is copied in with
+			// glCopyImageSubData, so the swizzle has to be on this texture, the one that is actually sampled.
+			glTextureParameteri(_tex, GL_TEXTURE_SWIZZLE_A, GL_ONE);
 		reportGLErrors();
 
 		CGLSetCurrentContext(prev);
 	}
+    [self recreateDrawables];
 }
 
 #else

@@ -30,6 +30,24 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 @implementation NSResponder
 
+- (id) touchBar {
+    return _touchBar;
+}
+
+- (void) setTouchBar: (id) touchBar {
+    if (_touchBar != touchBar) {
+        [touchBar retain];
+        [_touchBar release];
+        _touchBar = touchBar;
+    }
+}
+
+- (void) dealloc {
+    [_touchBar release];
+    [super dealloc];
+}
+
+
 - (void) encodeWithCoder: (NSCoder *) coder {
     if (coder.allowsKeyedCoding) {
         [coder encodeObject: _nextResponder forKey: @"NSNextResponder"];
@@ -284,6 +302,16 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 - (void) mouseDragged: (NSEvent *) event {
     [_nextResponder performSelector: _cmd withObject: event];
+}
+
+- (void) otherMouseDown: (NSEvent *) event {
+    [_nextResponder performSelector:_cmd withObject:event];
+}
+- (void) otherMouseUp: (NSEvent *) event {
+    [_nextResponder performSelector:_cmd withObject:event];
+}
+- (void) otherMouseDragged: (NSEvent *) event {
+    [_nextResponder performSelector:_cmd withObject:event];
 }
 
 - (void) rightMouseUp: (NSEvent *) event {

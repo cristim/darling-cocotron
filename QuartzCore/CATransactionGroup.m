@@ -21,7 +21,13 @@
 }
 
 - (void) setValue: value forKey: (NSString *) key {
-    [_values setObject: value forKey: key];
+    if (value) [_values setObject: value forKey: key];
+    else [_values removeObjectForKey: key];
+}
+
+- (void) dealloc {
+    [_values release];
+    [super dealloc];
 }
 
 @end

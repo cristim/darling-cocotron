@@ -139,10 +139,12 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 - (void) dealloc {
     [_title release];
+    [_toolTip release];
     [_atitle release];
     [_keyEquivalent release];
     [_submenu release];
     [_image release];
+    [_view release];
     [_onStateImage release];
     [_mixedStateImage release];
     [_offStateImage release];
@@ -155,11 +157,13 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
     NSMenuItem *copy = NSCopyObject(self, 0, zone);
 
     copy->_title = [_title copyWithZone: zone];
+    copy->_toolTip = [_toolTip copyWithZone: zone];
     copy->_atitle = [_atitle copyWithZone: zone];
     copy->_submenu = [_submenu copyWithZone: zone];
     copy->_keyEquivalent = [_keyEquivalent copyWithZone: zone];
     ;
     copy->_image = [_image retain];
+    copy->_view = [_view retain];
     copy->_onStateImage = [_onStateImage retain];
     copy->_mixedStateImage = [_mixedStateImage retain];
     copy->_offStateImage = [_offStateImage retain];
@@ -224,6 +228,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
     return _image;
 }
 
+- (NSView *) view {
+    return _view;
+}
+
 - (NSImage *) onStateImage {
     return _onStateImage;
 }
@@ -264,6 +272,18 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
     title = [title copy];
     [_title release];
     _title = title;
+}
+
+- (NSString *) toolTip {
+    return _toolTip;
+}
+
+- (void) setToolTip: (NSString *) toolTip {
+    /* darling-lol M42b: Electron sets menu item tooltips; previously
+     * "unrecognized selector" and a terminate. Stored, not displayed. */
+    toolTip = [toolTip copy];
+    [_toolTip release];
+    _toolTip = toolTip;
 }
 
 - (void) setAttributedTitle: (NSAttributedString *) title {
@@ -317,6 +337,12 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
     image = [image retain];
     [_image release];
     _image = image;
+}
+
+- (void) setView: (NSView *) view {
+    view = [view retain];
+    [_view release];
+    _view = view;
 }
 
 - (void) setOnStateImage: (NSImage *) image {
