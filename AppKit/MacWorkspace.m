@@ -120,10 +120,10 @@
     return NO;
 }
 
+extern BOOL RCLOLOpenURLViaHost(NSURL *url);
+
 - (BOOL) openURL: (NSURL *) url {
-    // TODO: Call LSOpenFromURLSpec()
-    NSUnimplementedMethod();
-    return NO;
+    return RCLOLOpenURLViaHost(url);
 }
 
 - (BOOL) selectFile: (NSString *) path

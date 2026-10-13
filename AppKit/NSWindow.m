@@ -218,6 +218,25 @@ NSInteger NSBitsPerPixelFromDepth(NSWindowDepth depth) {
 
 @end
 
+/* darling-lol: whether a mouse-down may move the window must be decided by the frontmost view
+ * under the pointer by GEOMETRY, not by -hitTest:. Electron implements draggable regions as a
+ * web view that can move the window plus ControlRegionView overlays (mouseDownCanMoveWindow == NO)
+ * on top of everything that must not drag; those overlays return nil from -hitTest: so the click
+ * still reaches the page. Using the hitTest result here always found the web view, so every click
+ * started a window drag and never reached the page. `point` is in `view`'s own coordinates. */
+static NSView *DarlingFrontmostViewAtPoint(NSView *view, NSPoint point) {
+    if (view == nil || [view isHidden] || !NSPointInRect(point, [view bounds]))
+        return nil;
+    NSArray *subviews = [view subviews];
+    for (NSInteger i = (NSInteger)[subviews count] - 1; i >= 0; i--) {
+        NSView *subview = [subviews objectAtIndex: i];
+        NSView *found = DarlingFrontmostViewAtPoint(subview, [subview convertPoint: point fromView: view]);
+        if (found != nil)
+            return found;
+    }
+    return view;
+}
+
 @implementation NSWindow
 
 @synthesize identifier = _identifier;
@@ -2490,9 +2509,22 @@ static BOOL _allowsAutomaticWindowTabbing;
         // drag. Only windows opting into background dragging intercept it;
         // CEF otherwise handles clicks and invokes performWindowDragWithEvent:
         // itself for its native titlebar regions.
-        if (_isMovable && _isMovableByWindowBackground && [view mouseDownCanMoveWindow]) {
-            [self performWindowDragWithEvent:event];
-            break;
+        if (_isMovable && _isMovableByWindowBackground) {
+            NSView *dragView = DarlingFrontmostViewAtPoint(_backgroundView,
+                [_backgroundView convertPoint: [event locationInWindow] fromView: nil]);
+            if (dragView == nil)
+                dragView = view;
+            if (inputTrace) {
+                static int dragTrace = -1;
+                if (dragTrace < 0) dragTrace = getenv("RCLOL_INPUT_TRACE") != NULL;
+                if (dragTrace)
+                    NSLog(@"LOLDRAG hit=%s dragView=%s canMove=%d", class_getName([view class]),
+                          class_getName([dragView class]), (int)[dragView mouseDownCanMoveWindow]);
+            }
+            if ([dragView mouseDownCanMoveWindow]) {
+                [self performWindowDragWithEvent:event];
+                break;
+            }
         }
         // Event goes to view, not first responder.
         [view mouseDown: event];

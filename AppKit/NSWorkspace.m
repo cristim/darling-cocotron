@@ -20,8 +20,89 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSRaise.h>
 #import <AppKit/NSWorkspace.h>
 #import <Foundation/Foundation.h>
+#import <CoreFoundation/CoreFoundation.h>
+#include <dispatch/dispatch.h>
+#include <stdio.h>
+#include <unistd.h>
 
 NSString *const NSWorkspaceApplicationKey = @"NSWorkspaceApplicationKey";
+
+/* darling-lol: opening a URL from the guest.
+ *
+ * LaunchServices cannot start a Linux browser from inside the prefix, and Electron's
+ * shell.openExternal() uses -openURL:configuration:completionHandler: (macOS 10.15) with an
+ * NSWorkspaceOpenConfiguration, neither of which existed: the unrecognized selector crashed the
+ * client ("Can't sign in?", links, ...). Hand the URL to the host through a spool directory in
+ * the shared /private/tmp. The legacy tools/riot-open-url-bridge.py can drain it, but is excluded
+ * from normal launches because it also installs a client inspector hook.
+ * Only http, https and mailto URLs are queued. */
+@interface NSWorkspaceOpenConfiguration () {
+    BOOL _activates, _hides, _hidesOthers, _addsToRecentItems, _createsNewApplicationInstance;
+    BOOL _allowsRunningApplicationSubstitution, _forPrinting, _promptsUserIfNeeded, _requiresUniversalLinks;
+    NSAppleEventDescriptor *_appleEvent;
+    NSArray *_arguments;
+    NSDictionary *_environment;
+    cpu_type_t _architecture;
+}
+@end
+
+@implementation NSWorkspaceOpenConfiguration
+@synthesize activates = _activates, hides = _hides, hidesOthers = _hidesOthers;
+@synthesize addsToRecentItems = _addsToRecentItems, createsNewApplicationInstance = _createsNewApplicationInstance;
+@synthesize allowsRunningApplicationSubstitution = _allowsRunningApplicationSubstitution;
+@synthesize forPrinting = _forPrinting, promptsUserIfNeeded = _promptsUserIfNeeded;
+@synthesize requiresUniversalLinks = _requiresUniversalLinks;
+@synthesize appleEvent = _appleEvent, arguments = _arguments, environment = _environment;
+@synthesize architecture = _architecture;
++ (instancetype) configuration {
+    NSWorkspaceOpenConfiguration *c = [[[self alloc] init] autorelease];
+    c->_activates = YES;
+    c->_addsToRecentItems = YES;
+    c->_allowsRunningApplicationSubstitution = YES;
+    return c;
+}
+- (id) copyWithZone: (NSZone *) zone {
+    NSWorkspaceOpenConfiguration *c = [[[self class] allocWithZone: zone] init];
+    c->_activates = _activates; c->_hides = _hides; c->_hidesOthers = _hidesOthers;
+    c->_addsToRecentItems = _addsToRecentItems;
+    c->_createsNewApplicationInstance = _createsNewApplicationInstance;
+    c->_allowsRunningApplicationSubstitution = _allowsRunningApplicationSubstitution;
+    c->_forPrinting = _forPrinting; c->_promptsUserIfNeeded = _promptsUserIfNeeded;
+    c->_requiresUniversalLinks = _requiresUniversalLinks; c->_architecture = _architecture;
+    c->_appleEvent = [_appleEvent retain];
+    c->_arguments = [_arguments copy]; c->_environment = [_environment copy];
+    return c;
+}
+- (void) dealloc {
+    [_appleEvent release];
+    [_arguments release];
+    [_environment release];
+    [super dealloc];
+}
+@end
+
+BOOL RCLOLOpenURLViaHost(NSURL *url) {
+    NSString *scheme = [[url scheme] lowercaseString];
+    if (![scheme isEqualToString: @"http"] && ![scheme isEqualToString: @"https"] &&
+        ![scheme isEqualToString: @"mailto"])
+        return NO;
+    NSString *absolute = [url absoluteString];
+    if ([absolute length] == 0 || [absolute length] > 4096)
+        return NO;
+    NSString *directory = @"/private/tmp/rclol-open";
+    [[NSFileManager defaultManager] createDirectoryAtPath: directory
+                              withIntermediateDirectories: YES
+                                               attributes: nil
+                                                    error: NULL];
+    static unsigned sequence = 0;
+    NSString *path = [NSString stringWithFormat: @"%@/%d-%u-%llu.url", directory, (int) getpid(),
+                      ++sequence, (unsigned long long) (CFAbsoluteTimeGetCurrent() * 1000)];
+    NSString *temporary = [path stringByAppendingString: @".part"];
+    if (![absolute writeToFile: temporary atomically: NO encoding: NSUTF8StringEncoding error: NULL])
+        return NO;
+    return rename([temporary fileSystemRepresentation], [path fileSystemRepresentation]) == 0;
+}
+
 
 NSString *const NSWorkspaceWillPowerOffNotification =
         @"NSWorkspaceWillPowerOffNotification";
@@ -157,8 +238,22 @@ NSNotificationName NSWorkspaceWillUnmountNotification = @"NSWorkspaceWillUnmount
 }
 
 - (BOOL) openURL: (NSURL *) url {
-    NSInvalidAbstractInvocation();
-    return 0;
+    return RCLOLOpenURLViaHost(url);
+}
+
+- (void) openURL: (NSURL *) url
+        configuration: (NSWorkspaceOpenConfiguration *) configuration
+        completionHandler: (void (^)(id application, NSError *error)) completionHandler
+{
+    BOOL opened = [self openURL: url];
+    if (completionHandler != NULL) {
+        NSError *error = nil;
+        if (!opened)
+            error = [NSError errorWithDomain: NSCocoaErrorDomain code: 256 userInfo: nil];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            completionHandler(nil, error);
+        });
+    }
 }
 
 - (BOOL) selectFile: (NSString *) path
@@ -314,19 +409,6 @@ NSNotificationName NSWorkspaceWillUnmountNotification = @"NSWorkspaceWillUnmount
 
 - (BOOL) isFileHiddenAtPath: (NSString *) path {
     return NO;
-}
-
-@end
-
-static dispatch_once_t _initOnceNsWorkspaceOpenConfig;
-static NSWorkspaceOpenConfiguration* _singletonNsWorkspaceOpenConfig;
-
-@implementation NSWorkspaceOpenConfiguration
-+ (instancetype)configuration {
-    dispatch_once(&_initOnceNsWorkspaceOpenConfig, ^{
-        _singletonNsWorkspaceOpenConfig = [[NSWorkspaceOpenConfiguration alloc] init];
-    });
-    return _singletonNsWorkspaceOpenConfig;
 }
 
 @end
