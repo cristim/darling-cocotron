@@ -25,6 +25,10 @@
 #import <QuartzCore/CALayerContext.h>
 #import <Metal/stubs.h>
 
+// Wait-site counters (flag file /tmp/metal-debug-waits, checked once at process start): the same summary the Indium
+// hand-off waits write, so the drawable hand-out and the command-buffer hand-offs appear in one histogram.
+#include <indium/waits.private.hpp>
+
 #include <algorithm>
 #include <cstdio>
 #include <unistd.h>
@@ -497,6 +501,8 @@ static PresentIntervalSample* beginPresentIntervalSample() {
 	NSDate* endTime = [NSDate dateWithTimeIntervalSinceNow: 1];
 
 	while (_usableDrawablesBitmap == 0) {
+		// No drawable is free: this thread really blocks here (the wait is what the pool starvation costs the game).
+		Indium::Waits::Block block("nextDrawable");
 		if (_allowsNextDrawableTimeout) {
 			if (![_drawableCondition waitUntilDate: endTime]) {
 				break;
