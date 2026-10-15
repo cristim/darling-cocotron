@@ -120,10 +120,10 @@
     return NO;
 }
 
-extern BOOL RCLOLOpenURLViaHost(NSURL *url);
-
 - (BOOL) openURL: (NSURL *) url {
-    return RCLOLOpenURLViaHost(url);
+    if (url == nil)
+        return NO;
+    return LSOpenCFURLRef((CFURLRef) url, NULL) == noErr;
 }
 
 - (BOOL) selectFile: (NSString *) path

@@ -20,22 +20,13 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSRaise.h>
 #import <AppKit/NSWorkspace.h>
 #import <Foundation/Foundation.h>
-#import <CoreFoundation/CoreFoundation.h>
 #include <dispatch/dispatch.h>
-#include <stdio.h>
-#include <unistd.h>
 
 NSString *const NSWorkspaceApplicationKey = @"NSWorkspaceApplicationKey";
 
-/* darling-lol: opening a URL from the guest.
- *
- * LaunchServices cannot start a Linux browser from inside the prefix, and Electron's
- * shell.openExternal() uses -openURL:configuration:completionHandler: (macOS 10.15) with an
- * NSWorkspaceOpenConfiguration, neither of which existed: the unrecognized selector crashed the
- * client ("Can't sign in?", links, ...). Hand the URL to the host through a spool directory in
- * the shared /private/tmp. The legacy tools/riot-open-url-bridge.py can drain it, but is excluded
- * from normal launches because it also installs a client inspector hook.
- * Only http, https and mailto URLs are queued. */
+/* Electron's shell.openExternal() uses -openURL:configuration:completionHandler: (macOS 10.15)
+ * with a configured NSWorkspaceOpenConfiguration, so the configuration needs real properties.
+ * The URL itself is opened by -openURL: (LaunchServices in MacWorkspace). */
 @interface NSWorkspaceOpenConfiguration () {
     BOOL _activates, _hides, _hidesOthers, _addsToRecentItems, _createsNewApplicationInstance;
     BOOL _allowsRunningApplicationSubstitution, _forPrinting, _promptsUserIfNeeded, _requiresUniversalLinks;
@@ -80,29 +71,6 @@ NSString *const NSWorkspaceApplicationKey = @"NSWorkspaceApplicationKey";
     [super dealloc];
 }
 @end
-
-BOOL RCLOLOpenURLViaHost(NSURL *url) {
-    NSString *scheme = [[url scheme] lowercaseString];
-    if (![scheme isEqualToString: @"http"] && ![scheme isEqualToString: @"https"] &&
-        ![scheme isEqualToString: @"mailto"])
-        return NO;
-    NSString *absolute = [url absoluteString];
-    if ([absolute length] == 0 || [absolute length] > 4096)
-        return NO;
-    NSString *directory = @"/private/tmp/rclol-open";
-    [[NSFileManager defaultManager] createDirectoryAtPath: directory
-                              withIntermediateDirectories: YES
-                                               attributes: nil
-                                                    error: NULL];
-    static unsigned sequence = 0;
-    NSString *path = [NSString stringWithFormat: @"%@/%d-%u-%llu.url", directory, (int) getpid(),
-                      ++sequence, (unsigned long long) (CFAbsoluteTimeGetCurrent() * 1000)];
-    NSString *temporary = [path stringByAppendingString: @".part"];
-    if (![absolute writeToFile: temporary atomically: NO encoding: NSUTF8StringEncoding error: NULL])
-        return NO;
-    return rename([temporary fileSystemRepresentation], [path fileSystemRepresentation]) == 0;
-}
-
 
 NSString *const NSWorkspaceWillPowerOffNotification =
         @"NSWorkspaceWillPowerOffNotification";
@@ -238,22 +206,26 @@ NSNotificationName NSWorkspaceWillUnmountNotification = @"NSWorkspaceWillUnmount
 }
 
 - (BOOL) openURL: (NSURL *) url {
-    return RCLOLOpenURLViaHost(url);
+    NSInvalidAbstractInvocation();
+    return 0;
 }
 
 - (void) openURL: (NSURL *) url
         configuration: (NSWorkspaceOpenConfiguration *) configuration
         completionHandler: (void (^)(id application, NSError *error)) completionHandler
 {
-    BOOL opened = [self openURL: url];
-    if (completionHandler != NULL) {
-        NSError *error = nil;
-        if (!opened)
-            error = [NSError errorWithDomain: NSCocoaErrorDomain code: 256 userInfo: nil];
-        dispatch_async(dispatch_get_main_queue(), ^{
-            completionHandler(nil, error);
-        });
-    }
+    // Opening may wait on another process; keep it off the caller's thread.
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        BOOL opened = [self openURL: url];
+        if (completionHandler != NULL) {
+            NSError *error = nil;
+            if (!opened)
+                error = [NSError errorWithDomain: NSCocoaErrorDomain code: 256 userInfo: nil];
+            dispatch_async(dispatch_get_main_queue(), ^{
+                completionHandler(nil, error);
+            });
+        }
+    });
 }
 
 - (BOOL) selectFile: (NSString *) path
