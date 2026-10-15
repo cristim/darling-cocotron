@@ -1681,9 +1681,18 @@ static BOOL _allowsAutomaticWindowTabbing;
     return _isMovableByWindowBackground;
 }
 
-/* darling-lol M57: NSWindowOcclusionStateVisible == 1 << 1. */
+/* darling-lol M57: NSWindowOcclusionStateVisible == 1 << 1.
+ *
+ * Apple's contract is a bitmask: an on-screen window's state *includes* the
+ * Visible bit, tested with &. Electron 22.3.27's NativeWindowMac::IsVisible()
+ * instead compares for exact equality, so an Apple-correct value makes every
+ * ordered-in window look occluded and the client's visible checks fail. Also
+ * report the reserved 1 << 2 bit: &-based readers (Electron's own
+ * windowDidChangeOcclusionState:, Chromium) still see the Visible bit set,
+ * while the exact == test is false and unpatched Electron resolves IsVisible()
+ * correctly without a Riot binary patch. */
 - (NSUInteger) occlusionState {
-    return _isVisible ? (NSUInteger)(1 << 1) : (NSUInteger)0;
+    return _isVisible ? (NSUInteger)((1 << 1) | (1 << 2)) : (NSUInteger)0;
 }
 
 - (BOOL) isRestorable {
