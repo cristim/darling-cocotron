@@ -85,7 +85,14 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 - (void) resizeSubviewsWithOldSize: (NSSize) oldSize {
     NSView *menuView = nil;
     NSToolbarView *toolbarView = nil;
-    NSView *contentView = nil;
+    /* Browser windows can add overlay/titlebar siblings after their content.
+     * Identify the window's actual content owner rather than choosing the
+     * last ordinary subview. Full-size content wrappers can own it indirectly. */
+    NSView *contentView = [[self window] contentView];
+    while (contentView && [contentView superview] && [contentView superview] != self)
+        contentView = [contentView superview];
+    if ([contentView superview] != self)
+        contentView = nil;
 
     // tile the subviews, when/if we add titlebars and such do it here
     for (NSView *view in _subviews) {
@@ -93,9 +100,12 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
             menuView = view;
         else if ([view isKindOfClass: [NSToolbarView class]])
             toolbarView = (NSToolbarView *) view;
-        else
-            contentView = view;
     }
+
+    // Other decorations still follow their autoresizing masks.
+    for (NSView *view in [[_subviews copy] autorelease])
+        if (view != contentView && view != menuView && view != toolbarView)
+            [view resizeWithOldSuperviewSize: oldSize];
 
     // subtracts menu height but not toolbar height
     NSRect contentFrame = [[[self window] class]

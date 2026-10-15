@@ -3,6 +3,8 @@
 #import <Foundation/NSString.h>
 #import <Foundation/NSDictionary.h>
 #import <Foundation/NSData.h>
+#import <Foundation/NSSet.h>
+#import <Foundation/NSArray.h>
 
 const CFStringRef kCTFontManagerRegisteredFontsChangedNotification = CFSTR("CTFontManagerFontChangedNotification");
 
@@ -23,8 +25,19 @@ bool CTFontManagerUnregisterGraphicsFont(CGFontRef font, CFErrorRef *error)
 
 CFArrayRef CTFontManagerCopyAvailableFontFamilyNames(void)
 {
-    printf("STUB %s\n", __PRETTY_FUNCTION__);
-    return nil;
+    CFDictionaryRef empty = CFDictionaryCreate(NULL, NULL, NULL, 0,
+        &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+    CTFontDescriptorRef query = CTFontDescriptorCreateWithAttributes(empty);
+    CFArrayRef descriptors = CTFontDescriptorCreateMatchingFontDescriptors(query, NULL);
+    NSMutableSet *families = [NSMutableSet set];
+    for (NSDictionary *descriptor in (NSArray *)descriptors) {
+        id family = [descriptor objectForKey:(id)kCTFontFamilyNameAttribute];
+        if (family) [families addObject:family];
+    }
+    CFRelease(query);
+    CFRelease(empty);
+    if (descriptors) CFRelease(descriptors);
+    return (CFArrayRef)[[[families allObjects] sortedArrayUsingSelector:@selector(compare:)] copy];
 }
 
 bool CTFontManagerRegisterFontsForURL(CFURLRef fontURL, CTFontManagerScope scope, CFErrorRef * error)

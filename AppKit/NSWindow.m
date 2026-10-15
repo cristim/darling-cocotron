@@ -46,6 +46,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <ApplicationServices/ApplicationServices.h>
 #import <CoreGraphics/CGWindow.h>
 #import <objc/runtime.h>
+#include "NSGeometryTrace.h"
 #include <unistd.h>
 #include <string.h>
 
@@ -971,6 +972,22 @@ static BOOL _allowsAutomaticWindowTabbing;
     return _animationContext;
 }
 
+/* Dump geometry only, including children which did not receive a resize.
+ * The node/depth bounds keep malformed or unexpectedly large trees bounded. */
+static void traceGeometryTree(NSView *view, unsigned depth, unsigned *remaining) {
+    if (!view || depth > 12 || !*remaining)
+        return;
+    --*remaining;
+    NSRect frame = [view frame], bounds = [view bounds];
+    DarlingGeometryTrace("UI_GEOMETRY tree pid=%d depth=%u view=%p class=%s parent=%p frame=%.0f,%.0f,%.0fx%.0f bounds=%.0f,%.0f,%.0fx%.0f mask=%lu autoresizes=%d layer=%d\n",
+        getpid(), depth, view, class_getName([view class]), [view superview],
+        frame.origin.x, frame.origin.y, frame.size.width, frame.size.height,
+        bounds.origin.x, bounds.origin.y, bounds.size.width, bounds.size.height,
+        (unsigned long)[view autoresizingMask], [view autoresizesSubviews], [view wantsLayer]);
+    for (NSView *child in [view subviews])
+        traceGeometryTree(child, depth + 1, remaining);
+}
+
 - (void) setFrame: (NSRect) newFrame
           display: (BOOL) display
           animate: (BOOL) animate
@@ -981,8 +998,19 @@ static BOOL _allowsAutomaticWindowTabbing;
     _frame = newFrame;
     _makeSureIsOnAScreen = YES;
 
-    [_backgroundView setFrameSize: _frame.size];
+    /* Native child windows convert their Y origin using the platform
+     * window's height. Update it before laying out/resizing those children. */
     [_platformWindow setFrame: _frame];
+    [_backgroundView setFrameSize: _frame.size];
+
+    if (didSize && getenv("DARLING_UI_GEOMETRY_TRACE")) {
+        NSSize contentSize = [_contentView frame].size;
+        DarlingGeometryTrace("UI_GEOMETRY window pid=%d class=%s frame=%.0fx%.0f content=%.0fx%.0f style=%lu window=%p contentView=%p\n",
+            getpid(), class_getName([self class]), _frame.size.width, _frame.size.height,
+            contentSize.width, contentSize.height, (unsigned long)_styleMask, self, [self contentView]);
+        unsigned remaining = 128;
+        traceGeometryTree(_backgroundView, 0, &remaining);
+    }
 
     if (didSize) {
         [self resetCursorRects];
@@ -3318,6 +3346,13 @@ static BOOL _allowsAutomaticWindowTabbing;
     if (didSize) {
         // Don't redraw everything unless we really have to.
         [_backgroundView setFrameSize: _frame.size];
+        if (getenv("DARLING_UI_GEOMETRY_TRACE")) {
+            DarlingGeometryTrace("UI_GEOMETRY native_window pid=%d window=%p contentView=%p frame=%.0fx%.0f\n",
+                                 getpid(), self, [self contentView],
+                                 _frame.size.width, _frame.size.height);
+            unsigned remaining = 128;
+            traceGeometryTree(_backgroundView, 0, &remaining);
+        }
         [_backgroundView setNeedsDisplay: YES];
         [self resetCursorRects];
         [self saveFrameUsingName: _autosaveFrameName];

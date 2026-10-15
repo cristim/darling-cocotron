@@ -48,6 +48,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSLayoutConstraint.h>
 #import <AppKit/NSTextInput.h>
 #import <objc/runtime.h>
+#include "NSGeometryTrace.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
 
 @class IBMetricsTable;
 
@@ -68,6 +72,7 @@ const NSViewFullScreenModeOptionKey NSFullScreenModeApplicationPresentationOptio
 - (CGAffineTransform) transformToWindow;
 - (CGAffineTransform) transformToLayer;
 - (void) _trackingAreasChanged;
+- (void) _darlingSetFrame: (NSRect) frame;
 @end
 
 @implementation NSView
@@ -1079,6 +1084,16 @@ static inline void buildTransformsIfNeeded(NSView *self) {
 }
 
 - (void) setFrame: (NSRect) frame {
+    /* AppKit dispatches through the component setters. Subclasses use
+     * setFrameSize: to notify their renderer even when callers set a full
+     * frame (including autoresizing through resizeWithOldSuperviewSize:). */
+    if (!NSEqualPoints(_frame.origin, frame.origin))
+        [self setFrameOrigin: frame.origin];
+    if (!NSEqualSizes(_frame.size, frame.size))
+        [self setFrameSize: frame.size];
+}
+
+- (void) _darlingSetFrame: (NSRect) frame {
     // Cocoa does not post the notification if the frames are equal
     // Possible that resizeSubviewsWithOldSize is not called if the sizes are
     // equal
@@ -1102,6 +1117,12 @@ static inline void buildTransformsIfNeeded(NSView *self) {
     }
     _frame = frame;
 
+    /* Resize callbacks can convert child frames to window coordinates. They
+     * must see the new parent transform, and compositor submissions must see
+     * the new layer bounds even before the next coordinate conversion. */
+    invalidateTransform(self);
+    configureLayerGeometry(self);
+
     [_window invalidateCursorRectsForView: self]; // this also invalidates
                                                   // tracking areas
 
@@ -1118,6 +1139,14 @@ static inline void buildTransformsIfNeeded(NSView *self) {
 
     invalidateTransform(self);
 
+    if (getenv("DARLING_UI_GEOMETRY_TRACE") &&
+        (_frame.size.width >= 256 || _frame.size.height >= 256))
+        DarlingGeometryTrace("UI_GEOMETRY view pid=%d class=%s parent=%s frame=%.0fx%.0f bounds=%.0fx%.0f mask=%lu autoresizes=%d\n",
+            getpid(), class_getName([self class]),
+            _superview ? class_getName([_superview class]) : "none",
+            _frame.size.width, _frame.size.height, _bounds.size.width, _bounds.size.height,
+            (unsigned long)_autoresizingMask, _autoresizesSubviews);
+
     if (_postsNotificationOnFrameChange)
         [[NSNotificationCenter defaultCenter]
                 postNotificationName: NSViewFrameDidChangeNotification
@@ -1128,14 +1157,14 @@ static inline void buildTransformsIfNeeded(NSView *self) {
     NSRect frame = _frame;
 
     frame.size = size;
-    [self setFrame: frame];
+    [self _darlingSetFrame: frame];
 }
 
 - (void) setFrameOrigin: (NSPoint) origin {
     NSRect frame = [self frame];
 
     frame.origin = origin;
-    [self setFrame: frame];
+    [self _darlingSetFrame: frame];
 }
 
 - (void) setFrameRotation: (CGFloat) angle {
@@ -1150,6 +1179,7 @@ static inline void buildTransformsIfNeeded(NSView *self) {
     if (!NSEqualRects(bounds, _bounds)) {
         _bounds = bounds;
         invalidateTransform(self);
+        configureLayerGeometry(self);
 
         [_window invalidateCursorRectsForView: self]; // this also invalidates
                                                       // tracking areas

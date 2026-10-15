@@ -661,9 +661,18 @@ static NSData *makeWindowIcon() {
         closedir(dir);
     }
 
-    /* Keep the software compositor owner across its other window updates.
-     * Otherwise a temporary size mismatch selects stale browser readback. */
-    if (_remoteFrameSoftwarePublisher && _remoteFrameMapping && !bestSoftware) {
+    /* Keep a software owner across popup updates while the presented size
+     * still belongs to this window. After a real resize, retaining that owner
+     * can strand us on its popup slot even though a matching readback frame
+     * is ready from another publisher. Let normal candidate selection make
+     * that handoff when the old presentation no longer matches a target. */
+    BOOL presentationMatchesTarget = NO;
+    for (unsigned i = 0; i < frameTargetCount; ++i)
+        if (_remoteFrameWidth == (unsigned)frameTargets[i].width &&
+            _remoteFrameHeight == (unsigned)frameTargets[i].height)
+            presentationMatchesTarget = YES;
+    if (_remoteFrameSoftwarePublisher && _remoteFrameMapping && !bestSoftware &&
+        presentationMatchesTarget) {
         const char *pidText = strrchr(_remoteFrameMappingPath, '-');
         int publisher = pidText ? atoi(pidText + 1) : 0;
         if (publisher > 0 && (kill(publisher, 0) == 0 || errno != ESRCH)) {

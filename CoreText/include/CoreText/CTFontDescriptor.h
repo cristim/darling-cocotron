@@ -1,4 +1,4 @@
-#import <CoreFoundation/CFString.h>
+#import <CoreFoundation/CoreFoundation.h>
 #import <CoreText/CoreTextExport.h>
 #import <CoreText/CTFontTraits.h>
 
@@ -53,5 +53,9 @@ typedef enum CTFontOrientation : uint32_t {
 
 CORETEXT_EXPORT CFTypeRef CTFontDescriptorCopyAttribute(CTFontDescriptorRef descriptor, CFStringRef attribute);
 CORETEXT_EXPORT CTFontDescriptorRef CTFontDescriptorCreateWithAttributes(CFDictionaryRef attributes);
+
+CORETEXT_EXPORT CFArrayRef CTFontDescriptorCreateMatchingFontDescriptors(CTFontDescriptorRef descriptor, CFSetRef mandatoryAttributes);
+CORETEXT_EXPORT CTFontDescriptorRef CTFontDescriptorCreateMatchingFontDescriptor(CTFontDescriptorRef descriptor, CFSetRef mandatoryAttributes);
+CORETEXT_EXPORT CFTypeRef CTFontDescriptorCopyLocalizedAttribute(CTFontDescriptorRef descriptor, CFStringRef attribute, CFStringRef *language);
 
 CF_IMPLICIT_BRIDGING_DISABLED

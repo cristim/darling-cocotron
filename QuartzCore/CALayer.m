@@ -69,6 +69,15 @@ static void publishRemoteIOSurfaceImpl(IOSurfaceRef surface, BOOL readback) {
     }
     size_t width = IOSurfaceGetWidth(surface);
     size_t height = IOSurfaceGetHeight(surface);
+    if (getenv("DARLING_UI_GEOMETRY_TRACE")) {
+        static __thread size_t previousWidth, previousHeight;
+        if (width != previousWidth || height != previousHeight) {
+            fprintf(stderr, "UI_GEOMETRY surface pid=%d pixels=%zux%zu route=%s\n",
+                getpid(), width, height, readback ? "gpu-readback" : "software");
+            previousWidth = width;
+            previousHeight = height;
+        }
+    }
     size_t rowBytes = IOSurfaceGetBytesPerRow(surface);
     size_t dataSize = rowBytes * height;
     void *base = IOSurfaceGetBaseAddress(surface);
@@ -352,6 +361,11 @@ NSString *const kCAContentsFormatGray8Uint = @"Gray8";
             [self addAnimation: action forKey: @"bounds"];
     }
 
+    if (!CGRectEqualToRect(_bounds, value) && getenv("DARLING_UI_GEOMETRY_TRACE") &&
+        (value.size.width >= 256 || value.size.height >= 256))
+        fprintf(stderr, "UI_GEOMETRY layer pid=%d class=%s bounds=%.0fx%.0f transform=%.3fx%.3f\n",
+            getpid(), class_getName([self class]), value.size.width, value.size.height,
+            _transform.m11, _transform.m22);
     _bounds = value;
 }
 
@@ -480,6 +494,11 @@ NSString *const kCAContentsFormatGray8Uint = @"Gray8";
 }
 
 - (void) setTransform: (CATransform3D) value {
+    if (getenv("DARLING_UI_GEOMETRY_TRACE") &&
+        (_bounds.size.width >= 256 || _bounds.size.height >= 256))
+        fprintf(stderr, "UI_GEOMETRY transform pid=%d class=%s bounds=%.0fx%.0f scale=%.3fx%.3f\n",
+            getpid(), class_getName([self class]), _bounds.size.width, _bounds.size.height,
+            value.m11, value.m22);
     _transform = value;
 }
 
