@@ -174,7 +174,6 @@ void NSPlatformSetCursorImp(id object) {
 @implementation NSCursor
 
 static NSMutableArray *_cursorStack = nil;
-static BOOL hiddenUntilMouseMoves = NO;
 
 + (void) initialize {
     if (self == [NSCursor class]) {
@@ -366,20 +365,7 @@ static BOOL hiddenUntilMouseMoves = NO;
 }
 
 + (void) setHiddenUntilMouseMoves: (BOOL) flag {
-    hiddenUntilMouseMoves = flag;
-    if (flag)
-        [self hide];
-    else
-        [self unhide];
-}
-
-/* Backend hook: typing may hide the cursor, but the next real motion
- * restores it without requiring the application to issue another cursor set. */
-+ (void) _unhideOnMouseMove {
-    if (hiddenUntilMouseMoves) {
-        hiddenUntilMouseMoves = NO;
-        [self unhide];
-    }
+    [[NSDisplay currentDisplay] setCursorHiddenUntilMouseMoves: flag];
 }
 
 - initWithImage: (NSImage *) image

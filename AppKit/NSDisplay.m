@@ -140,6 +140,26 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
     NSInvalidAbstractInvocation();
 }
 
+- (void) setCursorHiddenUntilMouseMoves: (BOOL) flag {
+    if (_cursorHiddenUntilMouseMoves == flag)
+        return;
+
+    _cursorHiddenUntilMouseMoves = flag;
+    if (flag)
+        [self hideCursor];
+    else
+        [self unhideCursor];
+}
+
+// A backend calls this when the pointer genuinely moves; it cancels a
+// pending -setCursorHiddenUntilMouseMoves:YES, matching AppKit.
+- (void) pointerMoved {
+    if (_cursorHiddenUntilMouseMoves) {
+        _cursorHiddenUntilMouseMoves = NO;
+        [self unhideCursor];
+    }
+}
+
 // Arrow, IBeam, HorizontalResize, VerticalResize
 - (id) cursorWithName: (NSString *) name {
     NSInvalidAbstractInvocation();

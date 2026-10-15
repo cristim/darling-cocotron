@@ -59,10 +59,6 @@
 
 void NSColorSetCatalogColor(NSColorListName catalogName, NSColorName colorName, NSColor *color);
 
-@interface NSCursor (X11CursorVisibility)
-+ (void) _unhideOnMouseMove;
-@end
-
 @implementation X11Display
 
 static int errorHandler(Display *display, XErrorEvent *errorEvent) {
@@ -1437,7 +1433,6 @@ static unsigned int rclolModifierMask(unsigned int key) {
         break;
 
     case MotionNotify:; {
-            [NSCursor _unhideOnMouseMove];
             // NSLog(@"MotionNotify, x=%d, y=%d, xroot=%d, yroot=%d\n",
             // ev->xmotion.x, ev->xmotion.y, ev->xmotion.x_root,
             // ev->xmotion.y_root);
@@ -1475,6 +1470,7 @@ static unsigned int rclolModifierMask(unsigned int key) {
 
             type = NSMouseMoved;
 
+            [self pointerMoved];
             if (ev->xmotion.state & Button1Mask) {
                 type = NSLeftMouseDragged;
             } else if (ev->xmotion.state & Button3Mask) {

@@ -29,6 +29,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 @interface NSDisplay : NSObject {
     NSMutableArray *_eventQueue;
+    BOOL _cursorHiddenUntilMouseMoves;
 }
 
 + (NSDisplay *) currentDisplay;
@@ -49,6 +50,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 - (void) hideCursor;
 - (void) unhideCursor;
+- (void) setCursorHiddenUntilMouseMoves: (BOOL) flag;
+- (void) pointerMoved;
 
 - (id) cursorWithImage: (NSImage *) image hotSpot: (NSPoint) hotSpot;
 - (id) cursorWithName: (NSString *) name;
