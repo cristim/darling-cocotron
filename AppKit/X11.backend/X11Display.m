@@ -1869,18 +1869,10 @@ static unsigned int rclolModifierMask(unsigned int key) {
             rclolPointerStamp = mach_absolute_time();
 
             if (_confinedWindow == [window windowHandle] && _confinedWidth > 0 && _confinedHeight > 0) {
-                int clampedX = ev->xmotion.x;
-                int clampedY = ev->xmotion.y;
-                BOOL needWarp = NO;
-                if (clampedX < 0) { clampedX = 0; needWarp = YES; }
-                else if (clampedX >= _confinedWidth) { clampedX = _confinedWidth - 1; needWarp = YES; }
-                if (clampedY < 0) { clampedY = 0; needWarp = YES; }
-                else if (clampedY >= _confinedHeight) { clampedY = _confinedHeight - 1; needWarp = YES; }
-                if (needWarp) {
-                    XWarpPointer(_display, None, _confinedWindow, 0, 0, 0, 0, clampedX, clampedY);
-                    ev->xmotion.x = clampedX;
-                    ev->xmotion.y = clampedY;
-                }
+                if (ev->xmotion.x < 0) ev->xmotion.x = 0;
+                else if (ev->xmotion.x > _confinedWidth) ev->xmotion.x = _confinedWidth;
+                if (ev->xmotion.y < 0) ev->xmotion.y = 0;
+                else if (ev->xmotion.y > _confinedHeight) ev->xmotion.y = _confinedHeight;
             }
 
             CGPoint lastMotionPos = [window mouseLocationOutsideOfEventStream];

@@ -382,19 +382,20 @@ static NSData *makeWindowIcon() {
         XFree(sh);
     }
 
+    NSString *procName = [[NSProcessInfo processInfo] processName];
+    BOOL isGame = (procName && [procName rangeOfString:@"League" options:NSCaseInsensitiveSearch].location != NSNotFound &&
+                   [procName rangeOfString:@"Ux" options:NSCaseInsensitiveSearch].location == NSNotFound);
+    BOOL wasFullscreen = (_styleMask & NSWindowStyleMaskFullScreen) != 0 ||
+                         (isGame && (_styleMask == NSBorderlessWindowMask || !(_styleMask & NSTitledWindowMask)));
+    BOOL makeFullscreen = (mask & NSWindowStyleMaskFullScreen) != 0 ||
+                          (isGame && (mask == NSBorderlessWindowMask || !(mask & NSTitledWindowMask)));
+
     if (!_mapped) {
         long states[2];
         int states_cnt = 0;
         if (_isModal) {
             states[states_cnt++] =
                     (long) XInternAtom(_display, "_NET_WM_STATE_MODAL", False);
-        }
-        NSString *procName = [[NSProcessInfo processInfo] processName];
-        BOOL isGame = (procName && [procName rangeOfString:@"League" options:NSCaseInsensitiveSearch].location != NSNotFound &&
-                       [procName rangeOfString:@"Ux" options:NSCaseInsensitiveSearch].location == NSNotFound);
-        BOOL makeFullscreen = (mask & NSWindowStyleMaskFullScreen) != 0;
-        if (!makeFullscreen && isGame && (mask == NSBorderlessWindowMask || !(mask & NSTitledWindowMask))) {
-            makeFullscreen = YES;
         }
         if (makeFullscreen) {
             states[states_cnt++] = (long) XInternAtom(
@@ -404,20 +405,25 @@ static NSData *makeWindowIcon() {
                         XInternAtom(_display, "_NET_WM_STATE", False), XA_ATOM,
                         32, PropModeReplace, (const unsigned char *) states,
                         states_cnt);
-    } else if (force || ((mask & NSWindowStyleMaskFullScreen) !=
-                         (_styleMask & NSWindowStyleMaskFullScreen))) {
+    } else if (force || (makeFullscreen != wasFullscreen)) {
         XClientMessageEvent event = {0};
         event.type = ClientMessage;
         event.window = _window;
         event.message_type = XInternAtom(_display, "_NET_WM_STATE", False);
         event.format = 32;
-        event.data.l[0] = (mask & NSWindowStyleMaskFullScreen) ? 1 : 2;
+        event.data.l[0] = makeFullscreen ? 1 : 2;
         event.data.l[1] =
                 (long) XInternAtom(_display, "_NET_WM_STATE_FULLSCREEN", False);
         event.data.l[3] = 1;
         XSendEvent(_display, DefaultRootWindow(_display), False,
                    SubstructureNotifyMask | SubstructureRedirectMask,
                    (XEvent *) &event);
+        if (makeFullscreen) {
+            unsigned long bypass = 2;
+            XChangeProperty(_display, _window, XInternAtom(_display, "_NET_WM_BYPASS_COMPOSITOR", False),
+                            XA_CARDINAL, 32, PropModeReplace, (unsigned char *)&bypass, 1);
+        }
+        XFlush(_display);
     }
 }
 
@@ -1003,6 +1009,7 @@ selectedFrame:
             XSetWMSizeHints(_display, _window, &hints, XA_WM_NORMAL_HINTS);
         }
     }
+    [(X11Display *)[NSDisplay currentDisplay] updateMouseConfinementForWindow:self];
 }
 
 - (void) setHasShadow: (BOOL) value {
