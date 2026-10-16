@@ -344,15 +344,10 @@ CFStringRef CGDisplayModeCopyPixelEncoding(CGDisplayModeRef mode) {
 CFArrayRef CGDisplayCopyAllDisplayModes(CGDirectDisplayID displayIndex,
                                         CFDictionaryRef options)
 {
-    /* League reads the id from [[window screen] deviceDescription], which is
-     * 0 while the window is off every screen, and passes the result straight
-     * to CFArrayGetCount. Fall back to the main display, then to an empty
-     * array, so callers never get NULL. */
     NSDisplay *display = currentDisplay();
-    NSArray *modes = [display modesForScreen: displayIndex - 1];
-    if (modes == nil)
-        modes = [display modesForScreen: CGMainDisplayID() - 1];
-    return (CFArrayRef)[(modes ? modes : @[]) retain];
+    if (!display)
+        return NULL;
+    return (CFArrayRef)[[display modesForScreen: displayIndex - 1] retain];
 }
 
 CGError CGDisplaySetDisplayMode(CGDirectDisplayID displayId,
@@ -383,30 +378,17 @@ static NSData *edidForDisplay(CGDirectDisplayID displayId) {
 }
 
 CGSize CGDisplayScreenSize(CGDirectDisplayID display) {
-    /* League divides by this size to get its camera aspect ratio; a zero size
-     * made every 3D vertex NaN (blue screen, world clicks ignored). Use the
-     * main display for an unknown id (an off-screen window reports 0). */
-    if (CGDisplayBounds(display).size.width <= 0)
-        display = CGMainDisplayID();
+    printf("STUB %s\n", __PRETTY_FUNCTION__);
 
     NSData *edid = edidForDisplay(display);
-    if (edid && [edid length] >= 128) {
-        const uint8_t *bytes = [edid bytes];
-        /* First detailed timing descriptor: image size in mm. */
-        double width = bytes[66] | ((bytes[68] & 0xf0) << 4);
-        double height = bytes[67] | ((bytes[68] & 0x0f) << 8);
-        /* Basic display parameters: maximum image size in cm. */
-        if (width <= 0 || height <= 0) {
-            width = bytes[21] * 10.0;
-            height = bytes[22] * 10.0;
-        }
-        if (width > 0 && height > 0)
-            return (CGSize){.width = width, .height = height};
+
+    if (!edid) {
+        CGRect bounds = CGDisplayBounds(display);
+
+        return bounds.size;
     }
 
-    /* No usable EDID size: assume 96 dpi. */
-    CGSize pixels = CGDisplayBounds(display).size;
-    return (CGSize){.width = pixels.width * 25.4 / 96, .height = pixels.height * 25.4 / 96};
+    return (CGSize){.width = 0, .height = 0};
 }
 
 uint32_t CGDisplaySerialNumber(CGDirectDisplayID displayId) {
