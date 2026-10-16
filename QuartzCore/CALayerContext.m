@@ -150,18 +150,6 @@ static BOOL hasFullWindowSurface(CALayer *layer,CGSize size) {
 
 extern void darlingQCTiming(const char* what, double seconds);
 
-- (void) prepareMetalLayers: (CALayer *) layer {
-    // Metal layers may be nested beneath ordinary backing layers. Every queued
-    // drawable must be consumed before CARenderer samples the layer tree.
-    if ([[layer class] isSubclassOfClass: [CAMetalLayerInternal class]]) {
-        CFTimeInterval prepStart = CACurrentMediaTime();
-        [(CAMetalLayerInternal*)layer prepareRender];
-        darlingQCTiming("prepareRenderTotal", CACurrentMediaTime() - prepStart);
-    }
-    for (CALayer *child in layer.sublayers)
-        [self prepareMetalLayers: child];
-}
-
 - (void) renderLayer: (CALayer *) layer {
     CFTimeInterval renderLayerStart = CACurrentMediaTime();
     CGLContextMakeCurrentAndAttachToWindow(_glContext, _cglWindow);
@@ -193,7 +181,13 @@ extern void darlingQCTiming(const char* what, double seconds);
     [self assignTextureIdsToLayerTree: layer];
     darlingQCTiming("assignTextureIds", CACurrentMediaTime() - assignStart);
 
-    [self prepareMetalLayers: layer];
+    // this is where the Metal layer renders to an internal texture for us to use
+    if ([[layer class] isSubclassOfClass: [CAMetalLayerInternal class]]) {
+        CAMetalLayerInternal* mtl = (CAMetalLayerInternal*)layer;
+        CFTimeInterval prepStart = CACurrentMediaTime();
+        [mtl prepareRender];
+        darlingQCTiming("prepareRenderTotal", CACurrentMediaTime() - prepStart);
+    }
 
     CFTimeInterval rendererStart = CACurrentMediaTime();
     [_renderer render];

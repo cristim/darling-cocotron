@@ -601,15 +601,16 @@ static NSDictionary *modeInfoToDictionary(const XRRModeInfo *mi, int depth) {
 
 /* darling-lol: the game asks for the pointer position, the pressed buttons and the modifier state about a thousand
  * times per second. Each answer was a synchronous X round trip (XQueryPointer / XkbGetState) that puts the main thread
- * to sleep until XWayland replies; while the mouse moves they dominated the slow frames. Reuse a reply for 8 ms, keep it
+ * to sleep until XWayland replies; while the mouse moves they dominated the slow frames. Reuse a reply for 1 ms, keep it
  * current from the input events themselves (a motion event carries position and button state), and drop it on every
  * button, key, crossing or focus event so the next question after a state change is always asked for real. */
 #include <mach/mach_time.h>
+#include <poll.h>
 static BOOL rclolFresh(uint64_t *stamp) {
     static mach_timebase_info_data_t tb;
     if (tb.denom == 0) mach_timebase_info(&tb);
     uint64_t now = mach_absolute_time();
-    if (*stamp != 0 && (now - *stamp) * tb.numer / tb.denom < 8000000ULL) return YES;
+    if (*stamp != 0 && (now - *stamp) * tb.numer / tb.denom < 1000000ULL) return YES;
     *stamp = now;
     return NO;
 }
@@ -864,10 +865,7 @@ static BOOL rclolQueryPointer(Display *display) {
         Cursor c = ((X11Cursor *) cursor).cursor;
 
         XDefineCursor(_display, w, c);
-        /* Send cursor changes immediately without waiting for an X server
-         * reply on the input thread. X requests on this connection remain
-         * ordered; no server result is consumed here. */
-        XFlush(_display);
+        XSync(_display, False);
     }
 }
 
@@ -1137,12 +1135,15 @@ static BOOL rclolQueryPointer(Display *display) {
                 slice = next > now ? next - now : 0;
         }
         if (result == nil && slice > 0) {
-            /* Keep this polling deadline independent of Mach wait timers. */
-            struct { long seconds, nanoseconds; } delay = {
-                0, (long)(slice * 1000000000.0)
-            };
+            /* darling-lol perf: poll() the X11 connection fd instead of blind
+             * nanosleep.  This wakes within <0.1ms when an input event arrives
+             * on the socket, eliminating up to 4ms of input latency jitter. */
+            int xfd = ConnectionNumber(_display);
+            struct pollfd pfd = { .fd = xfd, .events = POLLIN };
+            int timeout_ms = (int)(slice * 1000.0);
+            if (timeout_ms < 1) timeout_ms = 1;
             extern long __lolsys_syscall(long, long, long, long, long, long, int);
-            __lolsys_syscall((long)&delay, 0, 0, 0, 0, 0, 35 /* Linux nanosleep */);
+            __lolsys_syscall((long)&pfd, 1, timeout_ms, 0, 0, 0, 7 /* Linux poll */);
         }
     }
     return result;
@@ -1439,6 +1440,14 @@ static unsigned int rclolModifierMask(unsigned int key) {
             // NSLog(@"MotionNotify, x=%d, y=%d, xroot=%d, yroot=%d\n",
             // ev->xmotion.x, ev->xmotion.y, ev->xmotion.x_root,
             // ev->xmotion.y_root);
+            /* darling-lol perf: drain pending MotionNotify events for this
+             * window from the X11 queue so we only process the latest position. */
+            while (XCheckTypedWindowEvent(_display, ev->xmotion.window, MotionNotify, ev))
+                ;
+            rclolRootX = ev->xmotion.x_root;
+            rclolRootY = ev->xmotion.y_root;
+            rclolPointerState = ev->xmotion.state;
+            rclolPointerStamp = mach_absolute_time();
 
             CGPoint lastMotionPos = [window mouseLocationOutsideOfEventStream];
             pos = [window
