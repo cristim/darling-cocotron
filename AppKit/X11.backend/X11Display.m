@@ -864,7 +864,10 @@ static BOOL rclolQueryPointer(Display *display) {
         Cursor c = ((X11Cursor *) cursor).cursor;
 
         XDefineCursor(_display, w, c);
-        XSync(_display, False);
+        /* Send cursor changes immediately without waiting for an X server
+         * reply on the input thread. X requests on this connection remain
+         * ordered; no server result is consumed here. */
+        XFlush(_display);
     }
 }
 
