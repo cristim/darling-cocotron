@@ -186,7 +186,7 @@ static NSData *makeWindowIcon() {
     X11Display* x11disp = (X11Display *) [NSDisplay currentDisplay];
     _display = [x11disp display];
 
-    _frame = [self transformFrame: [delegate frame]];
+    _frame = [x11disp rootRectForFrame: [delegate frame]];
     BOOL isPanel = [delegate isKindOfClass: [NSPanel class]];
     if (isPanel && _styleMask & NSDocModalWindowMask)
         _styleMask = NSBorderlessWindowMask;
@@ -968,10 +968,13 @@ selectedFrame:
     const char *text = [title cString];
     XStringListToTextProperty((char **) &text, 1, &prop);
     XSetWMName(_display, _window, &prop);
+    if (title && [title rangeOfString:@"(TM) Client" options:NSCaseInsensitiveSearch].location != NSNotFound) {
+        [(X11Display *)[NSDisplay currentDisplay] updateMouseConfinementForWindow:self];
+    }
 }
 
 - (void) setFrame: (O2Rect) frame {
-    frame = [self transformFrame: frame];
+    frame = [(X11Display *) [NSDisplay currentDisplay] rootRectForFrame: frame];
     XMoveResizeWindow(_display, _window, frame.origin.x, frame.origin.y,
                       frame.size.width, frame.size.height);
     [self invalidateContextWithNewSize: frame.size];
@@ -1074,6 +1077,18 @@ selectedFrame:
 - (void) makeKey {
     [self ensureMapped];
     XRaiseWindow(_display, _window);
+    Atom activeAtom = XInternAtom(_display, "_NET_ACTIVE_WINDOW", False);
+    XEvent act = {0};
+    act.xclient.type = ClientMessage;
+    act.xclient.window = _window;
+    act.xclient.message_type = activeAtom;
+    act.xclient.format = 32;
+    act.xclient.data.l[0] = 1;
+    act.xclient.data.l[1] = CurrentTime;
+    XSendEvent(_display, DefaultRootWindow(_display), False,
+               SubstructureRedirectMask | SubstructureNotifyMask, &act);
+    XSetInputFocus(_display, _window, RevertToPointerRoot, CurrentTime);
+    XFlush(_display);
 }
 
 - (void) makeMain {
@@ -1211,7 +1226,7 @@ static struct { Window window; uint64_t stamp; BOOL value; } rclolMini[RCLOL_MIN
 }
 
 - (O2Rect) frame {
-    return [self transformFrame: _frame];
+    return [(X11Display *) [NSDisplay currentDisplay] frameForRootRect: _frame];
 }
 
 static int ignoreBadWindow(Display *display, XErrorEvent *errorEvent) {
@@ -1268,14 +1283,6 @@ static int ignoreBadWindow(Display *display, XErrorEvent *errorEvent) {
 
 - (void) addEntriesToDeviceDictionary: (NSDictionary *) entries {
     [_deviceDictionary addEntriesFromDictionary: entries];
-}
-
-- (O2Rect) transformFrame: (O2Rect) frame {
-    return NSMakeRect(frame.origin.x,
-                      DisplayHeight(_display, DefaultScreen(_display)) -
-                              frame.origin.y - frame.size.height,
-                      fmax(frame.size.width, 1.0),
-                      fmax(frame.size.height, 1.0));
 }
 
 - (NSPoint) transformPoint: (NSPoint) pos; {
