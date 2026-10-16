@@ -221,13 +221,28 @@ static NSData *makeWindowIcon() {
 
     XSetWindowAttributes xattr;
     unsigned long xattr_mask;
+    NSString *procName = [[NSProcessInfo processInfo] processName];
+    BOOL isGame = (procName && [procName rangeOfString:@"League" options:NSCaseInsensitiveSearch].location != NSNotFound &&
+                   [procName rangeOfString:@"Ux" options:NSCaseInsensitiveSearch].location == NSNotFound);
+    NSString *winTitle = [delegate respondsToSelector:@selector(title)] ? [delegate title] : nil;
+    if (winTitle && [winTitle rangeOfString:@"League of Legends" options:NSCaseInsensitiveSearch].location != NSNotFound &&
+        [winTitle rangeOfString:@"Riot" options:NSCaseInsensitiveSearch].location == NSNotFound) {
+        isGame = YES;
+    }
+
+    BOOL isMenuOrPopup = NO;
+    if (delegate) {
+        if ([delegate isKindOfClass:NSClassFromString(@"NSMenuWindow")] ||
+            [delegate isKindOfClass:NSClassFromString(@"NSPopUpWindow")] ||
+            [delegate isKindOfClass:NSClassFromString(@"NSToolTipPanel")]) {
+            isMenuOrPopup = YES;
+        }
+    }
+
     // A borderless game is still a focusable application window. Leaving it
     // override-redirect makes XWayland bypass compositor keyboard activation.
     // Menus and nonactivating popups keep their unmanaged behavior.
-    xattr.override_redirect = _styleMask == NSBorderlessWindowMask &&
-            ([delegate isKindOfClass:[NSMenuWindow class]] ||
-             [delegate isKindOfClass:[NSPopUpWindow class]] ||
-             ![delegate canBecomeKeyWindow]) ? True : False;
+    xattr.override_redirect = (!isGame && _styleMask == NSBorderlessWindowMask && isMenuOrPopup) ? True : False;
     xattr_mask = CWOverrideRedirect | CWColormap;
     xattr.colormap = cmap;
 
@@ -255,6 +270,16 @@ static NSData *makeWindowIcon() {
     XClassHint classHint = {.res_name = (char *) name,
                             .res_class = (char *) name};
     XSetClassHint(_display, _window, &classHint);
+
+    if (isGame && (_styleMask == NSBorderlessWindowMask || !(_styleMask & NSTitledWindowMask))) {
+        Atom state = XInternAtom(_display, "_NET_WM_STATE", False);
+        Atom fs = XInternAtom(_display, "_NET_WM_STATE_FULLSCREEN", False);
+        XChangeProperty(_display, _window, state, XA_ATOM, 32, PropModeReplace,
+                        (const unsigned char *)&fs, 1);
+        unsigned long bypass = 1;
+        XChangeProperty(_display, _window, XInternAtom(_display, "_NET_WM_BYPASS_COMPOSITOR", False),
+                        XA_CARDINAL, 32, PropModeReplace, (unsigned char *)&bypass, 1);
+    }
 
     XSetWindowBackgroundPixmap(_display, _window, None);
 
@@ -331,10 +356,19 @@ static NSData *makeWindowIcon() {
             // Make resizable
             sh->flags = 0;
         } else {
-            // Make non-resizable
-            sh->flags = PMinSize | PMaxSize;
-            sh->min_width = sh->max_width = _frame.size.width;
-            sh->min_height = sh->max_height = _frame.size.height;
+            NSString *procName = [[NSProcessInfo processInfo] processName];
+            BOOL isGame = (procName && [procName rangeOfString:@"League" options:NSCaseInsensitiveSearch].location != NSNotFound &&
+                           [procName rangeOfString:@"Ux" options:NSCaseInsensitiveSearch].location == NSNotFound);
+            if (isGame || mask == NSBorderlessWindowMask) {
+                sh->flags = PMinSize;
+                sh->min_width = _frame.size.width;
+                sh->min_height = _frame.size.height;
+            } else {
+                // Make non-resizable
+                sh->flags = PMinSize | PMaxSize;
+                sh->min_width = sh->max_width = _frame.size.width;
+                sh->min_height = sh->max_height = _frame.size.height;
+            }
         }
 
         XSetWMSizeHints(_display, _window, sh, XA_WM_NORMAL_HINTS);
@@ -941,11 +975,16 @@ selectedFrame:
     // Nonresizable windows can be created at 1x1 and enlarged before display.
     // Refresh the constraints so a managing compositor sees the current size.
     if (!(_styleMask & NSWindowStyleMaskResizable)) {
-        XSizeHints hints = {0};
-        hints.flags = PMinSize | PMaxSize;
-        hints.min_width = hints.max_width = frame.size.width;
-        hints.min_height = hints.max_height = frame.size.height;
-        XSetWMSizeHints(_display, _window, &hints, XA_WM_NORMAL_HINTS);
+        NSString *procName = [[NSProcessInfo processInfo] processName];
+        BOOL isGame = (procName && [procName rangeOfString:@"League" options:NSCaseInsensitiveSearch].location != NSNotFound &&
+                       [procName rangeOfString:@"Ux" options:NSCaseInsensitiveSearch].location == NSNotFound);
+        if (!isGame && _styleMask != NSBorderlessWindowMask) {
+            XSizeHints hints = {0};
+            hints.flags = PMinSize | PMaxSize;
+            hints.min_width = hints.max_width = frame.size.width;
+            hints.min_height = hints.max_height = frame.size.height;
+            XSetWMSizeHints(_display, _window, &hints, XA_WM_NORMAL_HINTS);
+        }
     }
 }
 
