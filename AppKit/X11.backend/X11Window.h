@@ -80,6 +80,7 @@
 - (Visual *) visual;
 - (Drawable) drawable;
 - (NSPoint) transformPoint: (NSPoint) pos;
+- (O2Rect) transformFrame: (O2Rect) frame;
 
 - (Window) windowHandle;
 - (BOOL) handleRemoteFrameExpose: (Window) window;

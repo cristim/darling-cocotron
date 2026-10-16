@@ -53,9 +53,6 @@
     unsigned char _modifierKeysDown[256];
     int _rrEventBase;
     NSArray* _lastScreens;
-    // Root-window rectangle of the primary monitor (macOS's global origin).
-    NSRect _primaryRootFrame;
-    BOOL _primaryRootFrameValid;
 
 @public
     XIM _xim;
@@ -69,9 +66,4 @@
 
 - (CGFloat) doubleClickInterval;
 - (int) handleError: (XErrorEvent *) errorEvent;
-
-// Conversions between X root coordinates (top-left of the root window, y down)
-// and Cocoa global coordinates (bottom-left of the primary screen, y up).
-- (NSRect) rootRectForFrame: (NSRect) frame;
-- (NSRect) frameForRootRect: (NSRect) rect;
 @end

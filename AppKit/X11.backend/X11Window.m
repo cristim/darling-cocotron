@@ -186,7 +186,7 @@ static NSData *makeWindowIcon() {
     X11Display* x11disp = (X11Display *) [NSDisplay currentDisplay];
     _display = [x11disp display];
 
-    _frame = [x11disp rootRectForFrame: [delegate frame]];
+    _frame = [self transformFrame: [delegate frame]];
     BOOL isPanel = [delegate isKindOfClass: [NSPanel class]];
     if (isPanel && _styleMask & NSDocModalWindowMask)
         _styleMask = NSBorderlessWindowMask;
@@ -221,13 +221,28 @@ static NSData *makeWindowIcon() {
 
     XSetWindowAttributes xattr;
     unsigned long xattr_mask;
+    NSString *procName = [[NSProcessInfo processInfo] processName];
+    BOOL isGame = (procName && [procName rangeOfString:@"League" options:NSCaseInsensitiveSearch].location != NSNotFound &&
+                   [procName rangeOfString:@"Ux" options:NSCaseInsensitiveSearch].location == NSNotFound);
+    NSString *winTitle = [delegate respondsToSelector:@selector(title)] ? [delegate title] : nil;
+    if (winTitle && [winTitle rangeOfString:@"League of Legends" options:NSCaseInsensitiveSearch].location != NSNotFound &&
+        [winTitle rangeOfString:@"Riot" options:NSCaseInsensitiveSearch].location == NSNotFound) {
+        isGame = YES;
+    }
+
+    BOOL isMenuOrPopup = NO;
+    if (delegate) {
+        if ([delegate isKindOfClass:NSClassFromString(@"NSMenuWindow")] ||
+            [delegate isKindOfClass:NSClassFromString(@"NSPopUpWindow")] ||
+            [delegate isKindOfClass:NSClassFromString(@"NSToolTipPanel")]) {
+            isMenuOrPopup = YES;
+        }
+    }
+
     // A borderless game is still a focusable application window. Leaving it
     // override-redirect makes XWayland bypass compositor keyboard activation.
     // Menus and nonactivating popups keep their unmanaged behavior.
-    xattr.override_redirect = _styleMask == NSBorderlessWindowMask &&
-            ([delegate isKindOfClass:[NSMenuWindow class]] ||
-             [delegate isKindOfClass:[NSPopUpWindow class]] ||
-             ![delegate canBecomeKeyWindow]) ? True : False;
+    xattr.override_redirect = (!isGame && _styleMask == NSBorderlessWindowMask && isMenuOrPopup) ? True : False;
     xattr_mask = CWOverrideRedirect | CWColormap;
     xattr.colormap = cmap;
 
@@ -255,6 +270,16 @@ static NSData *makeWindowIcon() {
     XClassHint classHint = {.res_name = (char *) name,
                             .res_class = (char *) name};
     XSetClassHint(_display, _window, &classHint);
+
+    if (isGame && (_styleMask == NSBorderlessWindowMask || !(_styleMask & NSTitledWindowMask))) {
+        Atom state = XInternAtom(_display, "_NET_WM_STATE", False);
+        Atom fs = XInternAtom(_display, "_NET_WM_STATE_FULLSCREEN", False);
+        XChangeProperty(_display, _window, state, XA_ATOM, 32, PropModeReplace,
+                        (const unsigned char *)&fs, 1);
+        unsigned long bypass = 1;
+        XChangeProperty(_display, _window, XInternAtom(_display, "_NET_WM_BYPASS_COMPOSITOR", False),
+                        XA_CARDINAL, 32, PropModeReplace, (unsigned char *)&bypass, 1);
+    }
 
     XSetWindowBackgroundPixmap(_display, _window, None);
 
@@ -331,10 +356,19 @@ static NSData *makeWindowIcon() {
             // Make resizable
             sh->flags = 0;
         } else {
-            // Make non-resizable
-            sh->flags = PMinSize | PMaxSize;
-            sh->min_width = sh->max_width = _frame.size.width;
-            sh->min_height = sh->max_height = _frame.size.height;
+            NSString *procName = [[NSProcessInfo processInfo] processName];
+            BOOL isGame = (procName && [procName rangeOfString:@"League" options:NSCaseInsensitiveSearch].location != NSNotFound &&
+                           [procName rangeOfString:@"Ux" options:NSCaseInsensitiveSearch].location == NSNotFound);
+            if (isGame || mask == NSBorderlessWindowMask) {
+                sh->flags = PMinSize;
+                sh->min_width = _frame.size.width;
+                sh->min_height = _frame.size.height;
+            } else {
+                // Make non-resizable
+                sh->flags = PMinSize | PMaxSize;
+                sh->min_width = sh->max_width = _frame.size.width;
+                sh->min_height = sh->max_height = _frame.size.height;
+            }
         }
 
         XSetWMSizeHints(_display, _window, sh, XA_WM_NORMAL_HINTS);
@@ -933,7 +967,7 @@ selectedFrame:
 }
 
 - (void) setFrame: (O2Rect) frame {
-    frame = [(X11Display *) [NSDisplay currentDisplay] rootRectForFrame: frame];
+    frame = [self transformFrame: frame];
     XMoveResizeWindow(_display, _window, frame.origin.x, frame.origin.y,
                       frame.size.width, frame.size.height);
     [self invalidateContextWithNewSize: frame.size];
@@ -941,11 +975,16 @@ selectedFrame:
     // Nonresizable windows can be created at 1x1 and enlarged before display.
     // Refresh the constraints so a managing compositor sees the current size.
     if (!(_styleMask & NSWindowStyleMaskResizable)) {
-        XSizeHints hints = {0};
-        hints.flags = PMinSize | PMaxSize;
-        hints.min_width = hints.max_width = frame.size.width;
-        hints.min_height = hints.max_height = frame.size.height;
-        XSetWMSizeHints(_display, _window, &hints, XA_WM_NORMAL_HINTS);
+        NSString *procName = [[NSProcessInfo processInfo] processName];
+        BOOL isGame = (procName && [procName rangeOfString:@"League" options:NSCaseInsensitiveSearch].location != NSNotFound &&
+                       [procName rangeOfString:@"Ux" options:NSCaseInsensitiveSearch].location == NSNotFound);
+        if (!isGame && _styleMask != NSBorderlessWindowMask) {
+            XSizeHints hints = {0};
+            hints.flags = PMinSize | PMaxSize;
+            hints.min_width = hints.max_width = frame.size.width;
+            hints.min_height = hints.max_height = frame.size.height;
+            XSetWMSizeHints(_display, _window, &hints, XA_WM_NORMAL_HINTS);
+        }
     }
 }
 
@@ -1168,7 +1207,7 @@ static struct { Window window; uint64_t stamp; BOOL value; } rclolMini[RCLOL_MIN
 }
 
 - (O2Rect) frame {
-    return [(X11Display *) [NSDisplay currentDisplay] frameForRootRect: _frame];
+    return [self transformFrame: _frame];
 }
 
 static int ignoreBadWindow(Display *display, XErrorEvent *errorEvent) {
@@ -1225,6 +1264,14 @@ static int ignoreBadWindow(Display *display, XErrorEvent *errorEvent) {
 
 - (void) addEntriesToDeviceDictionary: (NSDictionary *) entries {
     [_deviceDictionary addEntriesFromDictionary: entries];
+}
+
+- (O2Rect) transformFrame: (O2Rect) frame {
+    return NSMakeRect(frame.origin.x,
+                      DisplayHeight(_display, DefaultScreen(_display)) -
+                              frame.origin.y - frame.size.height,
+                      fmax(frame.size.width, 1.0),
+                      fmax(frame.size.height, 1.0));
 }
 
 - (NSPoint) transformPoint: (NSPoint) pos; {
