@@ -1526,7 +1526,7 @@ static BOOL rclolQueryPointer(Display *display) {
             int xfd = ConnectionNumber(_display);
             struct pollfd pfd = { .fd = xfd, .events = POLLIN };
             int timeout_ms = (int)(slice * 1000.0);
-            if (timeout_ms < 1) timeout_ms = 1;
+            if (timeout_ms < 0) timeout_ms = 0;
             extern long __lolsys_syscall(long, long, long, long, long, long, int);
             __lolsys_syscall((long)&pfd, 1, timeout_ms, 0, 0, 0, 7 /* Linux poll */);
         }
@@ -1878,8 +1878,6 @@ static unsigned int rclolModifierMask(unsigned int key) {
                     ev->xmotion.x = clampedX;
                     ev->xmotion.y = clampedY;
                 }
-            } else if (!_relativeMouse.active && window != nil && !_confinedWindow) {
-                [self updateMouseConfinementForWindow: window];
             }
 
             CGPoint lastMotionPos = [window mouseLocationOutsideOfEventStream];
@@ -2056,7 +2054,7 @@ static unsigned int rclolModifierMask(unsigned int key) {
                             rclolFocusDetailName(ev->xfocus.detail), _relativeRequested, _relativeMouse.active,
                             (unsigned long) _confinedWindow,
                             [NSApp isActive]);
-        if (ev->xfocus.detail == NotifyPointer || ev->xfocus.mode == NotifyGrab || ev->xfocus.mode == NotifyUngrab) {
+        if (ev->xfocus.detail == NotifyPointer || ev->xfocus.detail == NotifyInferior || ev->xfocus.mode == NotifyGrab || ev->xfocus.mode == NotifyUngrab) {
             /* Pointer boundary crossing or grab transition in XWayland: do NOT release confinement or deactivate window */
             break;
         }
@@ -2071,6 +2069,8 @@ static unsigned int rclolModifierMask(unsigned int key) {
         if (_confinedWindow) {
             XUngrabPointer(_display, CurrentTime);
             _confinedWindow = None;
+            _confinedWidth = 0;
+            _confinedHeight = 0;
         }
         _otherButtonsDown = 0;
         if (window != nil)
