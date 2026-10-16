@@ -48,6 +48,8 @@
     X11Cursor *_definedCursor;
     BOOL _cursorHidden;
     Window _confinedWindow;
+    int _confinedWidth;
+    int _confinedHeight;
     unsigned int _otherButtonsDown;
     KeySym _lastKeySym;
     unsigned char _modifierKeysDown[256];

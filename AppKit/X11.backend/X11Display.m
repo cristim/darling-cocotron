@@ -936,15 +936,16 @@ static NSDictionary *modeInfoToDictionary(const XRRModeInfo *mi, int depth) {
 
 /* darling-lol: the game asks for the pointer position, the pressed buttons and the modifier state about a thousand
  * times per second. Each answer was a synchronous X round trip (XQueryPointer / XkbGetState) that puts the main thread
- * to sleep until XWayland replies; while the mouse moves they dominated the slow frames. Reuse a reply for 8 ms, keep it
+ * to sleep until XWayland replies; while the mouse moves they dominated the slow frames. Reuse a reply for 1 ms, keep it
  * current from the input events themselves (a motion event carries position and button state), and drop it on every
  * button, key, crossing or focus event so the next question after a state change is always asked for real. */
 #include <mach/mach_time.h>
+#include <poll.h>
 static BOOL rclolFresh(uint64_t *stamp) {
     static mach_timebase_info_data_t tb;
     if (tb.denom == 0) mach_timebase_info(&tb);
     uint64_t now = mach_absolute_time();
-    if (*stamp != 0 && (now - *stamp) * tb.numer / tb.denom < 8000000ULL) return YES;
+    if (*stamp != 0 && (now - *stamp) * tb.numer / tb.denom < 1000000ULL) return YES;
     *stamp = now;
     return NO;
 }
@@ -1432,8 +1433,11 @@ static BOOL rclolQueryPointer(Display *display) {
             _definedCursor = nil;
         }
         /* The server released any grab on a destroyed window. */
-        if (_confinedWindow == i)
+        if (_confinedWindow == i) {
             _confinedWindow = None;
+            _confinedWidth = 0;
+            _confinedHeight = 0;
+        }
         if (_relativeWindow == i)
             [self suspendRelativeMouse];
     }
@@ -1516,12 +1520,15 @@ static BOOL rclolQueryPointer(Display *display) {
                 slice = next > now ? next - now : 0;
         }
         if (result == nil && slice > 0) {
-            /* Keep this polling deadline independent of Mach wait timers. */
-            struct { long seconds, nanoseconds; } delay = {
-                0, (long)(slice * 1000000000.0)
-            };
+            /* darling-lol perf: poll() the X11 connection fd instead of blind
+             * nanosleep.  This wakes within <0.1ms when an input event arrives
+             * on the socket, eliminating up to 4ms of input latency jitter. */
+            int xfd = ConnectionNumber(_display);
+            struct pollfd pfd = { .fd = xfd, .events = POLLIN };
+            int timeout_ms = (int)(slice * 1000.0);
+            if (timeout_ms < 1) timeout_ms = 1;
             extern long __lolsys_syscall(long, long, long, long, long, long, int);
-            __lolsys_syscall((long)&delay, 0, 0, 0, 0, 0, 35 /* Linux nanosleep */);
+            __lolsys_syscall((long)&pfd, 1, timeout_ms, 0, 0, 0, 7 /* Linux poll */);
         }
     }
     return result;
@@ -1718,6 +1725,9 @@ static unsigned int rclolModifierMask(unsigned int key) {
         break;
 
     case ButtonPress:;
+        if (window && !_confinedWindow) {
+            [self updateMouseConfinementForWindow: window];
+        }
         if (ev->xbutton.button >= Button4 && ev->xbutton.button <= 7) {
             pos = [self locationInWindow: window x: ev->xbutton.x y: ev->xbutton.y
                                    rootX: ev->xbutton.x_root rootY: ev->xbutton.y_root];
@@ -1822,6 +1832,33 @@ static unsigned int rclolModifierMask(unsigned int key) {
             // NSLog(@"MotionNotify, x=%d, y=%d, xroot=%d, yroot=%d\n",
             // ev->xmotion.x, ev->xmotion.y, ev->xmotion.x_root,
             // ev->xmotion.y_root);
+
+            /* darling-lol: Coalesce pending MotionNotify events in the X11 queue to eliminate input lag. */
+            XEvent nextEv;
+            while (XCheckTypedWindowEvent(_display, ev->xmotion.window, MotionNotify, &nextEv)) {
+                *ev = nextEv;
+            }
+            rclolRootX = ev->xmotion.x_root;
+            rclolRootY = ev->xmotion.y_root;
+            rclolPointerState = ev->xmotion.state;
+            rclolPointerStamp = mach_absolute_time();
+
+            if (_confinedWindow == [window windowHandle] && _confinedWidth > 0 && _confinedHeight > 0) {
+                int clampedX = ev->xmotion.x;
+                int clampedY = ev->xmotion.y;
+                BOOL needWarp = NO;
+                if (clampedX < 0) { clampedX = 0; needWarp = YES; }
+                else if (clampedX >= _confinedWidth) { clampedX = _confinedWidth - 1; needWarp = YES; }
+                if (clampedY < 0) { clampedY = 0; needWarp = YES; }
+                else if (clampedY >= _confinedHeight) { clampedY = _confinedHeight - 1; needWarp = YES; }
+                if (needWarp) {
+                    XWarpPointer(_display, None, _confinedWindow, 0, 0, 0, 0, clampedX, clampedY);
+                    ev->xmotion.x = clampedX;
+                    ev->xmotion.y = clampedY;
+                }
+            } else if (!_relativeMouse.active && window != nil && !_confinedWindow) {
+                [self updateMouseConfinementForWindow: window];
+            }
 
             CGPoint lastMotionPos = [window mouseLocationOutsideOfEventStream];
             pos = [window
@@ -1940,6 +1977,15 @@ static unsigned int rclolModifierMask(unsigned int key) {
 
     case LeaveNotify:
         NSLog(@"LeaveNotify");
+        if (_confinedWindow == [window windowHandle] && _confinedWidth > 0 && _confinedHeight > 0) {
+            Window win = [window windowHandle];
+            int cx = ev->xcrossing.x < 0 ? 0 : (ev->xcrossing.x >= _confinedWidth ? _confinedWidth - 1 : ev->xcrossing.x);
+            int cy = ev->xcrossing.y < 0 ? 0 : (ev->xcrossing.y >= _confinedHeight ? _confinedHeight - 1 : ev->xcrossing.y);
+            XWarpPointer(_display, None, win, 0, 0, 0, 0, cx, cy);
+            XFlush(_display);
+            [self updateMouseConfinementForWindow: window];
+            break;
+        }
         if (!_relativeMouse.active && ev->xcrossing.detail != NotifyInferior) {
             [window setLastKnownCursorPosition:
                 [window transformPoint: NSMakePoint(ev->xcrossing.x, ev->xcrossing.y)]];
@@ -1988,6 +2034,18 @@ static unsigned int rclolModifierMask(unsigned int key) {
                             rclolFocusDetailName(ev->xfocus.detail), _relativeRequested, _relativeMouse.active,
                             (unsigned long) _confinedWindow,
                             [NSApp isActive]);
+        if (ev->xfocus.detail == NotifyPointer || ev->xfocus.mode == NotifyGrab || ev->xfocus.mode == NotifyUngrab) {
+            /* Pointer boundary crossing or grab transition in XWayland: do NOT release confinement or deactivate window */
+            break;
+        }
+        {
+            NSString *procName = [[NSProcessInfo processInfo] processName];
+            BOOL isGame = (procName && [procName rangeOfString:@"League" options:NSCaseInsensitiveSearch].location != NSNotFound);
+            if (isGame && [NSApp isActive]) {
+                /* While League is the active app, do not drop confinement on transient XWayland focus events */
+                break;
+            }
+        }
         NSLog(@"FocusOut");
         [self reconcileModifierKeys:NULL window:delegate];
         _lastKeySym = 0;
@@ -2077,6 +2135,10 @@ static unsigned int rclolModifierMask(unsigned int key) {
         break;
 
     case ConfigureNotify:
+        if (ev->xconfigure.window == _confinedWindow) {
+            _confinedWidth = ev->xconfigure.width;
+            _confinedHeight = ev->xconfigure.height;
+        }
         [window frameChanged];
         [delegate platformWindow: window
                     frameChanged: [window frame]
@@ -2297,29 +2359,13 @@ void CGNativeBorderFrameWidthsForStyle(NSUInteger styleMask, CGFloat *top,
         return;
     }
     Window win = [window windowHandle];
-    Window focus; int revert;
-    XGetInputFocus(_display, &focus, &revert);
-    Window ancestor = focus;
-    while (ancestor != win && ancestor != None && ancestor != PointerRoot && ancestor != DefaultRootWindow(_display)) {
-        Window root, parent, *children=NULL; unsigned nchildren;
-        if (!XQueryTree(_display, ancestor, &root, &parent, &children, &nchildren)) break;
-        if (children) XFree(children);
-        ancestor=parent;
-    }
-    if (getenv("RCLOL_INPUT_TRACE")) fprintf(stderr,"CONFINEMENT focus=%lu target=%lu ancestor=%lu\n",focus,win,ancestor);
-    if (ancestor != win) {
-        if (rclolTraceOn())
-            rclolTraceRated(&rclolConfineChannel, "skip: not focused window=%lu focus=%lu ancestor=%lu confined=%lu",
-                            (unsigned long) win, (unsigned long) focus, (unsigned long) ancestor,
-                            (unsigned long) _confinedWindow);
-        return;
-    }
     XWindowAttributes attrs;
     if (!XGetWindowAttributes(_display, win, &attrs)) {
         if (rclolTraceOn())
             rclolTraceRated(&rclolConfineChannel, "skip: XGetWindowAttributes failed window=%lu", (unsigned long) win);
         return;
     }
+
     BOOL fullscreen = NO;
     Atom actual; int format; unsigned long count, remaining; unsigned char *data = NULL;
     Atom state = XInternAtom(_display, "_NET_WM_STATE", False);
@@ -2330,47 +2376,127 @@ void CGNativeBorderFrameWidthsForStyle(NSUInteger styleMask, CGFloat *top,
     }
     if (data) XFree(data);
     BOOL rclolEwmhFullscreen = fullscreen;
+
     /* League's borderless fullscreen does not set the EWMH fullscreen bit.
-     * Recognize a borderless window covering one monitor, including monitor 2. */
-    if (!fullscreen && !([[window delegate] styleMask] & NSTitledWindowMask)) {
-        Window child; int x, y;
-        XTranslateCoordinates(_display, win, DefaultRootWindow(_display), 0, 0, &x, &y, &child);
-        XRRScreenResources *resources = XRRGetScreenResourcesCurrent(_display, DefaultRootWindow(_display));
-        if (resources) {
-            for (int i=0; i<resources->ncrtc; ++i) {
-                XRRCrtcInfo *crtc = XRRGetCrtcInfo(_display, resources, resources->crtcs[i]);
-                if (crtc) {
-                    if (crtc->mode && abs(x-crtc->x)<=2 && abs(y-crtc->y)<=2 &&
-                        abs(attrs.width-(int)crtc->width)<=2 && abs(attrs.height-(int)crtc->height)<=2) fullscreen=YES;
-                    XRRFreeCrtcInfo(crtc);
-                }
+     * Recognize a borderless game window, multi-monitor setups, and GNOME Wayland. */
+    NSWindow *delegate = [window delegate];
+    BOOL isBorderless = delegate ? !([delegate styleMask] & NSTitledWindowMask) : YES;
+    NSString *procName = [[NSProcessInfo processInfo] processName];
+    BOOL isUx = (procName && [procName rangeOfString:@"Ux" options:NSCaseInsensitiveSearch].location != NSNotFound);
+    BOOL isRiot = (procName && [procName rangeOfString:@"Riot" options:NSCaseInsensitiveSearch].location != NSNotFound);
+    BOOL isClient = (procName && [procName rangeOfString:@"Client" options:NSCaseInsensitiveSearch].location != NSNotFound);
+    BOOL isGame = NO;
+    if (!isUx && !isRiot && !isClient && procName && [procName rangeOfString:@"League" options:NSCaseInsensitiveSearch].location != NSNotFound) {
+        isGame = YES;
+    }
+    NSString *winTitle = [delegate respondsToSelector:@selector(title)] ? [delegate title] : nil;
+    if (winTitle && [winTitle rangeOfString:@"(TM) Client" options:NSCaseInsensitiveSearch].location != NSNotFound) {
+        isGame = YES;
+    }
+    if (!isGame) {
+        XTextProperty prop;
+        if (XGetWMName(_display, win, &prop) && prop.value) {
+            NSString *xtitle = [NSString stringWithUTF8String:(const char *)prop.value];
+            if (xtitle && [xtitle rangeOfString:@"(TM) Client" options:NSCaseInsensitiveSearch].location != NSNotFound) {
+                isGame = YES;
             }
-            XRRFreeScreenResources(resources);
+            XFree(prop.value);
         }
     }
-    if (!fullscreen || attrs.map_state != IsViewable) {
+
+    if (isBorderless && isGame) {
+        if (!fullscreen) {
+            fullscreen = YES;
+            /* Inform GNOME Shell / Mutter / EWMH to make this window fullscreen.
+             * This hides the GNOME top bar, sizes the window to fill the entire monitor,
+             * and enables Wayland pointer confinement (zwp_confined_pointer_v1). */
+            XClientMessageEvent cme = {0};
+            cme.type = ClientMessage;
+            cme.window = win;
+            cme.message_type = state;
+            cme.format = 32;
+            cme.data.l[0] = 1; /* _NET_WM_STATE_ADD */
+            cme.data.l[1] = (long)fs;
+            cme.data.l[2] = 0;
+            cme.data.l[3] = 1; /* normal application */
+            cme.data.l[4] = 0;
+            XSendEvent(_display, DefaultRootWindow(_display), False,
+                       SubstructureNotifyMask | SubstructureRedirectMask,
+                       (XEvent *)&cme);
+
+            /* darling-lol: Tell compositor NEVER to bypass composition (bypass=2).
+             * Direct scanout of this parent window produces a black screen because
+             * OpenGL/Metal renders into the child X11SubWindow. */
+            unsigned long bypass = 2;
+            XChangeProperty(_display, win, XInternAtom(_display, "_NET_WM_BYPASS_COMPOSITOR", False),
+                            XA_CARDINAL, 32, PropModeReplace, (unsigned char *)&bypass, 1);
+        }
+
+        /* Ensure window is marked active in Mutter so top bar is hidden and pointer is confined */
+        Atom activeAtom = XInternAtom(_display, "_NET_ACTIVE_WINDOW", False);
+        XClientMessageEvent act = {0};
+        act.type = ClientMessage;
+        act.window = win;
+        act.message_type = activeAtom;
+        act.format = 32;
+        act.data.l[0] = 1;
+        act.data.l[1] = CurrentTime;
+        XSendEvent(_display, DefaultRootWindow(_display), False,
+                   SubstructureNotifyMask | SubstructureRedirectMask,
+                   (XEvent *)&act);
+        XRaiseWindow(_display, win);
+        XSetInputFocus(_display, win, RevertToPointerRoot, CurrentTime);
+        XFlush(_display);
+        if (getenv("RCLOL_INPUT_TRACE")) fprintf(stderr,"CONFINEMENT promoted to EWMH FULLSCREEN and ACTIVE for window %lu\n",win);
+    }
+
+    /* Check focus to determine whether mouse confinement should be active. */
+    Window focus; int revert;
+    XGetInputFocus(_display, &focus, &revert);
+    Window ancestor = focus;
+    while (ancestor != win && ancestor != None && ancestor != PointerRoot && ancestor != DefaultRootWindow(_display)) {
+        Window root, parent, *children=NULL; unsigned nchildren;
+        if (!XQueryTree(_display, ancestor, &root, &parent, &children, &nchildren)) break;
+        if (children) XFree(children);
+        ancestor=parent;
+    }
+    if (getenv("RCLOL_INPUT_TRACE")) fprintf(stderr,"CONFINEMENT focus=%lu target=%lu ancestor=%lu fullscreen=%d\n",focus,win,ancestor,fullscreen);
+
+    BOOL isFocused = (ancestor == win || focus == win || (isGame && ([NSApp isActive] || focus == PointerRoot || focus == None || focus == DefaultRootWindow(_display))));
+    if ((!fullscreen && !isGame) || attrs.map_state != IsViewable || !isFocused) {
         if (rclolTraceOn())
             rclolTraceRated(&rclolConfineChannel, "no confinement window=%lu fullscreen=%d ewmh=%d titled=%d size=%dx%d map_state=%d %s",
                             (unsigned long) win, fullscreen, rclolEwmhFullscreen,
                             ([[window delegate] styleMask] & NSTitledWindowMask) != 0, attrs.width, attrs.height,
                             attrs.map_state, _confinedWindow == win ? "releasing confinement" : "nothing to release");
-        if (_confinedWindow == win) { XUngrabPointer(_display, CurrentTime); _confinedWindow=None; }
+        if (_confinedWindow == win) {
+            XUngrabPointer(_display, CurrentTime);
+            _confinedWindow = None;
+            _confinedWidth = 0;
+            _confinedHeight = 0;
+        }
         return;
     }
+    _confinedWidth = attrs.width;
+    _confinedHeight = attrs.height;
     if (_confinedWindow == win) {
         if (rclolTraceOn())
             rclolTraceRated(&rclolConfineChannel, "already confined window=%lu", (unsigned long) win);
         return;
     }
     unsigned mask = ButtonPressMask | ButtonReleaseMask | PointerMotionMask;
-    int status=XGrabPointer(_display, win, True, mask, GrabModeAsync, GrabModeAsync,
+    int status=XGrabPointer(_display, win, False, mask, GrabModeAsync, GrabModeAsync,
         win, None, CurrentTime);
     if (getenv("RCLOL_INPUT_TRACE")) fprintf(stderr,"CONFINEMENT fullscreen=%d window=%lu result=%d\n",fullscreen,win,status);
     if (rclolTraceOn())
         rclolTraceRated(&rclolConfineChannel, "confine window=%lu fullscreen=%d ewmh=%d size=%dx%d XGrabPointer=%d(%s)",
                         (unsigned long) win, fullscreen, rclolEwmhFullscreen, attrs.width, attrs.height, status,
                         rclolGrabResultName(status));
-    if (status == GrabSuccess) _confinedWindow=win;
+    if (status == GrabSuccess || status == AlreadyGrabbed) {
+        _confinedWindow = win;
+        _confinedWidth = attrs.width;
+        _confinedHeight = attrs.height;
+    }
 }
 
 /* Takes the relative-mode pointer grab on the key (else main) window, starting with the virtual cursor at the
@@ -2400,6 +2526,8 @@ void CGNativeBorderFrameWidthsForStyle(NSUInteger styleMask, CGFloat *top,
     }
     NSLog(@"XGrabPointer() succeeded for window %lu\n", win);
     _confinedWindow = None;
+    _confinedWidth = 0;
+    _confinedHeight = 0;
     Window root, child;
     int rootX = rclolRootX, rootY = rclolRootY, windowX, windowY;
     unsigned int state;
@@ -2439,6 +2567,8 @@ void CGNativeBorderFrameWidthsForStyle(NSUInteger styleMask, CGFloat *top,
         _relativeRequested = NO;
         _relativeWindow = None;
         _confinedWindow = None;
+        _confinedWidth = 0;
+        _confinedHeight = 0;
         rclolPointerStamp = 0;
         NSWindow *nswin = [NSApp keyWindow];
         if (nswin) [self updateMouseConfinementForWindow:(X11Window *)[nswin platformWindow]];
