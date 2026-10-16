@@ -515,6 +515,35 @@ static void socketCallback(CFSocketRef s, CFSocketCallBackType type,
         [_lastScreens release];
         _lastScreens = nil;
     }
+    _primaryRootFrameValid = NO;
+}
+
+/* Cocoa's global origin is the bottom-left corner of the primary screen, with
+ * y up; X's is the top-left corner of the root window, with y down. Screen
+ * frames and window frames are both expressed relative to the primary
+ * monitor's root rectangle. On a single monitor (or any layout whose primary
+ * sits at the root origin and is as tall as the root) this is the plain
+ * root-height flip with no offset. */
+- (NSRect) _primaryRootFrame {
+    if (!_primaryRootFrameValid)
+        [self screens];
+    return _primaryRootFrame;
+}
+
+- (NSRect) rootRectForFrame: (NSRect) frame {
+    NSRect primary = [self _primaryRootFrame];
+    return NSMakeRect(frame.origin.x + NSMinX(primary),
+                      NSMaxY(primary) - frame.origin.y - frame.size.height,
+                      fmax(frame.size.width, 1.0),
+                      fmax(frame.size.height, 1.0));
+}
+
+- (NSRect) frameForRootRect: (NSRect) rect {
+    NSRect primary = [self _primaryRootFrame];
+    return NSMakeRect(rect.origin.x - NSMinX(primary),
+                      NSMaxY(primary) - rect.origin.y - rect.size.height,
+                      fmax(rect.size.width, 1.0),
+                      fmax(rect.size.height, 1.0));
 }
 
 - (NSArray *) screens {
@@ -526,25 +555,60 @@ static void socketCallback(CFSocketRef s, CFSocketCallBackType type,
 
     int eventBase, errorBase;
 
-    if (XRRQueryExtension(_display, &eventBase, &errorBase)) {
-        XRRScreenResources *screen;
-
+    XRRScreenResources *screen = NULL;
+    if (XRRQueryExtension(_display, &eventBase, &errorBase))
         screen = XRRGetScreenResources(_display, DefaultRootWindow(_display));
-        NSMutableArray<NSScreen *> *retval =
-                [NSMutableArray arrayWithCapacity: screen->noutput];
 
-        Atom edidAtom = XInternAtom(_display, "EDID", FALSE);
+    if (screen) {
+        RROutput primaryOutput =
+                XRRGetOutputPrimary(_display, DefaultRootWindow(_display));
+        NSRect *rootFrames = calloc(screen->noutput ? screen->noutput : 1,
+                                    sizeof(NSRect));
+        if (!rootFrames) {
+            XRRFreeScreenResources(screen);
+            return [self _rootScreenFallback];
+        }
+        int primary = -1;
 
         for (int i = 0; i < screen->noutput; i++) {
             XRROutputInfo *oinfo =
                     XRRGetOutputInfo(_display, screen, screen->outputs[i]);
-            NSScreen *nsscreen;
-
-            if (oinfo->crtc) {
+            if (oinfo && oinfo->crtc) {
                 XRRCrtcInfo *crtc =
                         XRRGetCrtcInfo(_display, screen, oinfo->crtc);
-                NSRect frame =
-                        NSMakeRect(crtc->x, crtc->y, crtc->width, crtc->height);
+                if (crtc) {
+                    rootFrames[i] =
+                            NSMakeRect(crtc->x, crtc->y, crtc->width, crtc->height);
+                    XRRFreeCrtcInfo(crtc);
+                }
+            }
+            // The XRandR primary, otherwise the first active output.
+            if (!NSIsEmptyRect(rootFrames[i]) &&
+                (primary < 0 || screen->outputs[i] == primaryOutput))
+                primary = i;
+            if (oinfo) XRRFreeOutputInfo(oinfo);
+        }
+
+        // Without any active output, keep the root-height flip.
+        _primaryRootFrame = primary >= 0
+                ? rootFrames[primary]
+                : NSMakeRect(0, 0, DisplayWidth(_display, DefaultScreen(_display)),
+                             DisplayHeight(_display, DefaultScreen(_display)));
+        _primaryRootFrameValid = YES;
+
+        // [NSScreen screens] starts with the primary screen, as on macOS.
+        // Display IDs stay tied to the XRandR output index.
+        NSMutableArray<NSScreen *> *retval =
+                [NSMutableArray arrayWithCapacity: screen->noutput];
+        NSMutableArray<NSScreen *> *inactive = [NSMutableArray array];
+
+        Atom edidAtom = XInternAtom(_display, "EDID", FALSE);
+
+        for (int i = 0; i < screen->noutput; i++) {
+            NSScreen *nsscreen;
+
+            if (!NSIsEmptyRect(rootFrames[i])) {
+                NSRect frame = [self frameForRootRect: rootFrames[i]];
 
                 nsscreen =
                         [[[NSScreen alloc] initWithFrame: frame
@@ -553,18 +617,17 @@ static void socketCallback(CFSocketRef s, CFSocketCallBackType type,
                 Atom actualType;
                 unsigned long nitems, bytesAfter;
                 int actualFormat;
-                unsigned char *prop;
+                unsigned char *prop = NULL;
 
                 if (XRRGetOutputProperty(_display, screen->outputs[i], edidAtom,
                                          0, 100, FALSE, FALSE, AnyPropertyType,
                                          &actualType, &actualFormat, &nitems,
                                          &bytesAfter, &prop) == Success) {
-                    if (prop && nitems > 0)
+                    if (prop && actualFormat == 8 && nitems > 0)
                         [nsscreen setEdid: [NSData dataWithBytes: prop
                                                           length: nitems]];
                 }
-
-                XRRFreeCrtcInfo(crtc);
+                if (prop) XFree(prop);
             } else {
                 nsscreen = [[[NSScreen alloc] initWithFrame: NSZeroRect
                                                visibleFrame: NSZeroRect]
@@ -572,25 +635,35 @@ static void socketCallback(CFSocketRef s, CFSocketCallBackType type,
             }
             [nsscreen setCgDirectDisplayID: (i + 1)];
 
-            [retval addObject: nsscreen];
-
-            XRRFreeOutputInfo(oinfo);
+            if (i == primary)
+                [retval insertObject: nsscreen atIndex: 0];
+            else if (!NSIsEmptyRect(rootFrames[i]))
+                [retval addObject: nsscreen];
+            else
+                [inactive addObject: nsscreen];
         }
+        [retval addObjectsFromArray: inactive];
 
+        free(rootFrames);
         XRRFreeScreenResources(screen);
 
         NSArray* array = [NSArray arrayWithArray: retval];
         _lastScreens = [array retain];
         return array;
-    } else {
-        NSRect frame = NSMakeRect(
-                0, 0, DisplayWidth(_display, DefaultScreen(_display)),
-                DisplayHeight(_display, DefaultScreen(_display)));
-        return [NSArray
-                arrayWithObject: [[[NSScreen alloc] initWithFrame: frame
-                                                     visibleFrame: frame]
-                                         autorelease]];
     }
+    return [self _rootScreenFallback];
+}
+
+- (NSArray *) _rootScreenFallback {
+    NSRect frame = NSMakeRect(
+            0, 0, DisplayWidth(_display, DefaultScreen(_display)),
+            DisplayHeight(_display, DefaultScreen(_display)));
+    _primaryRootFrame = frame;
+    _primaryRootFrameValid = YES;
+    NSScreen *nsscreen = [[[NSScreen alloc] initWithFrame: frame
+                                             visibleFrame: frame] autorelease];
+    [nsscreen setCgDirectDisplayID: 1];
+    return [NSArray arrayWithObject: nsscreen];
 }
 
 static NSDictionary *modeInfoToDictionary(const XRRModeInfo *mi, int depth) {
@@ -863,16 +936,15 @@ static NSDictionary *modeInfoToDictionary(const XRRModeInfo *mi, int depth) {
 
 /* darling-lol: the game asks for the pointer position, the pressed buttons and the modifier state about a thousand
  * times per second. Each answer was a synchronous X round trip (XQueryPointer / XkbGetState) that puts the main thread
- * to sleep until XWayland replies; while the mouse moves they dominated the slow frames. Reuse a reply for 1 ms, keep it
+ * to sleep until XWayland replies; while the mouse moves they dominated the slow frames. Reuse a reply for 8 ms, keep it
  * current from the input events themselves (a motion event carries position and button state), and drop it on every
  * button, key, crossing or focus event so the next question after a state change is always asked for real. */
 #include <mach/mach_time.h>
-#include <poll.h>
 static BOOL rclolFresh(uint64_t *stamp) {
     static mach_timebase_info_data_t tb;
     if (tb.denom == 0) mach_timebase_info(&tb);
     uint64_t now = mach_absolute_time();
-    if (*stamp != 0 && (now - *stamp) * tb.numer / tb.denom < 1000000ULL) return YES;
+    if (*stamp != 0 && (now - *stamp) * tb.numer / tb.denom < 8000000ULL) return YES;
     *stamp = now;
     return NO;
 }
@@ -1320,18 +1392,18 @@ static BOOL rclolQueryPointer(Display *display) {
 }
 
 - (NSPoint) mouseLocation {
+    NSRect primary = [self _primaryRootFrame];
     if (_relativeMouse.active) {
         /* The cursor is disassociated: report the frozen (virtual) position, as macOS does. */
-        NSPoint result = NSMakePoint(_relativeMouse.virtualX,
-                                     DisplayHeight(_display, DefaultScreen(_display)) - _relativeMouse.virtualY);
+        NSPoint result = NSMakePoint(_relativeMouse.virtualX - NSMinX(primary),
+                                     NSMaxY(primary) - _relativeMouse.virtualY);
         if (rclolTraceOn())
             rclolTraceMouseLocation(result, YES, YES, (int) _relativeMouse.virtualX, (int) _relativeMouse.virtualY, YES);
         return result;
     }
     uint64_t rclolStampBefore = rclolPointerStamp;
     BOOL rclolQueried = rclolQueryPointer(_display);
-    int height = DisplayHeight(_display, DefaultScreen(_display));
-    NSPoint result = NSMakePoint(rclolRootX, height - rclolRootY);
+    NSPoint result = NSMakePoint(rclolRootX - NSMinX(primary), NSMaxY(primary) - rclolRootY);
     if (rclolTraceOn())
         rclolTraceMouseLocation(result, rclolQueried, rclolStampBefore != 0 && rclolPointerStamp == rclolStampBefore,
                                 rclolRootX, rclolRootY, NO);
@@ -1444,15 +1516,12 @@ static BOOL rclolQueryPointer(Display *display) {
                 slice = next > now ? next - now : 0;
         }
         if (result == nil && slice > 0) {
-            /* darling-lol perf: poll() the X11 connection fd instead of blind
-             * nanosleep.  This wakes within <0.1ms when an input event arrives
-             * on the socket, eliminating up to 4ms of input latency jitter. */
-            int xfd = ConnectionNumber(_display);
-            struct pollfd pfd = { .fd = xfd, .events = POLLIN };
-            int timeout_ms = (int)(slice * 1000.0);
-            if (timeout_ms < 1) timeout_ms = 1;
+            /* Keep this polling deadline independent of Mach wait timers. */
+            struct { long seconds, nanoseconds; } delay = {
+                0, (long)(slice * 1000000000.0)
+            };
             extern long __lolsys_syscall(long, long, long, long, long, long, int);
-            __lolsys_syscall((long)&pfd, 1, timeout_ms, 0, 0, 0, 7 /* Linux poll */);
+            __lolsys_syscall((long)&delay, 0, 0, 0, 0, 0, 35 /* Linux nanosleep */);
         }
     }
     return result;
@@ -2093,7 +2162,9 @@ static unsigned int rclolModifierMask(unsigned int key) {
         break;
 
     default:
-        if (ev->type == _rrEventBase + RRNotify) {
+        if (_rrEventBase && (ev->type == _rrEventBase + RRNotify ||
+                             ev->type == _rrEventBase + RRScreenChangeNotify)) {
+            XRRUpdateConfiguration(ev);
             [self _invalidateRRCache];
             break;
         }
@@ -2192,7 +2263,11 @@ void CGNativeBorderFrameWidthsForStyle(NSUInteger styleMask, CGFloat *top,
     return [window transformPoint: NSMakePoint(x, y)];
 }
 
+// CGWarpMouseCursorPosition uses the primary screen's top-left, with y down.
 - (void) warpMouse: (NSPoint) position {
+    NSRect primary = [self _primaryRootFrame];
+    position.x += NSMinX(primary);
+    position.y += NSMinY(primary);
     if (rclolTraceOn())
         rclolTraceRated(&rclolWarpAppChannel, "target=%.1f,%.1f relative=%d/%d virtual=%.1f,%.1f physical=%d,%d "
                         "honoured=%d confined=%lu cachedRoot=%d,%d appActive=%d",
@@ -2222,13 +2297,29 @@ void CGNativeBorderFrameWidthsForStyle(NSUInteger styleMask, CGFloat *top,
         return;
     }
     Window win = [window windowHandle];
+    Window focus; int revert;
+    XGetInputFocus(_display, &focus, &revert);
+    Window ancestor = focus;
+    while (ancestor != win && ancestor != None && ancestor != PointerRoot && ancestor != DefaultRootWindow(_display)) {
+        Window root, parent, *children=NULL; unsigned nchildren;
+        if (!XQueryTree(_display, ancestor, &root, &parent, &children, &nchildren)) break;
+        if (children) XFree(children);
+        ancestor=parent;
+    }
+    if (getenv("RCLOL_INPUT_TRACE")) fprintf(stderr,"CONFINEMENT focus=%lu target=%lu ancestor=%lu\n",focus,win,ancestor);
+    if (ancestor != win) {
+        if (rclolTraceOn())
+            rclolTraceRated(&rclolConfineChannel, "skip: not focused window=%lu focus=%lu ancestor=%lu confined=%lu",
+                            (unsigned long) win, (unsigned long) focus, (unsigned long) ancestor,
+                            (unsigned long) _confinedWindow);
+        return;
+    }
     XWindowAttributes attrs;
     if (!XGetWindowAttributes(_display, win, &attrs)) {
         if (rclolTraceOn())
             rclolTraceRated(&rclolConfineChannel, "skip: XGetWindowAttributes failed window=%lu", (unsigned long) win);
         return;
     }
-
     BOOL fullscreen = NO;
     Atom actual; int format; unsigned long count, remaining; unsigned char *data = NULL;
     Atom state = XInternAtom(_display, "_NET_WM_STATE", False);
@@ -2239,65 +2330,25 @@ void CGNativeBorderFrameWidthsForStyle(NSUInteger styleMask, CGFloat *top,
     }
     if (data) XFree(data);
     BOOL rclolEwmhFullscreen = fullscreen;
-
     /* League's borderless fullscreen does not set the EWMH fullscreen bit.
-     * Recognize a borderless game window, multi-monitor setups, and GNOME Wayland. */
-    NSWindow *delegate = [window delegate];
-    BOOL isBorderless = delegate ? !([delegate styleMask] & NSTitledWindowMask) : YES;
-    NSString *procName = [[NSProcessInfo processInfo] processName];
-    BOOL isGame = (procName && [procName rangeOfString:@"League" options:NSCaseInsensitiveSearch].location != NSNotFound &&
-                   [procName rangeOfString:@"Ux" options:NSCaseInsensitiveSearch].location == NSNotFound);
-    NSString *winTitle = [delegate respondsToSelector:@selector(title)] ? [delegate title] : nil;
-    if (winTitle && [winTitle rangeOfString:@"League of Legends" options:NSCaseInsensitiveSearch].location != NSNotFound &&
-        [winTitle rangeOfString:@"Riot" options:NSCaseInsensitiveSearch].location == NSNotFound) {
-        isGame = YES;
-    }
-
-    if (isBorderless && (isGame || attrs.width >= 1024)) {
-        if (!fullscreen) {
-            fullscreen = YES;
-            /* Inform GNOME Shell / Mutter / EWMH to make this window fullscreen.
-             * This hides the GNOME top bar, sizes the window to fill the entire monitor,
-             * and enables Wayland pointer confinement (zwp_confined_pointer_v1). */
-            XClientMessageEvent cme = {0};
-            cme.type = ClientMessage;
-            cme.window = win;
-            cme.message_type = state;
-            cme.format = 32;
-            cme.data.l[0] = 1; /* _NET_WM_STATE_ADD */
-            cme.data.l[1] = (long)fs;
-            cme.data.l[2] = 0;
-            cme.data.l[3] = 1; /* normal application */
-            cme.data.l[4] = 0;
-            XSendEvent(_display, DefaultRootWindow(_display), False,
-                       SubstructureNotifyMask | SubstructureRedirectMask,
-                       (XEvent *)&cme);
-
-            /* Also set property directly on window for immediate Mutter state sync */
-            XChangeProperty(_display, win, state, XA_ATOM, 32, PropModeReplace,
-                            (const unsigned char *)&fs, 1);
-            unsigned long bypass = 1;
-            XChangeProperty(_display, win, XInternAtom(_display, "_NET_WM_BYPASS_COMPOSITOR", False),
-                            XA_CARDINAL, 32, PropModeReplace, (unsigned char *)&bypass, 1);
-            XFlush(_display);
-            if (getenv("RCLOL_INPUT_TRACE")) fprintf(stderr,"CONFINEMENT promoted to EWMH FULLSCREEN for window %lu\n",win);
+     * Recognize a borderless window covering one monitor, including monitor 2. */
+    if (!fullscreen && !([[window delegate] styleMask] & NSTitledWindowMask)) {
+        Window child; int x, y;
+        XTranslateCoordinates(_display, win, DefaultRootWindow(_display), 0, 0, &x, &y, &child);
+        XRRScreenResources *resources = XRRGetScreenResourcesCurrent(_display, DefaultRootWindow(_display));
+        if (resources) {
+            for (int i=0; i<resources->ncrtc; ++i) {
+                XRRCrtcInfo *crtc = XRRGetCrtcInfo(_display, resources, resources->crtcs[i]);
+                if (crtc) {
+                    if (crtc->mode && abs(x-crtc->x)<=2 && abs(y-crtc->y)<=2 &&
+                        abs(attrs.width-(int)crtc->width)<=2 && abs(attrs.height-(int)crtc->height)<=2) fullscreen=YES;
+                    XRRFreeCrtcInfo(crtc);
+                }
+            }
+            XRRFreeScreenResources(resources);
         }
     }
-
-    /* Check focus to determine whether mouse confinement should be active. */
-    Window focus; int revert;
-    XGetInputFocus(_display, &focus, &revert);
-    Window ancestor = focus;
-    while (ancestor != win && ancestor != None && ancestor != PointerRoot && ancestor != DefaultRootWindow(_display)) {
-        Window root, parent, *children=NULL; unsigned nchildren;
-        if (!XQueryTree(_display, ancestor, &root, &parent, &children, &nchildren)) break;
-        if (children) XFree(children);
-        ancestor=parent;
-    }
-    if (getenv("RCLOL_INPUT_TRACE")) fprintf(stderr,"CONFINEMENT focus=%lu target=%lu ancestor=%lu fullscreen=%d\n",focus,win,ancestor,fullscreen);
-
-    BOOL isFocused = (ancestor == win || focus == win || (isGame && (focus == PointerRoot || focus == None)));
-    if ((!fullscreen && !isGame) || attrs.map_state != IsViewable || !isFocused) {
+    if (!fullscreen || attrs.map_state != IsViewable) {
         if (rclolTraceOn())
             rclolTraceRated(&rclolConfineChannel, "no confinement window=%lu fullscreen=%d ewmh=%d titled=%d size=%dx%d map_state=%d %s",
                             (unsigned long) win, fullscreen, rclolEwmhFullscreen,
@@ -2315,6 +2366,10 @@ void CGNativeBorderFrameWidthsForStyle(NSUInteger styleMask, CGFloat *top,
     int status=XGrabPointer(_display, win, True, mask, GrabModeAsync, GrabModeAsync,
         win, None, CurrentTime);
     if (getenv("RCLOL_INPUT_TRACE")) fprintf(stderr,"CONFINEMENT fullscreen=%d window=%lu result=%d\n",fullscreen,win,status);
+    if (rclolTraceOn())
+        rclolTraceRated(&rclolConfineChannel, "confine window=%lu fullscreen=%d ewmh=%d size=%dx%d XGrabPointer=%d(%s)",
+                        (unsigned long) win, fullscreen, rclolEwmhFullscreen, attrs.width, attrs.height, status,
+                        rclolGrabResultName(status));
     if (status == GrabSuccess) _confinedWindow=win;
 }
 
