@@ -389,7 +389,14 @@ static NSData *makeWindowIcon() {
             states[states_cnt++] =
                     (long) XInternAtom(_display, "_NET_WM_STATE_MODAL", False);
         }
-        if (mask & NSWindowStyleMaskFullScreen) {
+        NSString *procName = [[NSProcessInfo processInfo] processName];
+        BOOL isGame = (procName && [procName rangeOfString:@"League" options:NSCaseInsensitiveSearch].location != NSNotFound &&
+                       [procName rangeOfString:@"Ux" options:NSCaseInsensitiveSearch].location == NSNotFound);
+        BOOL makeFullscreen = (mask & NSWindowStyleMaskFullScreen) != 0;
+        if (!makeFullscreen && isGame && (mask == NSBorderlessWindowMask || !(mask & NSTitledWindowMask))) {
+            makeFullscreen = YES;
+        }
+        if (makeFullscreen) {
             states[states_cnt++] = (long) XInternAtom(
                     _display, "_NET_WM_STATE_FULLSCREEN", False);
         }

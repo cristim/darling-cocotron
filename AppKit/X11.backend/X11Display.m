@@ -1666,7 +1666,11 @@ static unsigned int rclolModifierMask(unsigned int key) {
             break;
 
         if (ev->type == KeyPress) {
-            strLen = Xutf8LookupString(window->_xic, (XKeyPressedEvent *) ev, buf, sizeof(buf) - 1, &keySym, NULL);
+            if (window && window->_xic) {
+                strLen = Xutf8LookupString(window->_xic, (XKeyPressedEvent *) ev, buf, sizeof(buf) - 1, &keySym, NULL);
+            } else {
+                strLen = XLookupString((XKeyEvent*) ev, buf, sizeof(buf) - 1, &keySym, NULL);
+            }
             buf[strLen] = 0;
         } else {
             // Xutf8LookupString() may not be used with KeyRelease
@@ -1725,8 +1729,26 @@ static unsigned int rclolModifierMask(unsigned int key) {
         break;
 
     case ButtonPress:;
-        if (window && !_confinedWindow) {
-            [self updateMouseConfinementForWindow: window];
+        if (window) {
+            Window win = [window windowHandle];
+            XSetInputFocus(_display, win, RevertToPointerRoot, ev->xbutton.time);
+            if (window->_xic)
+                XSetICFocus(window->_xic);
+            Atom activeAtom = XInternAtom(_display, "_NET_ACTIVE_WINDOW", False);
+            XClientMessageEvent act = {0};
+            act.type = ClientMessage;
+            act.window = win;
+            act.message_type = activeAtom;
+            act.format = 32;
+            act.data.l[0] = 1;
+            act.data.l[1] = ev->xbutton.time;
+            XSendEvent(_display, DefaultRootWindow(_display), False,
+                       SubstructureNotifyMask | SubstructureRedirectMask,
+                       (XEvent *)&act);
+            XFlush(_display);
+            if (!_confinedWindow) {
+                [self updateMouseConfinementForWindow: window];
+            }
         }
         if (ev->xbutton.button >= Button4 && ev->xbutton.button <= 7) {
             pos = [self locationInWindow: window x: ev->xbutton.x y: ev->xbutton.y
@@ -2037,14 +2059,6 @@ static unsigned int rclolModifierMask(unsigned int key) {
         if (ev->xfocus.detail == NotifyPointer || ev->xfocus.mode == NotifyGrab || ev->xfocus.mode == NotifyUngrab) {
             /* Pointer boundary crossing or grab transition in XWayland: do NOT release confinement or deactivate window */
             break;
-        }
-        {
-            NSString *procName = [[NSProcessInfo processInfo] processName];
-            BOOL isGame = (procName && [procName rangeOfString:@"League" options:NSCaseInsensitiveSearch].location != NSNotFound);
-            if (isGame && [NSApp isActive]) {
-                /* While League is the active app, do not drop confinement on transient XWayland focus events */
-                break;
-            }
         }
         NSLog(@"FocusOut");
         [self reconcileModifierKeys:NULL window:delegate];
@@ -2485,7 +2499,7 @@ void CGNativeBorderFrameWidthsForStyle(NSUInteger styleMask, CGFloat *top,
         return;
     }
     unsigned mask = ButtonPressMask | ButtonReleaseMask | PointerMotionMask;
-    int status=XGrabPointer(_display, win, False, mask, GrabModeAsync, GrabModeAsync,
+    int status=XGrabPointer(_display, win, True, mask, GrabModeAsync, GrabModeAsync,
         win, None, CurrentTime);
     if (getenv("RCLOL_INPUT_TRACE")) fprintf(stderr,"CONFINEMENT fullscreen=%d window=%lu result=%d\n",fullscreen,win,status);
     if (rclolTraceOn())
