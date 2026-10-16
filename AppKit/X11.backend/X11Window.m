@@ -221,32 +221,13 @@ static NSData *makeWindowIcon() {
 
     XSetWindowAttributes xattr;
     unsigned long xattr_mask;
-    NSString *procName = [[NSProcessInfo processInfo] processName];
-    BOOL isUx = (procName && [procName rangeOfString:@"Ux" options:NSCaseInsensitiveSearch].location != NSNotFound);
-    BOOL isRiot = (procName && [procName rangeOfString:@"Riot" options:NSCaseInsensitiveSearch].location != NSNotFound);
-    BOOL isClient = (procName && [procName rangeOfString:@"Client" options:NSCaseInsensitiveSearch].location != NSNotFound);
-    BOOL isGame = NO;
-    if (!isUx && !isRiot && !isClient && procName && [procName rangeOfString:@"League" options:NSCaseInsensitiveSearch].location != NSNotFound) {
-        isGame = YES;
-    }
-    NSString *winTitle = [delegate respondsToSelector:@selector(title)] ? [delegate title] : nil;
-    if (winTitle && [winTitle rangeOfString:@"(TM) Client" options:NSCaseInsensitiveSearch].location != NSNotFound) {
-        isGame = YES;
-    }
-
-    BOOL isMenuOrPopup = NO;
-    if (delegate) {
-        if ([delegate isKindOfClass:NSClassFromString(@"NSMenuWindow")] ||
-            [delegate isKindOfClass:NSClassFromString(@"NSPopUpWindow")] ||
-            [delegate isKindOfClass:NSClassFromString(@"NSToolTipPanel")]) {
-            isMenuOrPopup = YES;
-        }
-    }
-
     // A borderless game is still a focusable application window. Leaving it
     // override-redirect makes XWayland bypass compositor keyboard activation.
     // Menus and nonactivating popups keep their unmanaged behavior.
-    xattr.override_redirect = (!isGame && _styleMask == NSBorderlessWindowMask && isMenuOrPopup) ? True : False;
+    xattr.override_redirect = _styleMask == NSBorderlessWindowMask &&
+            ([delegate isKindOfClass:[NSMenuWindow class]] ||
+             [delegate isKindOfClass:[NSPopUpWindow class]] ||
+             ![delegate canBecomeKeyWindow]) ? True : False;
     xattr_mask = CWOverrideRedirect | CWColormap;
     xattr.colormap = cmap;
 
@@ -274,19 +255,6 @@ static NSData *makeWindowIcon() {
     XClassHint classHint = {.res_name = (char *) name,
                             .res_class = (char *) name};
     XSetClassHint(_display, _window, &classHint);
-
-    if (isGame && (_styleMask == NSBorderlessWindowMask || !(_styleMask & NSTitledWindowMask))) {
-        Atom state = XInternAtom(_display, "_NET_WM_STATE", False);
-        Atom fs = XInternAtom(_display, "_NET_WM_STATE_FULLSCREEN", False);
-        XChangeProperty(_display, _window, state, XA_ATOM, 32, PropModeReplace,
-                        (const unsigned char *)&fs, 1);
-        /* darling-lol: Tell compositor NEVER to bypass composition (bypass=2).
-         * Direct scanout of this parent window produces a black screen because
-         * OpenGL/Metal renders into the child X11SubWindow. */
-        unsigned long bypass = 2;
-        XChangeProperty(_display, _window, XInternAtom(_display, "_NET_WM_BYPASS_COMPOSITOR", False),
-                        XA_CARDINAL, 32, PropModeReplace, (unsigned char *)&bypass, 1);
-    }
 
     XSetWindowBackgroundPixmap(_display, _window, None);
 
@@ -363,32 +331,15 @@ static NSData *makeWindowIcon() {
             // Make resizable
             sh->flags = 0;
         } else {
-            NSString *procName = [[NSProcessInfo processInfo] processName];
-            BOOL isGame = (procName && [procName rangeOfString:@"League" options:NSCaseInsensitiveSearch].location != NSNotFound &&
-                           [procName rangeOfString:@"Ux" options:NSCaseInsensitiveSearch].location == NSNotFound);
-            if (isGame || mask == NSBorderlessWindowMask) {
-                sh->flags = PMinSize;
-                sh->min_width = _frame.size.width;
-                sh->min_height = _frame.size.height;
-            } else {
-                // Make non-resizable
-                sh->flags = PMinSize | PMaxSize;
-                sh->min_width = sh->max_width = _frame.size.width;
-                sh->min_height = sh->max_height = _frame.size.height;
-            }
+            // Make non-resizable
+            sh->flags = PMinSize | PMaxSize;
+            sh->min_width = sh->max_width = _frame.size.width;
+            sh->min_height = sh->max_height = _frame.size.height;
         }
 
         XSetWMSizeHints(_display, _window, sh, XA_WM_NORMAL_HINTS);
         XFree(sh);
     }
-
-    NSString *procName = [[NSProcessInfo processInfo] processName];
-    BOOL isGame = (procName && [procName rangeOfString:@"League" options:NSCaseInsensitiveSearch].location != NSNotFound &&
-                   [procName rangeOfString:@"Ux" options:NSCaseInsensitiveSearch].location == NSNotFound);
-    BOOL wasFullscreen = (_styleMask & NSWindowStyleMaskFullScreen) != 0 ||
-                         (isGame && (_styleMask == NSBorderlessWindowMask || !(_styleMask & NSTitledWindowMask)));
-    BOOL makeFullscreen = (mask & NSWindowStyleMaskFullScreen) != 0 ||
-                          (isGame && (mask == NSBorderlessWindowMask || !(mask & NSTitledWindowMask)));
 
     if (!_mapped) {
         long states[2];
@@ -397,7 +348,7 @@ static NSData *makeWindowIcon() {
             states[states_cnt++] =
                     (long) XInternAtom(_display, "_NET_WM_STATE_MODAL", False);
         }
-        if (makeFullscreen) {
+        if (mask & NSWindowStyleMaskFullScreen) {
             states[states_cnt++] = (long) XInternAtom(
                     _display, "_NET_WM_STATE_FULLSCREEN", False);
         }
@@ -405,25 +356,20 @@ static NSData *makeWindowIcon() {
                         XInternAtom(_display, "_NET_WM_STATE", False), XA_ATOM,
                         32, PropModeReplace, (const unsigned char *) states,
                         states_cnt);
-    } else if (force || (makeFullscreen != wasFullscreen)) {
+    } else if (force || ((mask & NSWindowStyleMaskFullScreen) !=
+                         (_styleMask & NSWindowStyleMaskFullScreen))) {
         XClientMessageEvent event = {0};
         event.type = ClientMessage;
         event.window = _window;
         event.message_type = XInternAtom(_display, "_NET_WM_STATE", False);
         event.format = 32;
-        event.data.l[0] = makeFullscreen ? 1 : 2;
+        event.data.l[0] = (mask & NSWindowStyleMaskFullScreen) ? 1 : 2;
         event.data.l[1] =
                 (long) XInternAtom(_display, "_NET_WM_STATE_FULLSCREEN", False);
         event.data.l[3] = 1;
         XSendEvent(_display, DefaultRootWindow(_display), False,
                    SubstructureNotifyMask | SubstructureRedirectMask,
                    (XEvent *) &event);
-        if (makeFullscreen) {
-            unsigned long bypass = 2;
-            XChangeProperty(_display, _window, XInternAtom(_display, "_NET_WM_BYPASS_COMPOSITOR", False),
-                            XA_CARDINAL, 32, PropModeReplace, (unsigned char *)&bypass, 1);
-        }
-        XFlush(_display);
     }
 }
 
@@ -984,9 +930,6 @@ selectedFrame:
     const char *text = [title cString];
     XStringListToTextProperty((char **) &text, 1, &prop);
     XSetWMName(_display, _window, &prop);
-    if (title && [title rangeOfString:@"(TM) Client" options:NSCaseInsensitiveSearch].location != NSNotFound) {
-        [(X11Display *)[NSDisplay currentDisplay] updateMouseConfinementForWindow:self];
-    }
 }
 
 - (void) setFrame: (O2Rect) frame {
@@ -998,18 +941,12 @@ selectedFrame:
     // Nonresizable windows can be created at 1x1 and enlarged before display.
     // Refresh the constraints so a managing compositor sees the current size.
     if (!(_styleMask & NSWindowStyleMaskResizable)) {
-        NSString *procName = [[NSProcessInfo processInfo] processName];
-        BOOL isGame = (procName && [procName rangeOfString:@"League" options:NSCaseInsensitiveSearch].location != NSNotFound &&
-                       [procName rangeOfString:@"Ux" options:NSCaseInsensitiveSearch].location == NSNotFound);
-        if (!isGame && _styleMask != NSBorderlessWindowMask) {
-            XSizeHints hints = {0};
-            hints.flags = PMinSize | PMaxSize;
-            hints.min_width = hints.max_width = frame.size.width;
-            hints.min_height = hints.max_height = frame.size.height;
-            XSetWMSizeHints(_display, _window, &hints, XA_WM_NORMAL_HINTS);
-        }
+        XSizeHints hints = {0};
+        hints.flags = PMinSize | PMaxSize;
+        hints.min_width = hints.max_width = frame.size.width;
+        hints.min_height = hints.max_height = frame.size.height;
+        XSetWMSizeHints(_display, _window, &hints, XA_WM_NORMAL_HINTS);
     }
-    [(X11Display *)[NSDisplay currentDisplay] updateMouseConfinementForWindow:self];
 }
 
 - (void) setHasShadow: (BOOL) value {
@@ -1094,18 +1031,6 @@ selectedFrame:
 - (void) makeKey {
     [self ensureMapped];
     XRaiseWindow(_display, _window);
-    Atom activeAtom = XInternAtom(_display, "_NET_ACTIVE_WINDOW", False);
-    XEvent act = {0};
-    act.xclient.type = ClientMessage;
-    act.xclient.window = _window;
-    act.xclient.message_type = activeAtom;
-    act.xclient.format = 32;
-    act.xclient.data.l[0] = 1;
-    act.xclient.data.l[1] = CurrentTime;
-    XSendEvent(_display, DefaultRootWindow(_display), False,
-               SubstructureRedirectMask | SubstructureNotifyMask, &act);
-    XSetInputFocus(_display, _window, RevertToPointerRoot, CurrentTime);
-    XFlush(_display);
 }
 
 - (void) makeMain {
