@@ -222,11 +222,15 @@ static NSData *makeWindowIcon() {
     XSetWindowAttributes xattr;
     unsigned long xattr_mask;
     NSString *procName = [[NSProcessInfo processInfo] processName];
-    BOOL isGame = (procName && [procName rangeOfString:@"League" options:NSCaseInsensitiveSearch].location != NSNotFound &&
-                   [procName rangeOfString:@"Ux" options:NSCaseInsensitiveSearch].location == NSNotFound);
+    BOOL isUx = (procName && [procName rangeOfString:@"Ux" options:NSCaseInsensitiveSearch].location != NSNotFound);
+    BOOL isRiot = (procName && [procName rangeOfString:@"Riot" options:NSCaseInsensitiveSearch].location != NSNotFound);
+    BOOL isClient = (procName && [procName rangeOfString:@"Client" options:NSCaseInsensitiveSearch].location != NSNotFound);
+    BOOL isGame = NO;
+    if (!isUx && !isRiot && !isClient && procName && [procName rangeOfString:@"League" options:NSCaseInsensitiveSearch].location != NSNotFound) {
+        isGame = YES;
+    }
     NSString *winTitle = [delegate respondsToSelector:@selector(title)] ? [delegate title] : nil;
-    if (winTitle && [winTitle rangeOfString:@"League of Legends" options:NSCaseInsensitiveSearch].location != NSNotFound &&
-        [winTitle rangeOfString:@"Riot" options:NSCaseInsensitiveSearch].location == NSNotFound) {
+    if (winTitle && [winTitle rangeOfString:@"(TM) Client" options:NSCaseInsensitiveSearch].location != NSNotFound) {
         isGame = YES;
     }
 
