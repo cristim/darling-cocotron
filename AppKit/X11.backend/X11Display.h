@@ -17,7 +17,12 @@
 #import <CoreFoundation/CFSocket.h>
 #endif
 
-@class X11Cursor, X11Window;
+@class X11Cursor, X11Window, NSWindow;
+
+/* darling-lol: League's in-game window (not the Riot or League client), recognized by process
+ * name or by its "League of Legends (TM) Client" title. window may be None before creation. */
+BOOL X11IsLeagueGameWindow(Display *display, Window window, NSWindow *delegate);
+BOOL X11RootRectCoversMonitor(Display *display, NSRect rect);
 
 @interface X11Display : NSDisplay {
     Display *_display;
@@ -48,6 +53,8 @@
     X11Cursor *_definedCursor;
     BOOL _cursorHidden;
     Window _confinedWindow;
+    int _confinedWidth;
+    int _confinedHeight;
     unsigned int _otherButtonsDown;
     KeySym _lastKeySym;
     unsigned char _modifierKeysDown[256];

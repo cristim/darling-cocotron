@@ -221,10 +221,12 @@ static NSData *makeWindowIcon() {
 
     XSetWindowAttributes xattr;
     unsigned long xattr_mask;
+    BOOL isGame = X11IsLeagueGameWindow(_display, None, delegate);
+
     // A borderless game is still a focusable application window. Leaving it
     // override-redirect makes XWayland bypass compositor keyboard activation.
     // Menus and nonactivating popups keep their unmanaged behavior.
-    xattr.override_redirect = _styleMask == NSBorderlessWindowMask &&
+    xattr.override_redirect = !isGame && _styleMask == NSBorderlessWindowMask &&
             ([delegate isKindOfClass:[NSMenuWindow class]] ||
              [delegate isKindOfClass:[NSPopUpWindow class]] ||
              ![delegate canBecomeKeyWindow]) ? True : False;
@@ -255,6 +257,15 @@ static NSData *makeWindowIcon() {
     XClassHint classHint = {.res_name = (char *) name,
                             .res_class = (char *) name};
     XSetClassHint(_display, _window, &classHint);
+
+    if (isGame && !(_styleMask & NSTitledWindowMask)) {
+        /* darling-lol: never let the compositor scan out this parent window
+         * directly (bypass=2): Metal/OpenGL draw into a child window, so direct
+         * scanout shows black. EWMH fullscreen is requested in setStyleMask. */
+        unsigned long bypass = 2;
+        XChangeProperty(_display, _window, XInternAtom(_display, "_NET_WM_BYPASS_COMPOSITOR", False),
+                        XA_CARDINAL, 32, PropModeReplace, (unsigned char *)&bypass, 1);
+    }
 
     XSetWindowBackgroundPixmap(_display, _window, None);
 
@@ -305,10 +316,12 @@ static NSData *makeWindowIcon() {
 
     [self setWindowIcon];
 
-    /* Poll the host-visible remote CA frame on the AppKit/main runloop. */
-    _remoteFrameTimer = [[NSTimer scheduledTimerWithTimeInterval: 1.0 / 60.0
-        target: self selector: @selector(presentRemoteCAFrame:)
-        userInfo: nil repeats: YES] retain];
+    /* Chromium windows consume cross-process CA frames. League's native Metal window owns its
+     * drawable; a same-size client surface must never be raised above that drawable. */
+    if (!isGame)
+        _remoteFrameTimer = [[NSTimer scheduledTimerWithTimeInterval: 1.0 / 60.0
+            target: self selector: @selector(presentRemoteCAFrame:)
+            userInfo: nil repeats: YES] retain];
 
     return self;
 }
@@ -331,15 +344,31 @@ static NSData *makeWindowIcon() {
             // Make resizable
             sh->flags = 0;
         } else {
-            // Make non-resizable
-            sh->flags = PMinSize | PMaxSize;
-            sh->min_width = sh->max_width = _frame.size.width;
-            sh->min_height = sh->max_height = _frame.size.height;
+            if (X11IsLeagueGameWindow(_display, _window, _delegate)) {
+                // A fixed-size window cannot be made EWMH fullscreen by Mutter,
+                // and a stale minimum would block switching to a smaller mode.
+                sh->flags = 0;
+            } else {
+                // Make non-resizable
+                sh->flags = PMinSize | PMaxSize;
+                sh->min_width = sh->max_width = _frame.size.width;
+                sh->min_height = sh->max_height = _frame.size.height;
+            }
         }
 
         XSetWMSizeHints(_display, _window, sh, XA_WM_NORMAL_HINTS);
         XFree(sh);
     }
+
+    BOOL isGame = X11IsLeagueGameWindow(_display, _window, _delegate);
+    /* Do not put a temporary startup window into fullscreen before its native drawable has
+     * the final geometry. A real monitor-sized borderless window is promoted after mapping
+     * and focus in updateMouseConfinementForWindow; explicit Cocoa fullscreen is preserved. */
+    BOOL monitorSized = isGame && X11RootRectCoversMonitor(_display, _frame);
+    BOOL wasFullscreen = (_styleMask & NSWindowStyleMaskFullScreen) != 0 ||
+                         (monitorSized && !(_styleMask & NSTitledWindowMask));
+    BOOL makeFullscreen = (mask & NSWindowStyleMaskFullScreen) != 0 ||
+                          (monitorSized && !(mask & NSTitledWindowMask));
 
     if (!_mapped) {
         long states[2];
@@ -348,7 +377,7 @@ static NSData *makeWindowIcon() {
             states[states_cnt++] =
                     (long) XInternAtom(_display, "_NET_WM_STATE_MODAL", False);
         }
-        if (mask & NSWindowStyleMaskFullScreen) {
+        if (makeFullscreen) {
             states[states_cnt++] = (long) XInternAtom(
                     _display, "_NET_WM_STATE_FULLSCREEN", False);
         }
@@ -356,20 +385,25 @@ static NSData *makeWindowIcon() {
                         XInternAtom(_display, "_NET_WM_STATE", False), XA_ATOM,
                         32, PropModeReplace, (const unsigned char *) states,
                         states_cnt);
-    } else if (force || ((mask & NSWindowStyleMaskFullScreen) !=
-                         (_styleMask & NSWindowStyleMaskFullScreen))) {
+    } else if (force || (makeFullscreen != wasFullscreen)) {
         XClientMessageEvent event = {0};
         event.type = ClientMessage;
         event.window = _window;
         event.message_type = XInternAtom(_display, "_NET_WM_STATE", False);
         event.format = 32;
-        event.data.l[0] = (mask & NSWindowStyleMaskFullScreen) ? 1 : 2;
+        event.data.l[0] = makeFullscreen ? 1 : 2;
         event.data.l[1] =
                 (long) XInternAtom(_display, "_NET_WM_STATE_FULLSCREEN", False);
         event.data.l[3] = 1;
         XSendEvent(_display, DefaultRootWindow(_display), False,
                    SubstructureNotifyMask | SubstructureRedirectMask,
                    (XEvent *) &event);
+        if (makeFullscreen) {
+            unsigned long bypass = 2;
+            XChangeProperty(_display, _window, XInternAtom(_display, "_NET_WM_BYPASS_COMPOSITOR", False),
+                            XA_CARDINAL, 32, PropModeReplace, (unsigned char *)&bypass, 1);
+        }
+        XFlush(_display);
     }
 }
 
@@ -512,6 +546,10 @@ static NSData *makeWindowIcon() {
 - (BOOL) presentRemoteCAFrame: (NSTimer *) timer {
     static unsigned char *pixels;
     static size_t pixelCapacity;
+    /* Slots are selected by dimensions, not by window ownership. A fullscreen client slot can
+     * match the game and create a black presentation child above Metal's X11SubWindow. Keep
+     * the native game renderer authoritative, including calls from openGLFlushBuffer/expose. */
+    if (X11IsLeagueGameWindow(_display, _window, _delegate)) return NO;
     if (!_mapped) return NO;
     double now = CFAbsoluteTimeGetCurrent();
     /* X geometry queries are synchronous round trips. Cache stable targets
@@ -930,6 +968,9 @@ selectedFrame:
     const char *text = [title cString];
     XStringListToTextProperty((char **) &text, 1, &prop);
     XSetWMName(_display, _window, &prop);
+    if (title && [title rangeOfString:@"(TM) Client" options:NSCaseInsensitiveSearch].location != NSNotFound) {
+        [(X11Display *)[NSDisplay currentDisplay] updateMouseConfinementForWindow:self];
+    }
 }
 
 - (void) setFrame: (O2Rect) frame {
@@ -941,12 +982,15 @@ selectedFrame:
     // Nonresizable windows can be created at 1x1 and enlarged before display.
     // Refresh the constraints so a managing compositor sees the current size.
     if (!(_styleMask & NSWindowStyleMaskResizable)) {
-        XSizeHints hints = {0};
-        hints.flags = PMinSize | PMaxSize;
-        hints.min_width = hints.max_width = frame.size.width;
-        hints.min_height = hints.max_height = frame.size.height;
-        XSetWMSizeHints(_display, _window, &hints, XA_WM_NORMAL_HINTS);
+        if (!X11IsLeagueGameWindow(_display, _window, _delegate)) {
+            XSizeHints hints = {0};
+            hints.flags = PMinSize | PMaxSize;
+            hints.min_width = hints.max_width = frame.size.width;
+            hints.min_height = hints.max_height = frame.size.height;
+            XSetWMSizeHints(_display, _window, &hints, XA_WM_NORMAL_HINTS);
+        }
     }
+    [(X11Display *)[NSDisplay currentDisplay] updateMouseConfinementForWindow:self];
 }
 
 - (void) setHasShadow: (BOOL) value {
@@ -1031,6 +1075,21 @@ selectedFrame:
 - (void) makeKey {
     [self ensureMapped];
     XRaiseWindow(_display, _window);
+    /* darling-lol: League's game window is managed (not override-redirect), so keyboard focus is
+     * the WM's to give. Ask for activation once when the game makes it key; the WM's focus-stealing
+     * policy still applies, unlike a direct XSetInputFocus. */
+    if (X11IsLeagueGameWindow(_display, _window, _delegate)) {
+        XEvent act = {0};
+        act.xclient.type = ClientMessage;
+        act.xclient.window = _window;
+        act.xclient.message_type = XInternAtom(_display, "_NET_ACTIVE_WINDOW", False);
+        act.xclient.format = 32;
+        act.xclient.data.l[0] = 1; /* source: normal application */
+        act.xclient.data.l[1] = CurrentTime;
+        XSendEvent(_display, DefaultRootWindow(_display), False,
+                   SubstructureRedirectMask | SubstructureNotifyMask, &act);
+        XFlush(_display);
+    }
 }
 
 - (void) makeMain {
