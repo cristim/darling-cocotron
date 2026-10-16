@@ -243,12 +243,24 @@ static void socketCallback(CFSocketRef s, CFSocketCallBackType type,
         [_lastScreens release];
         _lastScreens = nil;
     }
+    _primaryRootFrameValid = NO;
+}
+
+// The main monitor's rectangle in root coordinates, device pixels: the origin
+// of the global coordinate space, as on macOS. With one monitor, or without
+// RandR, it is the root window.
+- (NSRect) primaryRootFrame {
+    if (!_primaryRootFrameValid)
+        [self screens];
+    return _primaryRootFrame;
 }
 
 - (NSArray *) rootScreenFallback {
     CGFloat scale = [self backingScale];
     int width = DisplayWidth(_display, DefaultScreen(_display));
     int height = DisplayHeight(_display, DefaultScreen(_display));
+    _primaryRootFrame = NSMakeRect(0, 0, width, height);
+    _primaryRootFrameValid = YES;
     NSRect frame = NSMakeRect(0, 0, width / scale, height / scale);
     X11Screen *screen = [[[X11Screen alloc] initWithFrame: frame
                                              visibleFrame: frame] autorelease];
@@ -257,7 +269,8 @@ static void socketCallback(CFSocketRef s, CFSocketCallBackType type,
     return [NSArray arrayWithObject: screen];
 }
 
-// [NSScreen screens] starts with the main monitor, as on macOS. A display's CGDirectDisplayID
+// [NSScreen screens] starts with the main monitor, as on macOS, and every
+// frame is relative to that monitor's origin. A display's CGDirectDisplayID
 // stays tied to its RandR output (index + 1), whatever its position in the
 // array, because the mode functions address the output by that index.
 - (NSArray *) screens {
@@ -273,6 +286,15 @@ static void socketCallback(CFSocketRef s, CFSocketCallBackType type,
         return [self rootScreenFallback];
 
     CGFloat scale = [self backingScale];
+    // Without any active output the root window stands in, like without RandR.
+    _primaryRootFrame =
+            primary >= 0
+                    ? NSMakeRect(monitors[primary].x, monitors[primary].y,
+                                 monitors[primary].width, monitors[primary].height)
+                    : NSMakeRect(0, 0, DisplayWidth(_display, DefaultScreen(_display)),
+                                 DisplayHeight(_display, DefaultScreen(_display)));
+    _primaryRootFrameValid = YES;
+
     int *order = calloc(count > 0 ? (size_t) count : 1, sizeof *order);
     if (order == NULL) {
         free(monitors);
@@ -292,7 +314,8 @@ static void socketCallback(CFSocketRef s, CFSocketCallBackType type,
             // NSScreen.frame is in logical points, like the Wayland
             // backend's: CRTC geometry is device pixels, so divide it.
             NSRect frame = NSMakeRect(
-                    monitors[i].x / scale, monitors[i].y / scale,
+                    (monitors[i].x - NSMinX(_primaryRootFrame)) / scale,
+                    (monitors[i].y - NSMinY(_primaryRootFrame)) / scale,
                     monitors[i].width / scale, monitors[i].height / scale);
 
             nsscreen = [[[X11Screen alloc] initWithFrame: frame
@@ -1078,7 +1101,10 @@ static int compareFontPatterns(const void *a, const void *b) {
     //
     // XQueryPointer reports device pixels, so divide by the scale to get points.
     CGFloat scale = [self backingScale];
-    return NSMakePoint(root_x / scale, root_y / scale);
+    // Relative to the main monitor, which is the origin of the global space.
+    NSRect primary = [self primaryRootFrame];
+    return NSMakePoint((root_x - NSMinX(primary)) / scale,
+                       (root_y - NSMinY(primary)) / scale);
 }
 
 - (void) setWindow: (id) window forID: (XID) i {
@@ -1936,10 +1962,10 @@ void CGNativeBorderFrameWidthsForStyle(NSUInteger styleMask, CGFloat *top,
 // XWarpPointer wants device pixels, so the conversion belongs here rather than at every
 // caller. Invisible at 1x, off by the scale factor at 2x.
 - (void) warpMouse: (NSPoint) position {
-    int height = DisplayHeight(_display, DefaultScreen(_display));
+    NSRect primary = [self primaryRootFrame];
     CGFloat scale = [self backingScale];
-    int root_x = (int) round(position.x * scale);
-    int root_y = height - (int) round(position.y * scale);
+    int root_x = (int) NSMinX(primary) + (int) round(position.x * scale);
+    int root_y = (int) NSMaxY(primary) - (int) round(position.y * scale);
 
     XWarpPointer(_display, None, DefaultRootWindow(_display), 0, 0, 0, 0,
                  root_x, root_y);

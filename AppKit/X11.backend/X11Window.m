@@ -35,6 +35,7 @@
 #import <QuartzCore/CAWindowOpenGLContext.h>
 
 #import "X11Display.h"
+#import "X11Monitors.h"
 #import "X11SubWindow.h"
 #import "X11Window.h"
 #import <X11/Xatom.h>
@@ -990,10 +991,12 @@ static int ignoreBadWindow(Display *display, XErrorEvent *errorEvent) {
         // X geometry is top-left origin and -frame applies transformFrame:, so flip it
         // into the bottom-left convention _frame is stored in. Storing it unflipped made
         // -frame report screenHeight - height - y instead of y.
-        CGFloat screenHeight = DisplayHeight(_display, DefaultScreen(_display)) / scale;
-        _frame = NSMakeRect(rect.origin.x / scale,
-                            screenHeight - rect.origin.y / scale - rect.size.height / scale,
-                            rect.size.width / scale, rect.size.height / scale);
+        // Relative to the main monitor, the inverse of -transformFrame:.
+        X11Frame frame = X11FrameFromRoot(
+                [self primaryFrameInPoints],
+                (X11Frame){rect.origin.x / scale, rect.origin.y / scale,
+                           rect.size.width / scale, rect.size.height / scale});
+        _frame = NSMakeRect(frame.x, frame.y, frame.width, frame.height);
     } @finally {
         XSetErrorHandler(previousHandler);
     }
@@ -1015,14 +1018,23 @@ static int ignoreBadWindow(Display *display, XErrorEvent *errorEvent) {
 // are points, so the top-left flip has to use the LOGICAL screen height.
 // Mixing the device screen height with a logical origin puts the window
 // off-screen at 2x. Callers that need device pixels go through -deviceRect:.
+//
+// Cocoa's global origin is the bottom-left corner of the main monitor, so both
+// axes are relative to that monitor's rectangle, not to the root window. With one
+// monitor that is the whole root and this is the plain flip against its height.
 - (O2Rect) transformFrame: (O2Rect) frame {
-    CGFloat screenHeight =
-        DisplayHeight(_display, DefaultScreen(_display)) /
-        [self backingScaleFactor];
-    return NSMakeRect(frame.origin.x,
-                      screenHeight - frame.origin.y - frame.size.height,
-                      fmax(frame.size.width, 1.0),
-                      fmax(frame.size.height, 1.0));
+    X11Frame root = X11FrameToRoot([self primaryFrameInPoints],
+                                   (X11Frame){frame.origin.x, frame.origin.y,
+                                              frame.size.width, frame.size.height});
+    return NSMakeRect(root.x, root.y, fmax(root.width, 1.0), fmax(root.height, 1.0));
+}
+
+// The main monitor in root coordinates, in logical points like _frame.
+- (X11Frame) primaryFrameInPoints {
+    CGFloat scale = [self backingScaleFactor];
+    NSRect primary = [(X11Display *) [NSDisplay currentDisplay] primaryRootFrame];
+    return (X11Frame){NSMinX(primary) / scale, NSMinY(primary) / scale,
+                      NSWidth(primary) / scale, NSHeight(primary) / scale};
 }
 
 // `pos` is in DEVICE pixels, so the flip is against the device height. _frame
