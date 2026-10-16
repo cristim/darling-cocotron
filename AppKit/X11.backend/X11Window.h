@@ -47,6 +47,8 @@
     BOOL _mapped;
     CGPoint _lastMotionPos;
     BOOL _isModal;
+    BOOL _overrideRedirect;
+    BOOL _fullscreenRequested;
     BOOL _isOpaque;
     BOOL _hasShadow;
     NSTimer *_remoteFrameTimer;

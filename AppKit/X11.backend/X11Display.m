@@ -2456,41 +2456,8 @@ void CGNativeBorderFrameWidthsForStyle(NSUInteger styleMask, CGFloat *top,
         XTranslateCoordinates(_display, win, DefaultRootWindow(_display), 0, 0, &x, &y, &child);
         fullscreen = X11RootRectCoversMonitor(_display, NSMakeRect(x, y, attrs.width, attrs.height));
     }
-    /* GNOME keeps its top bar and dock above a borderless window that merely covers the monitor.
-     * Ask the WM once per window for real EWMH fullscreen on League's game window, and never let
-     * the compositor scan out this parent window directly: Metal/OpenGL draw into a child window. */
-    static Window rclolPromotedWindow;
-    if (fullscreen && borderless && !rclolEwmhFullscreen && win != rclolPromotedWindow && X11IsLeagueGameWindow(_display, win, [window delegate])) {
-        rclolPromotedWindow = win;
-        fullscreen = YES;
-        unsigned long bypass = 2; /* _NET_WM_BYPASS_COMPOSITOR: never */
-        XChangeProperty(_display, win, XInternAtom(_display, "_NET_WM_BYPASS_COMPOSITOR", False),
-                        XA_CARDINAL, 32, PropModeReplace, (unsigned char *)&bypass, 1);
-        XClientMessageEvent cme = {0};
-        cme.type = ClientMessage;
-        cme.window = win;
-        cme.message_type = state;
-        cme.format = 32;
-        cme.data.l[0] = 1; /* _NET_WM_STATE_ADD */
-        cme.data.l[1] = (long)fs;
-        cme.data.l[3] = 1; /* source: normal application */
-        XSendEvent(_display, DefaultRootWindow(_display), False,
-                   SubstructureNotifyMask | SubstructureRedirectMask, (XEvent *)&cme);
-        /* Mutter only hides its top bar over the active fullscreen window. The window already
-         * holds focus here, so marking it active and raising it cannot steal focus. */
-        XClientMessageEvent act = {0};
-        act.type = ClientMessage;
-        act.window = win;
-        act.message_type = XInternAtom(_display, "_NET_ACTIVE_WINDOW", False);
-        act.format = 32;
-        act.data.l[0] = 1; /* source: normal application */
-        act.data.l[1] = CurrentTime;
-        XSendEvent(_display, DefaultRootWindow(_display), False,
-                   SubstructureNotifyMask | SubstructureRedirectMask, (XEvent *)&act);
-        XRaiseWindow(_display, win);
-        XFlush(_display);
-        if (getenv("RCLOL_INPUT_TRACE")) fprintf(stderr,"CONFINEMENT requested EWMH fullscreen for window %lu\n",win);
-    }
+    /* X11Window owns EWMH requests on frame/style changes. Confinement only observes the
+     * resulting state; issuing another fullscreen request here races WM resize decisions. */
     if (!fullscreen || attrs.map_state != IsViewable) {
         if (rclolTraceOn())
             rclolTraceRated(&rclolConfineChannel, "no confinement window=%lu fullscreen=%d ewmh=%d titled=%d size=%dx%d map_state=%d %s",
