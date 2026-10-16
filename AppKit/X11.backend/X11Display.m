@@ -2057,21 +2057,8 @@ static unsigned int rclolModifierMask(unsigned int key) {
                             rclolFocusDetailName(ev->xfocus.detail), _relativeRequested, _relativeMouse.active,
                             (unsigned long) _confinedWindow,
                             [NSApp isActive]);
-        if (ev->xfocus.detail == NotifyPointer || ev->xfocus.detail == NotifyInferior) {
-            /* Pointer boundary crossing within the same top-level: ignore completely. */
-            break;
-        }
-        if (ev->xfocus.mode == NotifyGrab || ev->xfocus.mode == NotifyUngrab) {
-            /* A window manager grab (e.g. Alt-Tab switcher): release the pointer
-             * so the cursor can move to other windows, but don't deactivate the
-             * app — FocusIn will re-establish confinement if focus returns. */
-            [self suspendRelativeMouse];
-            if (_confinedWindow) {
-                XUngrabPointer(_display, CurrentTime);
-                _confinedWindow = None;
-                _confinedWidth = 0;
-                _confinedHeight = 0;
-            }
+        if (ev->xfocus.detail == NotifyPointer || ev->xfocus.detail == NotifyInferior || ev->xfocus.mode == NotifyGrab || ev->xfocus.mode == NotifyUngrab) {
+            /* Pointer boundary crossing or grab transition in XWayland: do NOT release confinement or deactivate window */
             break;
         }
         NSLog(@"FocusOut");
@@ -2460,24 +2447,23 @@ void CGNativeBorderFrameWidthsForStyle(NSUInteger styleMask, CGFloat *top,
             unsigned long bypass = 2;
             XChangeProperty(_display, win, XInternAtom(_display, "_NET_WM_BYPASS_COMPOSITOR", False),
                             XA_CARDINAL, 32, PropModeReplace, (unsigned char *)&bypass, 1);
+            /* Ensure window is marked active in Mutter so top bar is hidden and pointer is confined */
+            Atom activeAtom = XInternAtom(_display, "_NET_ACTIVE_WINDOW", False);
+            XClientMessageEvent act = {0};
+            act.type = ClientMessage;
+            act.window = win;
+            act.message_type = activeAtom;
+            act.format = 32;
+            act.data.l[0] = 1;
+            act.data.l[1] = CurrentTime;
+            XSendEvent(_display, DefaultRootWindow(_display), False,
+                       SubstructureNotifyMask | SubstructureRedirectMask,
+                       (XEvent *)&act);
+            XRaiseWindow(_display, win);
+            XSetInputFocus(_display, win, RevertToPointerRoot, CurrentTime);
+            XFlush(_display);
+            if (getenv("RCLOL_INPUT_TRACE")) fprintf(stderr,"CONFINEMENT promoted to EWMH FULLSCREEN and ACTIVE for window %lu\n",win);
         }
-
-        /* Ensure window is marked active in Mutter so top bar is hidden and pointer is confined */
-        Atom activeAtom = XInternAtom(_display, "_NET_ACTIVE_WINDOW", False);
-        XClientMessageEvent act = {0};
-        act.type = ClientMessage;
-        act.window = win;
-        act.message_type = activeAtom;
-        act.format = 32;
-        act.data.l[0] = 1;
-        act.data.l[1] = CurrentTime;
-        XSendEvent(_display, DefaultRootWindow(_display), False,
-                   SubstructureNotifyMask | SubstructureRedirectMask,
-                   (XEvent *)&act);
-        XRaiseWindow(_display, win);
-        XSetInputFocus(_display, win, RevertToPointerRoot, CurrentTime);
-        XFlush(_display);
-        if (getenv("RCLOL_INPUT_TRACE")) fprintf(stderr,"CONFINEMENT promoted to EWMH FULLSCREEN and ACTIVE for window %lu\n",win);
     }
 
     /* Check focus to determine whether mouse confinement should be active. */
