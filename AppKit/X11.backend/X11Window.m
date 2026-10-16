@@ -957,6 +957,25 @@ selectedFrame:
     _level = value;
 }
 
+/* NSApplication's attention timer calls this for requestUserAttention:. The
+ * CGWindow base class raises an abstract-invocation exception, which aborted
+ * the whole LeagueClientUx process. Ask the window manager to mark the window
+ * as demanding attention instead. */
+- (void) flashWindow {
+    XClientMessageEvent event = {0};
+    event.type = ClientMessage;
+    event.window = _window;
+    event.message_type = XInternAtom(_display, "_NET_WM_STATE", False);
+    event.format = 32;
+    event.data.l[0] = 1; /* _NET_WM_STATE_ADD */
+    event.data.l[1] = (long) XInternAtom(_display, "_NET_WM_STATE_DEMANDS_ATTENTION", False);
+    event.data.l[3] = 1;
+    XSendEvent(_display, DefaultRootWindow(_display), False,
+               SubstructureNotifyMask | SubstructureRedirectMask,
+               (XEvent *) &event);
+    XFlush(_display);
+}
+
 - (void) setOpaque: (BOOL) value {
     _isOpaque = value;
 }
