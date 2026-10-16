@@ -1855,10 +1855,13 @@ static unsigned int rclolModifierMask(unsigned int key) {
             // ev->xmotion.x, ev->xmotion.y, ev->xmotion.x_root,
             // ev->xmotion.y_root);
 
-            /* darling-lol: Coalesce pending MotionNotify events in the X11 queue to eliminate input lag. */
-            XEvent nextEv;
-            while (XCheckTypedWindowEvent(_display, ev->xmotion.window, MotionNotify, &nextEv)) {
-                *ev = nextEv;
+            /* darling-lol: Coalesce pending MotionNotify events in the X11 queue to eliminate input lag.
+             * Only coalesce in absolute mode: relative mode requires every motion event and warp echo. */
+            if (!_relativeMouse.active) {
+                XEvent nextEv;
+                while (XCheckTypedWindowEvent(_display, ev->xmotion.window, MotionNotify, &nextEv)) {
+                    *ev = nextEv;
+                }
             }
             rclolRootX = ev->xmotion.x_root;
             rclolRootY = ev->xmotion.y_root;
