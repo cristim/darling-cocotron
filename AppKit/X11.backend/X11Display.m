@@ -1477,10 +1477,10 @@ static BOOL rclolQueryPointer(Display *display) {
         result = nil;
     NSTimeInterval remaining;
     while (result == nil && (remaining = [untilDate timeIntervalSinceNow]) > 0) {
-        /* Display-link and input sources have no CF timer deadline. A 20ms
-         * fallback can sleep past every 60Hz source wakeup; bound its latency
-         * below a refresh interval while the socket wakeup path is polled. */
-        NSTimeInterval slice = remaining < 0.004 ? remaining : 0.004;
+        /* Display-link and input sources have no CF timer deadline. Bound the
+         * idle-poll latency below half a 144Hz frame (~3.5ms) so input events
+         * are dispatched promptly at high refresh rates. */
+        NSTimeInterval slice = remaining < 0.002 ? remaining : 0.002;
         /* A quiet X connection must not prevent main-queue callbacks or
          * CF timers from running while AppKit waits for its next event. */
         CFStringRef cfMode = (mode == nil || [mode isEqual:NSDefaultRunLoopMode])
@@ -2057,8 +2057,21 @@ static unsigned int rclolModifierMask(unsigned int key) {
                             rclolFocusDetailName(ev->xfocus.detail), _relativeRequested, _relativeMouse.active,
                             (unsigned long) _confinedWindow,
                             [NSApp isActive]);
-        if (ev->xfocus.detail == NotifyPointer || ev->xfocus.detail == NotifyInferior || ev->xfocus.mode == NotifyGrab || ev->xfocus.mode == NotifyUngrab) {
-            /* Pointer boundary crossing or grab transition in XWayland: do NOT release confinement or deactivate window */
+        if (ev->xfocus.detail == NotifyPointer || ev->xfocus.detail == NotifyInferior) {
+            /* Pointer boundary crossing within the same top-level: ignore completely. */
+            break;
+        }
+        if (ev->xfocus.mode == NotifyGrab || ev->xfocus.mode == NotifyUngrab) {
+            /* A window manager grab (e.g. Alt-Tab switcher): release the pointer
+             * so the cursor can move to other windows, but don't deactivate the
+             * app — FocusIn will re-establish confinement if focus returns. */
+            [self suspendRelativeMouse];
+            if (_confinedWindow) {
+                XUngrabPointer(_display, CurrentTime);
+                _confinedWindow = None;
+                _confinedWidth = 0;
+                _confinedHeight = 0;
+            }
             break;
         }
         NSLog(@"FocusOut");
