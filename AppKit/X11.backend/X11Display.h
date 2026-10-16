@@ -10,6 +10,7 @@
 #import <X11/Xlib.h>
 #import <X11/Xresource.h>
 #import <X11/Xlocale.h>
+#import "X11RelativeMouse.h"
 
 #ifdef DARLING
 #import <CoreFoundation/CFRunLoop.h>
@@ -36,7 +37,16 @@
     NSTimeInterval lastClickTimeStamp;
     int clickCount;
     X11Cursor *_blankCursor, *_defaultCursor;
-    BOOL _cursorGrabbed;
+    /* Relative mouse mode: requested by CGAssociateMouseAndMouseCursorPosition(false); _relativeMouse.active
+     * while its pointer grab on _relativeWindow is held (released on focus loss, retaken on focus). */
+    BOOL _relativeRequested;
+    Window _relativeWindow;
+    X11RelativeMouse _relativeMouse;
+    BOOL _isXwayland;
+    /* The cursor last defined by setCursor:, retained so its X id cannot be freed and reused while cached. */
+    Window _definedCursorWindow;
+    X11Cursor *_definedCursor;
+    BOOL _cursorHidden;
     Window _confinedWindow;
     unsigned int _otherButtonsDown;
     KeySym _lastKeySym;

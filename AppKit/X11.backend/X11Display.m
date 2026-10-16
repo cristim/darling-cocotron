@@ -57,6 +57,263 @@
 #import <stddef.h>
 #include <stdlib.h>
 
+/* darling-lol: passive, opt-in input trace for diagnosing relative mouse mode (e.g. League on Xwayland).
+ * Enabled only when the file /tmp/rclol-input-trace exists (checked once per process); lines are appended to
+ * /tmp/rclol-input-trace.log with the pid and a monotonic millisecond timestamp. It records pointer grabs,
+ * warps, cursor visibility, motion handling and pointer-position queries, and never changes behaviour. When
+ * disabled the cost is one load and branch; when enabled no X requests are added except the one-time startup
+ * extension queries. High-rate sources log a few lines verbatim and are then summarised once per second.
+ * Never logs key codes, text or window titles. Independent of the older RCLOL_INPUT_TRACE stderr logging. */
+#include <mach/mach_time.h>
+#include <objc/runtime.h>
+#include <pthread.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>
+
+static int rclolTraceState = -1;
+static FILE *rclolTraceFile;
+static pthread_once_t rclolTraceOnce = PTHREAD_ONCE_INIT;
+static pthread_mutex_t rclolTraceLock = PTHREAD_MUTEX_INITIALIZER;
+static unsigned rclolGrabGeneration;
+
+static void rclolTraceInit(void) {
+    int on = 0;
+    if (access("/tmp/rclol-input-trace", F_OK) == 0) {
+        rclolTraceFile = fopen("/tmp/rclol-input-trace.log", "a");
+        if (rclolTraceFile) {
+            setvbuf(rclolTraceFile, NULL, _IOLBF, 0);
+            on = 1;
+        }
+    }
+    __atomic_store_n(&rclolTraceState, on, __ATOMIC_RELEASE);
+}
+
+static inline BOOL rclolTraceOn(void) {
+    int state = __atomic_load_n(&rclolTraceState, __ATOMIC_ACQUIRE);
+    if (__builtin_expect(state >= 0, 1))
+        return state;
+    pthread_once(&rclolTraceOnce, rclolTraceInit);
+    return __atomic_load_n(&rclolTraceState, __ATOMIC_ACQUIRE);
+}
+
+static unsigned long long rclolTraceNowMs(void) {
+    static mach_timebase_info_data_t tb;
+    if (tb.denom == 0) mach_timebase_info(&tb);
+    return (unsigned long long) ((__uint128_t) mach_absolute_time() * tb.numer / tb.denom / 1000000u);
+}
+
+static void rclolTraceLine(const char *format, ...) __attribute__((format(printf, 1, 2)));
+static void rclolTraceLine(const char *format, ...) {
+    char message[640];
+    va_list args;
+    va_start(args, format);
+    vsnprintf(message, sizeof message, format, args);
+    va_end(args);
+    fprintf(rclolTraceFile, "pid=%d t=%llums %s\n", (int) getpid(), rclolTraceNowMs(), message);
+}
+
+/* A rate-limited source: the first `limit` calls are logged verbatim, later ones are counted and summarised
+ * (count and last message) once at least a second has passed. */
+typedef struct {
+    const char *name;
+    unsigned limit, verbatim, pending;
+    unsigned long long windowStart;
+    char last[320];
+} RclolTraceChannel;
+#define RCLOL_CHANNEL(n, l) { n, l, 0, 0, 0, "" }
+static RclolTraceChannel rclolWarpAppChannel = RCLOL_CHANNEL("warp[app]", 20);
+static RclolTraceChannel rclolWarpRewarpChannel = RCLOL_CHANNEL("warp[motion-rewarp]", 20);
+static RclolTraceChannel rclolHideChannel = RCLOL_CHANNEL("hideCursor", 20);
+static RclolTraceChannel rclolUnhideChannel = RCLOL_CHANNEL("unhideCursor", 20);
+static RclolTraceChannel rclolSetCursorChannel = RCLOL_CHANNEL("setCursor", 20);
+static RclolTraceChannel rclolFocusChannel = RCLOL_CHANNEL("focus", 60);
+static RclolTraceChannel rclolConfineChannel = RCLOL_CHANNEL("confinement", 60);
+static RclolTraceChannel rclolErrorChannel = RCLOL_CHANNEL("xerror", 40);
+static RclolTraceChannel *rclolChannels[] = {
+    &rclolWarpAppChannel, &rclolWarpRewarpChannel, &rclolHideChannel,
+    &rclolUnhideChannel, &rclolSetCursorChannel, &rclolFocusChannel, &rclolConfineChannel, &rclolErrorChannel,
+};
+
+static struct {
+    unsigned verbatim, events, echoes, rewarps, relative, absolute;
+    unsigned long long windowStart;
+    unsigned long window;
+    int x, y, rootX, rootY, grabbed;
+    double dx, dy, lastX, lastY;
+} rclolMotion;
+
+static struct {
+    unsigned verbatim, calls, hits, queries, failures;
+    unsigned long long windowStart;
+    double x, y;
+    int rootX, rootY;
+} rclolLocation;
+
+static void rclolTraceFlushChannelLocked(RclolTraceChannel *channel, unsigned long long now) {
+    if (channel->pending)
+        rclolTraceLine("%s summary: %u calls in %llums, last: %s", channel->name, channel->pending,
+                       now - channel->windowStart, channel->last);
+    channel->pending = 0;
+    channel->windowStart = now;
+}
+
+static void rclolTraceTickLocked(unsigned long long now, BOOL force) {
+    for (size_t i = 0; i < sizeof rclolChannels / sizeof *rclolChannels; ++i)
+        if (rclolChannels[i]->pending && (force || now - rclolChannels[i]->windowStart >= 1000))
+            rclolTraceFlushChannelLocked(rclolChannels[i], now);
+    if (rclolMotion.events && (force || now - rclolMotion.windowStart >= 1000)) {
+        rclolTraceLine("motion summary: %u events (%u warp-echo, %u relative+rewarp, %u relative, %u absolute) in "
+                       "%llums window=%lu relative=%d last ev=%d,%d root=%d,%d delta=%.1f,%.1f last=%.1f,%.1f",
+                       rclolMotion.events, rclolMotion.echoes, rclolMotion.rewarps, rclolMotion.relative,
+                       rclolMotion.absolute,
+                       now - rclolMotion.windowStart, rclolMotion.window, rclolMotion.grabbed, rclolMotion.x,
+                       rclolMotion.y, rclolMotion.rootX, rclolMotion.rootY, rclolMotion.dx, rclolMotion.dy,
+                       rclolMotion.lastX, rclolMotion.lastY);
+        rclolMotion.events = rclolMotion.echoes = rclolMotion.rewarps = rclolMotion.relative = 0;
+        rclolMotion.absolute = 0;
+    }
+    if (rclolLocation.calls && (force || now - rclolLocation.windowStart >= 1000)) {
+        rclolTraceLine("mouseLocation summary: %u calls (%u cache hits, %u queries, %u failed) in %llums "
+                       "last=%.1f,%.1f root=%d,%d",
+                       rclolLocation.calls, rclolLocation.hits, rclolLocation.queries, rclolLocation.failures,
+                       now - rclolLocation.windowStart, rclolLocation.x, rclolLocation.y, rclolLocation.rootX,
+                       rclolLocation.rootY);
+        rclolLocation.calls = rclolLocation.hits = rclolLocation.queries = rclolLocation.failures = 0;
+    }
+}
+
+static void rclolTraceRated(RclolTraceChannel *channel, const char *format, ...) __attribute__((format(printf, 2, 3)));
+static void rclolTraceRated(RclolTraceChannel *channel, const char *format, ...) {
+    char message[320];
+    va_list args;
+    va_start(args, format);
+    vsnprintf(message, sizeof message, format, args);
+    va_end(args);
+    pthread_mutex_lock(&rclolTraceLock);
+    unsigned long long now = rclolTraceNowMs();
+    if (channel->verbatim < channel->limit) {
+        channel->verbatim++;
+        rclolTraceLine("%s #%u gen=%u: %s", channel->name, channel->verbatim, rclolGrabGeneration, message);
+    } else {
+        if (!channel->pending) channel->windowStart = now;
+        channel->pending++;
+        memcpy(channel->last, message, sizeof message);
+    }
+    rclolTraceTickLocked(now, NO);
+    pthread_mutex_unlock(&rclolTraceLock);
+}
+
+/* Each grabMouse: call starts a new generation: flush pending summaries and re-arm the verbatim budgets for
+ * warps, motion and mouseLocation so the loop's first steps after every grab change are visible. */
+static void rclolTraceGrabChanged(void) {
+    pthread_mutex_lock(&rclolTraceLock);
+    rclolTraceTickLocked(rclolTraceNowMs(), YES);
+    rclolGrabGeneration++;
+    rclolWarpAppChannel.verbatim = rclolWarpRewarpChannel.verbatim = 0;
+    rclolMotion.verbatim = rclolLocation.verbatim = 0;
+    pthread_mutex_unlock(&rclolTraceLock);
+}
+
+/* pos/last are the window-local event position and previous position for absolute motion, and the virtual cursor
+ * and previous physical pointer (root coordinates) for relative motion. */
+static void rclolTraceMotion(XEvent *ev, BOOL grabbed, CGPoint pos, CGPoint last, CGFloat dx, CGFloat dy,
+                             const char *decision, int forwarded)
+{
+    pthread_mutex_lock(&rclolTraceLock);
+    unsigned long long now = rclolTraceNowMs();
+    if (rclolMotion.verbatim < 30) {
+        rclolMotion.verbatim++;
+        rclolTraceLine("motion #%u gen=%u: window=%lu ev=%d,%d root=%d,%d pos=%.1f,%.1f last=%.1f,%.1f "
+                       "delta=%.1f,%.1f relative=%d decision=%s forwarded=%d send_event=%d time=%lu state=0x%x",
+                       rclolMotion.verbatim, rclolGrabGeneration, (unsigned long) ev->xany.window, ev->xmotion.x,
+                       ev->xmotion.y, ev->xmotion.x_root, ev->xmotion.y_root, pos.x, pos.y, last.x, last.y, dx, dy,
+                       grabbed, decision, forwarded, ev->xany.send_event, (unsigned long) ev->xmotion.time,
+                       ev->xmotion.state);
+    }
+    if (!rclolMotion.events) rclolMotion.windowStart = now;
+    rclolMotion.events++;
+    if (!strcmp(decision, "echo")) rclolMotion.echoes++;
+    else if (!strcmp(decision, "relative+rewarp")) rclolMotion.rewarps++;
+    else if (!strncmp(decision, "relative", 8)) rclolMotion.relative++;
+    else rclolMotion.absolute++;
+    rclolMotion.window = ev->xany.window;
+    rclolMotion.x = ev->xmotion.x;
+    rclolMotion.y = ev->xmotion.y;
+    rclolMotion.rootX = ev->xmotion.x_root;
+    rclolMotion.rootY = ev->xmotion.y_root;
+    rclolMotion.grabbed = grabbed;
+    rclolMotion.dx = dx;
+    rclolMotion.dy = dy;
+    rclolMotion.lastX = last.x;
+    rclolMotion.lastY = last.y;
+    rclolTraceTickLocked(now, NO);
+    pthread_mutex_unlock(&rclolTraceLock);
+}
+
+static void rclolTraceMouseLocation(NSPoint result, BOOL ok, BOOL hit, int rootX, int rootY, BOOL grabbed) {
+    pthread_mutex_lock(&rclolTraceLock);
+    unsigned long long now = rclolTraceNowMs();
+    const char *source = grabbed ? "virtual" : !ok ? "query-failed" : hit ? "cache-hit" : "XQueryPointer";
+    if (rclolLocation.verbatim < 30) {
+        rclolLocation.verbatim++;
+        rclolTraceLine("mouseLocation #%u gen=%u: -> %.1f,%.1f root=%d,%d source=%s relative=%d",
+                       rclolLocation.verbatim, rclolGrabGeneration, result.x, result.y, rootX, rootY, source,
+                       grabbed);
+    }
+    if (!rclolLocation.calls) rclolLocation.windowStart = now;
+    rclolLocation.calls++;
+    if (!ok) rclolLocation.failures++;
+    else if (hit) rclolLocation.hits++;
+    else rclolLocation.queries++;
+    rclolLocation.x = result.x;
+    rclolLocation.y = result.y;
+    rclolLocation.rootX = rootX;
+    rclolLocation.rootY = rootY;
+    rclolTraceTickLocked(now, NO);
+    pthread_mutex_unlock(&rclolTraceLock);
+}
+
+static void rclolTraceStartup(Display *display) {
+    if (!rclolTraceOn()) return;
+    int opcode, event, error;
+    Bool xwayland = XQueryExtension(display, "XWAYLAND", &opcode, &event, &error);
+    int xiOpcode = 0, xiEvent = 0, xiError = 0;
+    Bool xi = XQueryExtension(display, "XInputExtension", &xiOpcode, &xiEvent, &xiError);
+    int screen = DefaultScreen(display);
+    rclolTraceLine("startup: input trace enabled; vendor=\"%s\" release=%d protocol=%d.%d xwayland=%d "
+                   "XInputExtension=%d opcode=%d (libXi not linked; version not queried) screens=%d default=%d "
+                   "size=%dx%d (%dx%dmm) RCLOL_INPUT_TRACE=%d",
+                   ServerVendor(display), VendorRelease(display), ProtocolVersion(display),
+                   ProtocolRevision(display), xwayland, xi, xiOpcode, ScreenCount(display), screen,
+                   DisplayWidth(display, screen), DisplayHeight(display, screen),
+                   DisplayWidthMM(display, screen), DisplayHeightMM(display, screen),
+                   getenv("RCLOL_INPUT_TRACE") != NULL);
+}
+
+static const char *rclolGrabResultName(int result) {
+    switch (result) {
+    case GrabSuccess: return "GrabSuccess";
+    case AlreadyGrabbed: return "AlreadyGrabbed";
+    case GrabInvalidTime: return "GrabInvalidTime";
+    case GrabNotViewable: return "GrabNotViewable";
+    case GrabFrozen: return "GrabFrozen";
+    default: return "not-called";
+    }
+}
+
+static const char *rclolFocusModeName(int mode) {
+    static const char *names[] = {"Normal", "Grab", "Ungrab", "WhileGrabbed"};
+    return mode >= 0 && mode < 4 ? names[mode] : "?";
+}
+
+static const char *rclolFocusDetailName(int detail) {
+    static const char *names[] = {"Ancestor", "Virtual", "Inferior", "Nonlinear", "NonlinearVirtual",
+                                  "Pointer", "PointerRoot", "DetailNone"};
+    return detail >= 0 && detail < 8 ? names[detail] : "?";
+}
+
 void NSColorSetCatalogColor(NSColorListName catalogName, NSColorName colorName, NSColor *color);
 
 @implementation X11Display
@@ -147,6 +404,10 @@ static void socketCallback(CFSocketRef s, CFSocketCallBackType type,
         if (XRRQueryExtension(_display, &_rrEventBase, &errorBase)) {
             XRRSelectInput(_display, DefaultRootWindow(_display), RRScreenChangeNotifyMask | RRCrtcChangeNotifyMask | RROutputChangeNotifyMask | RROutputPropertyNotifyMask);
         }
+        /* Xwayland forwards pointer warps to the compositor only while the X cursor is hidden. */
+        int xwaylandOpcode, xwaylandEvent, xwaylandError;
+        _isXwayland = XQueryExtension(_display, "XWAYLAND", &xwaylandOpcode, &xwaylandEvent, &xwaylandError);
+        rclolTraceStartup(_display);
 
         lastFocusedWindow = nil;
         lastClickTimeStamp = 0.0;
@@ -158,6 +419,7 @@ static void socketCallback(CFSocketRef s, CFSocketCallBackType type,
 - (void) dealloc {
     [_blankCursor release];
     [_defaultCursor release];
+    [_definedCursor release];
 
     if (_xim)
         XCloseIM(_xim);
@@ -601,16 +863,15 @@ static NSDictionary *modeInfoToDictionary(const XRRModeInfo *mi, int depth) {
 
 /* darling-lol: the game asks for the pointer position, the pressed buttons and the modifier state about a thousand
  * times per second. Each answer was a synchronous X round trip (XQueryPointer / XkbGetState) that puts the main thread
- * to sleep until XWayland replies; while the mouse moves they dominated the slow frames. Reuse a reply for 1 ms, keep it
+ * to sleep until XWayland replies; while the mouse moves they dominated the slow frames. Reuse a reply for 8 ms, keep it
  * current from the input events themselves (a motion event carries position and button state), and drop it on every
  * button, key, crossing or focus event so the next question after a state change is always asked for real. */
 #include <mach/mach_time.h>
-#include <poll.h>
 static BOOL rclolFresh(uint64_t *stamp) {
     static mach_timebase_info_data_t tb;
     if (tb.denom == 0) mach_timebase_info(&tb);
     uint64_t now = mach_absolute_time();
-    if (*stamp != 0 && (now - *stamp) * tb.numer / tb.denom < 1000000ULL) return YES;
+    if (*stamp != 0 && (now - *stamp) * tb.numer / tb.denom < 8000000ULL) return YES;
     *stamp = now;
     return NO;
 }
@@ -801,6 +1062,10 @@ static BOOL rclolQueryPointer(Display *display) {
 }
 
 - (void) hideCursor {
+    if (rclolTraceOn())
+        rclolTraceRated(&rclolHideChannel, "blankExisted=%d relative=%d/%d hidden=%d confined=%lu",
+                        _blankCursor != nil, _relativeRequested, _relativeMouse.active, _cursorHidden,
+                        (unsigned long) _confinedWindow);
     if (!_blankCursor)
         _blankCursor = [[X11Cursor alloc] initBlank];
     [self setCursor: _blankCursor];
@@ -808,6 +1073,10 @@ static BOOL rclolQueryPointer(Display *display) {
 
 - (void) unhideCursor {
     NSCursor *current = [NSCursor currentCursor];
+    if (rclolTraceOn())
+        rclolTraceRated(&rclolUnhideChannel, "path=%s current=%p relative=%d/%d hidden=%d",
+                        current ? "push-pop" : "default", current, _relativeRequested, _relativeMouse.active,
+                        _cursorHidden);
     if (current != nil) {
         [current push];
         [current pop];
@@ -860,12 +1129,28 @@ static BOOL rclolQueryPointer(Display *display) {
 
 - (void) setCursor: (id) cursor {
     CGWindow *window = [[NSApp keyWindow] platformWindow];
-    if (window != nil) {
-        Window w = [(X11Window *) window windowHandle];
-        Cursor c = ((X11Cursor *) cursor).cursor;
-
+    Window w = window ? [(X11Window *) window windowHandle] : None;
+    Cursor c = ((X11Cursor *) cursor).cursor;
+    /* unhideCursor re-sets the current cursor and games call it every frame: only send actual changes. The
+     * defined cursor stays retained, so its X id cannot be freed and handed to a different cursor meanwhile. */
+    BOOL unchanged = w != None && w == _definedCursorWindow && c == _definedCursor.cursor;
+    if (rclolTraceOn())
+        rclolTraceRated(&rclolSetCursorChannel, "cursor=%p blank=%d default=%d xcursor=%lu keyWindow=%d xwin=%lu applied=%d relative=%d/%d",
+                        cursor, cursor != nil && cursor == _blankCursor, cursor != nil && cursor == _defaultCursor,
+                        (unsigned long) c, [NSApp keyWindow] != nil, (unsigned long) w, w != None && !unchanged,
+                        _relativeRequested, _relativeMouse.active);
+    if (w != None && !unchanged) {
         XDefineCursor(_display, w, c);
-        XSync(_display, False);
+        /* Send cursor changes immediately without waiting for an X server
+         * reply on the input thread. X requests on this connection remain
+         * ordered; no server result is consumed here. */
+        XFlush(_display);
+        [cursor retain];
+        [_definedCursor release];
+        _definedCursor = cursor;
+        _definedCursorWindow = w;
+        /* initBlank's empty-mask cursor counts as hidden for Xwayland's pointer warp emulation. */
+        _cursorHidden = cursor != nil && cursor == _blankCursor && c != None;
     }
 }
 
@@ -1034,9 +1319,22 @@ static BOOL rclolQueryPointer(Display *display) {
 }
 
 - (NSPoint) mouseLocation {
-    rclolQueryPointer(_display);
+    if (_relativeMouse.active) {
+        /* The cursor is disassociated: report the frozen (virtual) position, as macOS does. */
+        NSPoint result = NSMakePoint(_relativeMouse.virtualX,
+                                     DisplayHeight(_display, DefaultScreen(_display)) - _relativeMouse.virtualY);
+        if (rclolTraceOn())
+            rclolTraceMouseLocation(result, YES, YES, (int) _relativeMouse.virtualX, (int) _relativeMouse.virtualY, YES);
+        return result;
+    }
+    uint64_t rclolStampBefore = rclolPointerStamp;
+    BOOL rclolQueried = rclolQueryPointer(_display);
     int height = DisplayHeight(_display, DefaultScreen(_display));
-    return NSMakePoint(rclolRootX, height - rclolRootY);
+    NSPoint result = NSMakePoint(rclolRootX, height - rclolRootY);
+    if (rclolTraceOn())
+        rclolTraceMouseLocation(result, rclolQueried, rclolStampBefore != 0 && rclolPointerStamp == rclolStampBefore,
+                                rclolRootX, rclolRootY, NO);
+    return result;
 }
 
 - (void) setWindow: (id) window forID: (XID) i {
@@ -1055,6 +1353,16 @@ static BOOL rclolQueryPointer(Display *display) {
         // retaining the window causes it to keep popping back up endlessly even after dismissing it
         if (lastFocusedWindow && [[lastFocusedWindow platformWindow] windowHandle] == i)
             lastFocusedWindow = nil;
+        if (_definedCursorWindow == i) {
+            _definedCursorWindow = None;
+            [_definedCursor release];
+            _definedCursor = nil;
+        }
+        /* The server released any grab on a destroyed window. */
+        if (_confinedWindow == i)
+            _confinedWindow = None;
+        if (_relativeWindow == i)
+            [self suspendRelativeMouse];
     }
 }
 
@@ -1135,15 +1443,12 @@ static BOOL rclolQueryPointer(Display *display) {
                 slice = next > now ? next - now : 0;
         }
         if (result == nil && slice > 0) {
-            /* darling-lol perf: poll() the X11 connection fd instead of blind
-             * nanosleep.  This wakes within <0.1ms when an input event arrives
-             * on the socket, eliminating up to 4ms of input latency jitter. */
-            int xfd = ConnectionNumber(_display);
-            struct pollfd pfd = { .fd = xfd, .events = POLLIN };
-            int timeout_ms = (int)(slice * 1000.0);
-            if (timeout_ms < 1) timeout_ms = 1;
+            /* Keep this polling deadline independent of Mach wait timers. */
+            struct { long seconds, nanoseconds; } delay = {
+                0, (long)(slice * 1000000000.0)
+            };
             extern long __lolsys_syscall(long, long, long, long, long, long, int);
-            __lolsys_syscall((long)&pfd, 1, timeout_ms, 0, 0, 0, 7 /* Linux poll */);
+            __lolsys_syscall((long)&delay, 0, 0, 0, 0, 0, 35 /* Linux nanosleep */);
         }
     }
     return result;
@@ -1249,6 +1554,9 @@ static unsigned int rclolModifierMask(unsigned int key) {
     default:
         break;
     }
+    /* Expected warp echoes are among the events queued when the warp was synced; motion ages them itself. */
+    if (_relativeMouse.active && ev->type != MotionNotify)
+        X11RelativeMouseTick(&_relativeMouse);
 
     switch (ev->type) {
     case KeyPress:
@@ -1338,7 +1646,8 @@ static unsigned int rclolModifierMask(unsigned int key) {
 
     case ButtonPress:;
         if (ev->xbutton.button >= Button4 && ev->xbutton.button <= 7) {
-            pos = [window transformPoint:NSMakePoint(ev->xbutton.x, ev->xbutton.y)];
+            pos = [self locationInWindow: window x: ev->xbutton.x y: ev->xbutton.y
+                                   rootX: ev->xbutton.x_root rootY: ev->xbutton.y_root];
             CGFloat wheelX = ev->xbutton.button == 6 ? 1.0 :
                 ev->xbutton.button == 7 ? -1.0 : 0.0;
             CGFloat wheelY = ev->xbutton.button == Button4 ? 1.0 :
@@ -1369,8 +1678,8 @@ static unsigned int rclolModifierMask(unsigned int key) {
         }
         lastClickTimeStamp = now;
 
-        pos = [window
-                transformPoint: NSMakePoint(ev->xbutton.x, ev->xbutton.y)];
+        pos = [self locationInWindow: window x: ev->xbutton.x y: ev->xbutton.y
+                               rootX: ev->xbutton.x_root rootY: ev->xbutton.y_root];
 
         switch (ev->xbutton.button) {
         case Button1:
@@ -1401,8 +1710,8 @@ static unsigned int rclolModifierMask(unsigned int key) {
     case ButtonRelease:
         // One scroll event per notch, sent on press; releases are not clicks.
         if (ev->xbutton.button >= Button4 && ev->xbutton.button <= 7) break;
-        pos = [window
-                transformPoint: NSMakePoint(ev->xbutton.x, ev->xbutton.y)];
+        pos = [self locationInWindow: window x: ev->xbutton.x y: ev->xbutton.y
+                               rootX: ev->xbutton.x_root rootY: ev->xbutton.y_root];
 
         if (ev->xbutton.button == Button2 || ev->xbutton.button >= 8) {
             unsigned b = ev->xbutton.button == Button2 ? 2 : ev->xbutton.button - 5;
@@ -1440,45 +1749,47 @@ static unsigned int rclolModifierMask(unsigned int key) {
             // NSLog(@"MotionNotify, x=%d, y=%d, xroot=%d, yroot=%d\n",
             // ev->xmotion.x, ev->xmotion.y, ev->xmotion.x_root,
             // ev->xmotion.y_root);
-            /* darling-lol perf: drain pending MotionNotify events for this
-             * window from the X11 queue so we only process the latest position. */
-            while (XCheckTypedWindowEvent(_display, ev->xmotion.window, MotionNotify, ev))
-                ;
-            rclolRootX = ev->xmotion.x_root;
-            rclolRootY = ev->xmotion.y_root;
-            rclolPointerState = ev->xmotion.state;
-            rclolPointerStamp = mach_absolute_time();
 
             CGPoint lastMotionPos = [window mouseLocationOutsideOfEventStream];
             pos = [window
                     transformPoint: NSMakePoint(ev->xmotion.x, ev->xmotion.y)];
 
-            CGFloat deltaX = pos.x - lastMotionPos.x;
-            CGFloat deltaY = pos.y - lastMotionPos.y;
+            double deltaX, deltaY;
+            CGPoint rclolEventPos = pos, rclolLastPos = lastMotionPos;
+            const char *rclolDecision = "absolute";
 
-            // NSLog(@"cursorGrabbed=%d, deltaX=%f, deltaY=%f\n",
-            // _cursorGrabbed, deltaX, deltaY);
-            if (_cursorGrabbed) {
-                if (pos.x != lastMotionPos.x || pos.y != lastMotionPos.y) {
-                    CGPoint globalPos = [window transformPoint: lastMotionPos];
-                    // NSLog(@"last known pos in window: x=%f, y=%f",
-                    // globalPos.x, globalPos.y);
-                    CGRect frame = [window transformFrame: [window frame]];
-
-                    globalPos.x += frame.origin.x;
-                    globalPos.y += frame.origin.y;
-
-                    [self warpMouse: globalPos];
-
-                    pos.x = lastMotionPos.x;
-                    pos.y = lastMotionPos.y;
-                } else {
-                    // This is an event generated by [self warpMouse:] above
+            if (_relativeMouse.active) {
+                /* The cursor is disassociated (CGAssociateMouseAndMouseCursorPosition(false)): physical motion
+                 * only produces deltas and the event reports the frozen virtual cursor. Where warps are honoured
+                 * the pointer is put back under it, so the visible cursor stays frozen as on macOS. */
+                BOOL warpsHonoured = !_isXwayland || _cursorHidden;
+                rclolLastPos = NSMakePoint(_relativeMouse.physicalX, _relativeMouse.physicalY);
+                X11RelativeMouseMotion relative = X11RelativeMouseHandleMotion(
+                        &_relativeMouse, ev->xmotion.x_root, ev->xmotion.y_root, warpsHonoured);
+                rclolEventPos = NSMakePoint(_relativeMouse.virtualX, _relativeMouse.virtualY);
+                if (relative.rewarp) {
+                    if (rclolTraceOn())
+                        rclolTraceRated(&rclolWarpRewarpChannel, "target=%d,%d from=%d,%d honoured=%d",
+                                        relative.warpX, relative.warpY, ev->xmotion.x_root, ev->xmotion.y_root,
+                                        warpsHonoured);
+                    unsigned queued = [self warpPointerToRootX: relative.warpX y: relative.warpY];
+                    X11RelativeMouseExpectEcho(&_relativeMouse, relative.warpX, relative.warpY, queued);
+                }
+                if (!relative.post) {
+                    if (rclolTraceOn())
+                        rclolTraceMotion(ev, YES, rclolEventPos, rclolLastPos, relative.deltaX, relative.deltaY,
+                                         relative.echo ? "echo" : "relative-still", -1);
                     break;
                 }
+                deltaX = relative.deltaX;
+                deltaY = relative.deltaY;
+                pos = [self locationInWindow: window x: ev->xmotion.x y: ev->xmotion.y
+                                       rootX: ev->xmotion.x_root rootY: ev->xmotion.y_root];
+                rclolDecision = relative.rewarp ? "relative+rewarp" : "relative";
             } else {
-                [window setLastKnownCursorPosition: pos];
+                X11AbsoluteMouseDelta(lastMotionPos.x, lastMotionPos.y, pos.x, pos.y, &deltaX, &deltaY);
             }
+            [window setLastKnownCursorPosition: pos];
 
             type = NSMouseMoved;
 
@@ -1491,6 +1802,11 @@ static unsigned int rclolModifierMask(unsigned int key) {
                 type = NSOtherMouseDragged;
             }
 
+            if (rclolTraceOn())
+                rclolTraceMotion(ev, _relativeMouse.active, rclolEventPos, rclolLastPos, deltaX, deltaY, rclolDecision,
+                                 type != NSMouseMoved || [delegate acceptsMouseMovedEvents] ||
+                                         getenv("RCLOL_FORWARD_MOUSE_MOVED") != NULL);
+
             if (inputTrace) {
                 static NSTimeInterval lastMotionTrace;
                 NSTimeInterval now = [NSDate timeIntervalSinceReferenceDate];
@@ -1499,13 +1815,20 @@ static unsigned int rclolModifierMask(unsigned int key) {
                     NSLog(@"LOLINPUT motion window=%lu mapped=%@ pos=%.0f,%.0f delta=%.0f,%.0f state=%u grabbed=%d forward=%d",
                         (unsigned long)ev->xany.window, [delegate class],
                         pos.x, pos.y, deltaX, deltaY, ev->xmotion.state,
-                        _cursorGrabbed, type != NSMouseMoved || [delegate acceptsMouseMovedEvents] ||
+                        _relativeMouse.active, type != NSMouseMoved || [delegate acceptsMouseMovedEvents] ||
                         getenv("RCLOL_FORWARD_MOUSE_MOVED") != NULL);
                 }
             }
 
             if (type != NSMouseMoved || [delegate acceptsMouseMovedEvents] ||
                 getenv("RCLOL_FORWARD_MOUSE_MOVED")) {
+            /* Relative motion is all in the deltas: keep those of the queued events coalesced below. */
+            if (_relativeMouse.active)
+                for (NSEvent *queued in _eventQueue)
+                    if ([queued type] == type) {
+                        deltaX += [queued deltaX];
+                        deltaY += [queued deltaY];
+                    }
               event = [NSEvent
                     mouseEventWithType: type
                               location: pos
@@ -1533,18 +1856,18 @@ static unsigned int rclolModifierMask(unsigned int key) {
     case EnterNotify:
         [self updateMouseConfinementForWindow:window];
         NSLog(@"EnterNotify");
-        if (!_cursorGrabbed)
+        if (!_relativeMouse.active)
             [window setLastKnownCursorPosition:
                             [window transformPoint: NSMakePoint(
                                                             ev->xcrossing.x,
                                                             ev->xcrossing.y)]];
-        if (!_cursorGrabbed && ev->xcrossing.detail != NotifyInferior)
+        if (!_relativeMouse.active && ev->xcrossing.detail != NotifyInferior)
             [delegate platformWindowSetCursorEvent: window];
         break;
 
     case LeaveNotify:
         NSLog(@"LeaveNotify");
-        if (!_cursorGrabbed && ev->xcrossing.detail != NotifyInferior) {
+        if (!_relativeMouse.active && ev->xcrossing.detail != NotifyInferior) {
             [window setLastKnownCursorPosition:
                 [window transformPoint: NSMakePoint(ev->xcrossing.x, ev->xcrossing.y)]];
             [delegate platformWindowSetCursorEvent: window];
@@ -1552,6 +1875,12 @@ static unsigned int rclolModifierMask(unsigned int key) {
         break;
 
     case FocusIn:
+        if (rclolTraceOn())
+            rclolTraceRated(&rclolFocusChannel, "FocusIn window=%lu known=%d mode=%s detail=%s relative=%d/%d confined=%lu appActive=%d sheet=%d",
+                            (unsigned long) ev->xany.window, window != nil, rclolFocusModeName(ev->xfocus.mode),
+                            rclolFocusDetailName(ev->xfocus.detail), _relativeRequested, _relativeMouse.active,
+                            (unsigned long) _confinedWindow,
+                            [NSApp isActive], [delegate attachedSheet] != nil);
         NSLog(@"FocusIn");
         if ([delegate attachedSheet]) {
             [[delegate attachedSheet] makeKeyAndOrderFront: delegate];
@@ -1569,18 +1898,31 @@ static unsigned int rclolModifierMask(unsigned int key) {
         lastFocusedWindow = delegate;
         if (window != nil)
             XSetICFocus(window->_xic);
+        /* Relative mode released its grab on focus loss; take it again. */
+        if (_relativeRequested && !_relativeMouse.active)
+            [self beginRelativeMouseWithWindow: NULL pick: NULL];
         [self updateMouseConfinementForWindow:window];
+        if (rclolTraceOn())
+            rclolTraceRated(&rclolFocusChannel, "FocusIn done window=%lu relative=%d/%d confined=%lu appActive=%d",
+                            (unsigned long) ev->xany.window, _relativeRequested, _relativeMouse.active,
+                            (unsigned long) _confinedWindow, [NSApp isActive]);
         break;
 
     case FocusOut:
+        if (rclolTraceOn())
+            rclolTraceRated(&rclolFocusChannel, "FocusOut window=%lu known=%d mode=%s detail=%s relative=%d/%d confined=%lu appActive=%d",
+                            (unsigned long) ev->xany.window, window != nil, rclolFocusModeName(ev->xfocus.mode),
+                            rclolFocusDetailName(ev->xfocus.detail), _relativeRequested, _relativeMouse.active,
+                            (unsigned long) _confinedWindow,
+                            [NSApp isActive]);
         NSLog(@"FocusOut");
         [self reconcileModifierKeys:NULL window:delegate];
         _lastKeySym = 0;
         [delegate platformWindowDeactivated: window
                     checkForAppDeactivation: NO];
         lastFocusedWindow = nil;
-        if (_cursorGrabbed)
-            [self grabMouse: NO];
+        /* Give the pointer back to other clients; relative mode stays requested and resumes on FocusIn. */
+        [self suspendRelativeMouse];
         if (_confinedWindow) {
             XUngrabPointer(_display, CurrentTime);
             _confinedWindow = None;
@@ -1640,6 +1982,9 @@ static unsigned int rclolModifierMask(unsigned int key) {
         if(window && ev->xany.window == [window windowHandle] &&
            [delegate respondsToSelector: @selector(_setVisible:)]) {
             BOOL visible = ev->type == MapNotify;
+            /* The server released a grab whose window became unviewable. */
+            if (!visible && ev->xany.window == _relativeWindow)
+                [self suspendRelativeMouse];
             [self updateMouseConfinementForWindow:window];
             if([delegate isVisible] != visible) {
                 [delegate _setVisible: visible];
@@ -1778,6 +2123,10 @@ static unsigned int rclolModifierMask(unsigned int key) {
     NSLog(@"Request code: %d:%d", errorEvent->request_code,
           errorEvent->minor_code);
     NSLog(@"Error code: %d", errorEvent->error_code);
+    if (rclolTraceOn())
+        rclolTraceRated(&rclolErrorChannel, "request=%d:%d error=%d resource=%lu serial=%lu",
+                        errorEvent->request_code, errorEvent->minor_code, errorEvent->error_code,
+                        (unsigned long) errorEvent->resourceid, (unsigned long) errorEvent->serial);
     return 0;
 }
 
@@ -1821,18 +2170,53 @@ void CGNativeBorderFrameWidthsForStyle(NSUInteger styleMask, CGFloat *top,
     return frame;
 }
 
-- (void) warpMouse: (NSPoint) position {
-    NSLog(@"Warp to: x=%f, y=%f\n", position.x, position.y);
-    XWarpPointer(_display, None, DefaultRootWindow(_display), 0, 0, 0, 0,
-                 position.x, position.y);
+/* Moves the X pointer and waits for the server, so the warp's MotionNotify (if any) is already queued on return.
+ * Returns the number of queued events, the window in which that echo must arrive. */
+- (unsigned) warpPointerToRootX: (int) x y: (int) y {
+    XWarpPointer(_display, None, DefaultRootWindow(_display), 0, 0, 0, 0, x, y);
     XSync(_display, False);
+    rclolPointerStamp = 0;
+    return (unsigned) XEventsQueued(_display, QueuedAlready);
 }
 
-/* Confinement preserves absolute motion and edge panning. Relative-mode
- * capture remains separate: it deliberately warps to the center. */
+/* Window-local Cocoa location of a pointer event at (x, y) in window, root (rootX, rootY). While relative this is
+ * the virtual cursor: macOS reports the frozen cursor position, not where the physical pointer went. */
+- (NSPoint) locationInWindow: (X11Window *) window x: (int) x y: (int) y rootX: (int) rootX rootY: (int) rootY {
+    if (_relativeMouse.active)
+        return [window transformPoint: NSMakePoint(_relativeMouse.virtualX - (rootX - x),
+                                                   _relativeMouse.virtualY - (rootY - y))];
+    return [window transformPoint: NSMakePoint(x, y)];
+}
+
+- (void) warpMouse: (NSPoint) position {
+    if (rclolTraceOn())
+        rclolTraceRated(&rclolWarpAppChannel, "target=%.1f,%.1f relative=%d/%d virtual=%.1f,%.1f physical=%d,%d "
+                        "honoured=%d confined=%lu cachedRoot=%d,%d appActive=%d",
+                        position.x, position.y, _relativeRequested, _relativeMouse.active, _relativeMouse.virtualX,
+                        _relativeMouse.virtualY, _relativeMouse.physicalX, _relativeMouse.physicalY,
+                        !_isXwayland || _cursorHidden, (unsigned long) _confinedWindow, rclolRootX, rclolRootY,
+                        [NSApp isActive]);
+    int x = X11RelativeMouseWarpCoordinate(position.x), y = X11RelativeMouseWarpCoordinate(position.y);
+    if (_relativeMouse.active) {
+        /* CGWarpMouseCursorPosition moves the disassociated cursor without producing a delta: the virtual
+         * cursor follows and the warp's echo is dropped. Not honoured on Xwayland with a visible cursor. */
+        X11RelativeMouseWarp(&_relativeMouse, position.x, position.y, [self warpPointerToRootX: x y: y]);
+        return;
+    }
+    NSLog(@"Warp to: x=%f, y=%f\n", position.x, position.y);
+    [self warpPointerToRootX: x y: y];
+}
+
+/* Confinement preserves absolute motion and edge panning. Relative mode holds
+ * its own grab and is left alone while requested. */
 - (void) updateMouseConfinementForWindow:(X11Window *)window {
-    if (getenv("RCLOL_INPUT_TRACE")) fprintf(stderr,"CONFINEMENT check window=%p delegate=%p focused=%p relative=%d\n",window,[window delegate],lastFocusedWindow,_cursorGrabbed);
-    if (!window || _cursorGrabbed) return;
+    if (getenv("RCLOL_INPUT_TRACE")) fprintf(stderr,"CONFINEMENT check window=%p delegate=%p focused=%p relative=%d\n",window,[window delegate],lastFocusedWindow,_relativeRequested);
+    if (!window || _relativeRequested) {
+        if (rclolTraceOn())
+            rclolTraceRated(&rclolConfineChannel, "skip: %s confined=%lu", !window ? "window=nil" : "relative mode requested",
+                            (unsigned long) _confinedWindow);
+        return;
+    }
     Window win = [window windowHandle];
     Window focus; int revert;
     XGetInputFocus(_display, &focus, &revert);
@@ -1844,9 +2228,19 @@ void CGNativeBorderFrameWidthsForStyle(NSUInteger styleMask, CGFloat *top,
         ancestor=parent;
     }
     if (getenv("RCLOL_INPUT_TRACE")) fprintf(stderr,"CONFINEMENT focus=%lu target=%lu ancestor=%lu\n",focus,win,ancestor);
-    if (ancestor != win) return;
+    if (ancestor != win) {
+        if (rclolTraceOn())
+            rclolTraceRated(&rclolConfineChannel, "skip: not focused window=%lu focus=%lu ancestor=%lu confined=%lu",
+                            (unsigned long) win, (unsigned long) focus, (unsigned long) ancestor,
+                            (unsigned long) _confinedWindow);
+        return;
+    }
     XWindowAttributes attrs;
-    if (!XGetWindowAttributes(_display, win, &attrs)) return;
+    if (!XGetWindowAttributes(_display, win, &attrs)) {
+        if (rclolTraceOn())
+            rclolTraceRated(&rclolConfineChannel, "skip: XGetWindowAttributes failed window=%lu", (unsigned long) win);
+        return;
+    }
     BOOL fullscreen = NO;
     Atom actual; int format; unsigned long count, remaining; unsigned char *data = NULL;
     Atom state = XInternAtom(_display, "_NET_WM_STATE", False);
@@ -1856,6 +2250,7 @@ void CGNativeBorderFrameWidthsForStyle(NSUInteger styleMask, CGFloat *top,
         for (unsigned long i=0; i<count; ++i) if (((Atom *)data)[i] == fs) fullscreen = YES;
     }
     if (data) XFree(data);
+    BOOL rclolEwmhFullscreen = fullscreen;
     /* League's borderless fullscreen does not set the EWMH fullscreen bit.
      * Recognize a borderless window covering one monitor, including monitor 2. */
     if (!fullscreen && !([[window delegate] styleMask] & NSTitledWindowMask)) {
@@ -1875,62 +2270,114 @@ void CGNativeBorderFrameWidthsForStyle(NSUInteger styleMask, CGFloat *top,
         }
     }
     if (!fullscreen || attrs.map_state != IsViewable) {
+        if (rclolTraceOn())
+            rclolTraceRated(&rclolConfineChannel, "no confinement window=%lu fullscreen=%d ewmh=%d titled=%d size=%dx%d map_state=%d %s",
+                            (unsigned long) win, fullscreen, rclolEwmhFullscreen,
+                            ([[window delegate] styleMask] & NSTitledWindowMask) != 0, attrs.width, attrs.height,
+                            attrs.map_state, _confinedWindow == win ? "releasing confinement" : "nothing to release");
         if (_confinedWindow == win) { XUngrabPointer(_display, CurrentTime); _confinedWindow=None; }
         return;
     }
-    if (_confinedWindow == win) return;
+    if (_confinedWindow == win) {
+        if (rclolTraceOn())
+            rclolTraceRated(&rclolConfineChannel, "already confined window=%lu", (unsigned long) win);
+        return;
+    }
     unsigned mask = ButtonPressMask | ButtonReleaseMask | PointerMotionMask;
     int status=XGrabPointer(_display, win, True, mask, GrabModeAsync, GrabModeAsync,
         win, None, CurrentTime);
     if (getenv("RCLOL_INPUT_TRACE")) fprintf(stderr,"CONFINEMENT fullscreen=%d window=%lu result=%d\n",fullscreen,win,status);
+    if (rclolTraceOn())
+        rclolTraceRated(&rclolConfineChannel, "confine window=%lu fullscreen=%d ewmh=%d size=%dx%d XGrabPointer=%d(%s)",
+                        (unsigned long) win, fullscreen, rclolEwmhFullscreen, attrs.width, attrs.height, status,
+                        rclolGrabResultName(status));
     if (status == GrabSuccess) _confinedWindow=win;
 }
 
+/* Takes the relative-mode pointer grab on the key (else main) window, starting with the virtual cursor at the
+ * current pointer position. Returns the XGrabPointer result, or -1 without a window. */
+- (int) beginRelativeMouseWithWindow: (NSWindow **) outWindow pick: (const char **) outPick {
+    NSWindow *nswin = [NSApp keyWindow];
+    const char *pick = "keyWindow";
+    if (!nswin) {
+        nswin = [NSApp mainWindow];
+        pick = nswin ? "mainWindow" : "nil";
+    }
+    if (outWindow) *outWindow = nswin;
+    if (outPick) *outPick = pick;
+    X11Window *xwin = (X11Window *) [nswin platformWindow];
+    Window win = xwin ? [xwin windowHandle] : None;
+    if (win == None) {
+        NSLog(@"Relative mouse mode: no window to grab the pointer for\n");
+        return -1;
+    }
+    /* FocusChangeMask is not valid in a pointer grab. This grab replaces any confinement grab. */
+    const unsigned int mask = ButtonPressMask | ButtonReleaseMask | PointerMotionMask;
+    int result = XGrabPointer(_display, win, False, mask, GrabModeAsync,
+                              GrabModeAsync, win, None, CurrentTime);
+    if (result != GrabSuccess) {
+        NSLog(@"XGrabPointer() failed with error %d for window %lu\n", result, win);
+        return result;
+    }
+    NSLog(@"XGrabPointer() succeeded for window %lu\n", win);
+    _confinedWindow = None;
+    Window root, child;
+    int rootX = rclolRootX, rootY = rclolRootY, windowX, windowY;
+    unsigned int state;
+    if (!XQueryPointer(_display, win, &root, &child, &rootX, &rootY, &windowX, &windowY, &state)) {
+        rootX = rclolRootX;
+        rootY = rclolRootY;
+    }
+    X11RelativeMouseBegin(&_relativeMouse, rootX, rootY);
+    _relativeWindow = win;
+    rclolPointerStamp = 0;
+    return result;
+}
+
+/* Releases the relative-mode grab without cancelling the request (focus loss, window gone). */
+- (void) suspendRelativeMouse {
+    if (!_relativeMouse.active) return;
+    XUngrabPointer(_display, CurrentTime);
+    X11RelativeMouseEnd(&_relativeMouse);
+    _relativeWindow = None;
+    rclolPointerStamp = 0;
+}
+
+/* CGAssociateMouseAndMouseCursorPosition(!doGrab). */
 - (void) grabMouse: (BOOL) doGrab {
+    BOOL rclolRelativeBefore = _relativeMouse.active;
+    Window rclolConfinedBefore = _confinedWindow;
+    NSWindow *rclolWindow = nil;
+    const char *rclolPick = "keyWindow";
+    int rclolResult = -1;
+    if (rclolTraceOn()) rclolTraceGrabChanged();
     if (doGrab) {
-        NSWindow *nswin = [NSApp keyWindow];
-        if (!nswin)
-            nswin = [NSApp mainWindow];
-
-        X11Window *xwin = (X11Window *) [nswin platformWindow];
-        Window win = [xwin windowHandle];
-        // Window win = DefaultRootWindow(_display);
-        const unsigned int mask = ButtonPressMask | ButtonReleaseMask |
-                                  PointerMotionMask | FocusChangeMask;
-        int result = XGrabPointer(_display, win, False, mask, GrabModeAsync,
-                                  GrabModeAsync, win, None, CurrentTime);
-        if (result == GrabSuccess) {
-            _cursorGrabbed = YES;
-            _confinedWindow = None;
-            NSLog(@"XGrabPointer() succeeded for window %lu\n", win);
-
-            NSRect frame = [xwin transformFrame: nswin.frame];
-            // NSLog(@"Window's frame is at %f,%f, size %fx%f\n",
-            // frame.origin.x, frame.origin.y, frame.size.width,
-            // frame.size.height);
-            CGPoint ptGlobal =
-                    NSMakePoint(frame.size.width / 2.0 + frame.origin.x,
-                                frame.size.height / 2.0 + frame.origin.y);
-            CGPoint ptLocal = NSMakePoint(frame.size.width / 2.0,
-                                          frame.size.height / 2.0);
-
-            // NSLog(@"setting last known pos in window to x=%f, y=%f\n",
-            // ptLocal.x, ptLocal.y);
-
-            [xwin setLastKnownCursorPosition: [xwin transformPoint: ptLocal]];
-            [self warpMouse: ptGlobal];
-        } else {
-            NSLog(@"XGrabPointer() failed with error %d for window %lu\n",
-                  result, win);
-        }
+        _relativeRequested = YES;
+        rclolResult = [self beginRelativeMouseWithWindow: &rclolWindow pick: &rclolPick];
     } else {
         XUngrabPointer(_display, CurrentTime);
-        _cursorGrabbed = NO;
+        X11RelativeMouseEnd(&_relativeMouse);
+        _relativeRequested = NO;
+        _relativeWindow = None;
         _confinedWindow = None;
+        rclolPointerStamp = 0;
         NSWindow *nswin = [NSApp keyWindow];
         if (nswin) [self updateMouseConfinementForWindow:(X11Window *)[nswin platformWindow]];
+        rclolWindow = nswin;
+        rclolPick = nswin ? "keyWindow" : "nil";
     }
     XSync(_display, False);
+    if (rclolTraceOn())
+        rclolTraceLine("grabMouse gen=%u: doGrab=%d window=%s nswindow=%p class=%s xwindow=%lu XGrabPointer=%d(%s) "
+                       "relative %d->%d requested=%d confined %lu->%lu appActive=%d virtual=%.1f,%.1f xwayland=%d "
+                       "hidden=%d cachedRoot=%d,%d",
+                       rclolGrabGeneration, doGrab, rclolPick, rclolWindow,
+                       rclolWindow ? object_getClassName(rclolWindow) : "-",
+                       (unsigned long) (rclolWindow ? [(X11Window *) [rclolWindow platformWindow] windowHandle] : None),
+                       rclolResult, doGrab ? rclolGrabResultName(rclolResult) : "ungrab", rclolRelativeBefore,
+                       _relativeMouse.active, _relativeRequested, (unsigned long) rclolConfinedBefore,
+                       (unsigned long) _confinedWindow, [NSApp isActive], _relativeMouse.virtualX,
+                       _relativeMouse.virtualY, _isXwayland, _cursorHidden, rclolRootX, rclolRootY);
 }
 
 @end
