@@ -62,6 +62,19 @@ static NSDisplay *currentDisplay(void) {
 }
 
 
+// A display's ID belongs to the screen (the backend ties it to the output it
+// drives), and [NSScreen screens] lists the main screen first, so an array
+// position is not an ID.
+static NSScreen *screenForDisplayID(NSArray<NSScreen *> *screens,
+                                    CGDirectDisplayID displayID)
+{
+    for (NSScreen *screen in screens) {
+        if ([screen cgDirectDisplayID] == displayID)
+            return screen;
+    }
+    return nil;
+}
+
 CGDirectDisplayID CGMainDisplayID(void) {
     NSDisplay *display = currentDisplay();
     if (!display)
@@ -71,9 +84,9 @@ CGDirectDisplayID CGMainDisplayID(void) {
     if ([screens count] == 0)
         return 1;
 
-    for (int i = 0; i < [screens count]; i++) {
-        if (!NSIsEmptyRect([[screens objectAtIndex: i] frame])) {
-            return i + 1;
+    for (NSScreen *screen in screens) {
+        if (!NSIsEmptyRect([screen frame])) {
+            return [screen cgDirectDisplayID];
         }
     }
 
@@ -104,10 +117,11 @@ CGError CGGetOnlineDisplayList(uint32_t maxDisplays,
             onlineDisplays[0] = mainDisplay;
     }
 
-    for (int i = 0; i < [screens count]; i++) {
-        if ((i + 1) != mainDisplay) {
+    for (NSScreen *screen in screens) {
+        CGDirectDisplayID displayID = [screen cgDirectDisplayID];
+        if (displayID != mainDisplay) {
             if (*displayCount < maxDisplays && onlineDisplays)
-                onlineDisplays[*displayCount] = i + 1;
+                onlineDisplays[*displayCount] = displayID;
             (*displayCount)++;
         }
     }
@@ -120,15 +134,14 @@ size_t CGDisplayPixelsHigh(CGDirectDisplayID displayIndex) {
     if (!display || [[display screens] count] == 0)
         return (displayIndex == 1) ? 1080 : 0;
 
-    NSArray<NSScreen *> *screens = [display screens];
-    if (displayIndex > [screens count] || displayIndex <= 0)
+    NSScreen *screen = screenForDisplayID([display screens], displayIndex);
+    if (!screen)
         return 0;
 
     // Device pixels, not points. NSScreen.frame is in points, and CGDisplayBounds
     // reports points, so returning the frame size here halved the value on a 2x
     // display and any caller sizing a bitmap from CGDisplayPixelsWide got half the
     // pixels it asked for.
-    NSScreen *screen = [screens objectAtIndex: displayIndex - 1];
     CGFloat scale = [screen backingScaleFactor];
     return (size_t) lround(NSHeight([screen frame]) * scale);
 }
@@ -138,12 +151,11 @@ size_t CGDisplayPixelsWide(CGDirectDisplayID displayIndex) {
     if (!display || [[display screens] count] == 0)
         return (displayIndex == 1) ? 1920 : 0;
 
-    NSArray<NSScreen *> *screens = [display screens];
-    if (displayIndex > [screens count] || displayIndex <= 0)
+    NSScreen *screen = screenForDisplayID([display screens], displayIndex);
+    if (!screen)
         return 0;
 
     // Device pixels, not points; see CGDisplayPixelsHigh.
-    NSScreen *screen = [screens objectAtIndex: displayIndex - 1];
     CGFloat scale = [screen backingScaleFactor];
     return (size_t) lround(NSWidth([screen frame]) * scale);
 }
@@ -163,10 +175,10 @@ CGError CGGetActiveDisplayList(uint32_t maxDisplays,
     NSArray<NSScreen *> *screens = [display screens];
 
     *displayCount = 0;
-    for (int i = 0; i < [screens count]; i++) {
-        if (!NSIsEmptyRect([[screens objectAtIndex: i] frame])) {
+    for (NSScreen *screen in screens) {
+        if (!NSIsEmptyRect([screen frame])) {
             if (*displayCount < maxDisplays && activeDisplays)
-                activeDisplays[*displayCount] = i + 1;
+                activeDisplays[*displayCount] = [screen cgDirectDisplayID];
             (*displayCount)++;
         }
     }
@@ -197,11 +209,11 @@ CGError CGGetDisplaysWithPoint(CGPoint point, uint32_t maxDisplays,
     NSArray<NSScreen *> *screens = [display screens];
     *matchingDisplayCount = 0;
 
-    for (int i = 0; i < [screens count]; i++) {
-        NSRect rect = [[screens objectAtIndex: i] frame];
+    for (NSScreen *screen in screens) {
+        NSRect rect = [screen frame];
         if (NSPointInRect(point, rect)) {
             if (*matchingDisplayCount < maxDisplays)
-                displays[*matchingDisplayCount] = i + 1;
+                displays[*matchingDisplayCount] = [screen cgDirectDisplayID];
             (*matchingDisplayCount)++;
         }
     }
@@ -220,11 +232,11 @@ CGError CGGetDisplaysWithRect(CGRect rect, uint32_t maxDisplays,
     NSArray<NSScreen *> *screens = [display screens];
     *matchingDisplayCount = 0;
 
-    for (int i = 0; i < [screens count]; i++) {
-        NSRect screenRect = [[screens objectAtIndex: i] frame];
+    for (NSScreen *screen in screens) {
+        NSRect screenRect = [screen frame];
         if (NSIntersectsRect(rect, screenRect)) {
             if (*matchingDisplayCount < maxDisplays)
-                displays[*matchingDisplayCount] = i + 1;
+                displays[*matchingDisplayCount] = [screen cgDirectDisplayID];
             (*matchingDisplayCount)++;
         }
     }
@@ -248,11 +260,11 @@ CGRect CGDisplayBounds(CGDirectDisplayID displayIndex) {
         return CGRectZero;
     }
 
-    NSArray<NSScreen *> *screens = [display screens];
-    if (displayIndex > [screens count] || displayIndex <= 0)
+    NSScreen *screen = screenForDisplayID([display screens], displayIndex);
+    if (!screen)
         return CGRectZero;
 
-    return [[screens objectAtIndex: displayIndex - 1] frame];
+    return [screen frame];
 }
 
 CGError CGDisplayHideCursor(CGDirectDisplayID displayIndex) {
@@ -287,7 +299,7 @@ boolean_t CGDisplayIsInMirrorSet(CGDirectDisplayID display) {
 }
 
 Boolean CGDisplayIsMain(CGDirectDisplayID display) {
-    return display == 1;
+    return display != kCGNullDirectDisplay && display == CGMainDisplayID();
 }
 
 uint32_t CGDisplayUnitNumber(CGDirectDisplayID display) {
@@ -438,11 +450,10 @@ static NSData *edidForDisplay(CGDirectDisplayID displayId) {
     if (!display)
         return nil;
 
-    NSArray<NSScreen *> *screens = [display screens];
-    if (displayId <= 0 || displayId > [screens count])
+    NSScreen *screen = screenForDisplayID([display screens], displayId);
+    if (!screen)
         return nil;
 
-    NSScreen *screen = [screens objectAtIndex: displayId - 1];
     NSData *edid = [screen edid];
     if (edid && [edid length] >= 16)
         return edid;

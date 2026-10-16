@@ -52,6 +52,7 @@
 #import <X11/Xutil.h>
 #import <X11/extensions/XKBrules.h>
 #import <X11/extensions/Xrandr.h>
+#import "X11Monitors.h"
 #import <X11/keysym.h>
 #import <fcntl.h>
 #import <fontconfig/fontconfig.h>
@@ -244,6 +245,21 @@ static void socketCallback(CFSocketRef s, CFSocketCallBackType type,
     }
 }
 
+- (NSArray *) rootScreenFallback {
+    CGFloat scale = [self backingScale];
+    int width = DisplayWidth(_display, DefaultScreen(_display));
+    int height = DisplayHeight(_display, DefaultScreen(_display));
+    NSRect frame = NSMakeRect(0, 0, width / scale, height / scale);
+    X11Screen *screen = [[[X11Screen alloc] initWithFrame: frame
+                                             visibleFrame: frame] autorelease];
+    screen->_x11Scale = scale;
+    [screen setCgDirectDisplayID: 1];
+    return [NSArray arrayWithObject: screen];
+}
+
+// [NSScreen screens] starts with the main monitor, as on macOS. A display's CGDirectDisplayID
+// stays tied to its RandR output (index + 1), whatever its position in the
+// array, because the mode functions address the output by that index.
 - (NSArray *) screens {
 
     NSArray* last = [_lastScreens retain];
@@ -251,83 +267,69 @@ static void socketCallback(CFSocketRef s, CFSocketCallBackType type,
         return [last autorelease];
     }
 
-    int eventBase, errorBase;
+    int count = 0, primary = -1;
+    X11Monitor *monitors = X11MonitorsCopy(_display, &count, &primary);
+    if (monitors == NULL)
+        return [self rootScreenFallback];
 
-    if (XRRQueryExtension(_display, &eventBase, &errorBase)) {
-        XRRScreenResources *screen;
-
-        screen = XRRGetScreenResources(_display, DefaultRootWindow(_display));
-        NSMutableArray<NSScreen *> *retval =
-                [NSMutableArray arrayWithCapacity: screen->noutput];
-
-        Atom edidAtom = XInternAtom(_display, "EDID", FALSE);
-
-        for (int i = 0; i < screen->noutput; i++) {
-            XRROutputInfo *oinfo =
-                    XRRGetOutputInfo(_display, screen, screen->outputs[i]);
-            NSScreen *nsscreen;
-
-            if (oinfo->crtc) {
-                XRRCrtcInfo *crtc =
-                        XRRGetCrtcInfo(_display, screen, oinfo->crtc);
-                CGFloat scale = [self backingScale];
-                // NSScreen.frame is in logical points, like the Wayland
-                // backend's: CRTC geometry is device pixels, so divide it.
-                NSRect frame = NSMakeRect(crtc->x / scale, crtc->y / scale,
-                                          crtc->width / scale,
-                                          crtc->height / scale);
-
-                nsscreen = [[[X11Screen alloc] initWithFrame: frame
-                                                 visibleFrame: frame]
-                                autorelease];
-                ((X11Screen *) nsscreen)->_x11Scale = scale;
-
-                Atom actualType;
-                unsigned long nitems, bytesAfter;
-                int actualFormat;
-                unsigned char *prop;
-
-                if (XRRGetOutputProperty(_display, screen->outputs[i], edidAtom,
-                                         0, 100, FALSE, FALSE, AnyPropertyType,
-                                         &actualType, &actualFormat, &nitems,
-                                         &bytesAfter, &prop) == Success) {
-                    if (prop && nitems > 0)
-                        [nsscreen setEdid: [NSData dataWithBytes: prop
-                                                          length: nitems]];
-                }
-
-                XRRFreeCrtcInfo(crtc);
-            } else {
-                X11Screen *empty = [[[X11Screen alloc]
-                        initWithFrame: NSZeroRect visibleFrame: NSZeroRect]
-                        autorelease];
-                empty->_x11Scale = [self backingScale];
-                nsscreen = empty;
-            }
-            [nsscreen setCgDirectDisplayID: (i + 1)];
-
-            [retval addObject: nsscreen];
-
-            XRRFreeOutputInfo(oinfo);
-        }
-
-        XRRFreeScreenResources(screen);
-
-        NSArray* array = [NSArray arrayWithArray: retval];
-        _lastScreens = [array retain];
-        return array;
-    } else {
-        CGFloat scale = [self backingScale];
-        NSRect frame = NSMakeRect(
-                0, 0, DisplayWidth(_display, DefaultScreen(_display)) / scale,
-                DisplayHeight(_display, DefaultScreen(_display)) / scale);
-        X11Screen *screen = [[[X11Screen alloc] initWithFrame: frame
-                                                 visibleFrame: frame]
-                                    autorelease];
-        screen->_x11Scale = scale;
-        [screen setCgDirectDisplayID: 1];
-        return [NSArray arrayWithObject: screen];
+    CGFloat scale = [self backingScale];
+    int *order = calloc(count > 0 ? (size_t) count : 1, sizeof *order);
+    if (order == NULL) {
+        free(monitors);
+        return [self rootScreenFallback];
     }
+    X11MonitorsOrder(monitors, count, primary, order);
+
+    NSMutableArray<NSScreen *> *retval =
+            [NSMutableArray arrayWithCapacity: count];
+    Atom edidAtom = XInternAtom(_display, "EDID", FALSE);
+
+    for (int n = 0; n < count; n++) {
+        int i = order[n];
+        X11Screen *nsscreen;
+
+        if (monitors[i].active) {
+            // NSScreen.frame is in logical points, like the Wayland
+            // backend's: CRTC geometry is device pixels, so divide it.
+            NSRect frame = NSMakeRect(
+                    monitors[i].x / scale, monitors[i].y / scale,
+                    monitors[i].width / scale, monitors[i].height / scale);
+
+            nsscreen = [[[X11Screen alloc] initWithFrame: frame
+                                            visibleFrame: frame] autorelease];
+            nsscreen->_x11Scale = scale;
+
+            Atom actualType;
+            unsigned long nitems, bytesAfter;
+            int actualFormat;
+            unsigned char *prop = NULL;
+
+            if (XRRGetOutputProperty(_display, monitors[i].output, edidAtom, 0,
+                                     100, FALSE, FALSE, AnyPropertyType,
+                                     &actualType, &actualFormat, &nitems,
+                                     &bytesAfter, &prop) == Success) {
+                if (prop && actualFormat == 8 && nitems > 0)
+                    [nsscreen setEdid: [NSData dataWithBytes: prop
+                                                      length: nitems]];
+            }
+            if (prop)
+                XFree(prop);
+        } else {
+            nsscreen = [[[X11Screen alloc] initWithFrame: NSZeroRect
+                                            visibleFrame: NSZeroRect]
+                    autorelease];
+            nsscreen->_x11Scale = scale;
+        }
+        [nsscreen setCgDirectDisplayID: (i + 1)];
+        [retval addObject: nsscreen];
+    }
+
+    free(order);
+    free(monitors);
+
+    NSArray* array = [NSArray arrayWithArray: retval];
+    _lastScreens = [array retain];
+    return array;
 }
 
 static NSDictionary *modeInfoToDictionary(const XRRModeInfo *mi, int depth) {
