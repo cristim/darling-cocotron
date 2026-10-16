@@ -2391,7 +2391,7 @@ void CGNativeBorderFrameWidthsForStyle(NSUInteger styleMask, CGFloat *top,
          * cursor follows and the warp's echo is dropped. Not honoured on Xwayland with a visible cursor. */
         unsigned long serial = NextRequest(_display);
         unsigned queued = [self warpPointerToRootX: x y: y];
-        if (!X11RelativeMouseWarp(&_relativeMouse, position.x, position.y, queued, serial))
+        if (!X11RelativeMouseWarp(&_relativeMouse, position.x, position.y, queued, serial, !_isXwayland || _cursorHidden))
             [self suspendRelativeMouse];
         return;
     }

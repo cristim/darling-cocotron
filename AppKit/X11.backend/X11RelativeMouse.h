@@ -111,9 +111,11 @@ static inline void X11RelativeMouseClamp(const X11RelativeMouse *mouse, double *
 }
 
 static inline bool X11RelativeMouseWarp(X11RelativeMouse *mouse, double x, double y, unsigned queuedEvents,
-                                       unsigned long serial) {
-    mouse->virtualX = x;
-    mouse->virtualY = y;
+                                       unsigned long serial, bool warpsHonoured) {
+    if (warpsHonoured) {
+        mouse->virtualX = x;
+        mouse->virtualY = y;
+    }
     return X11RelativeMouseExpectEcho(mouse, X11RelativeMouseWarpCoordinate(x), X11RelativeMouseWarpCoordinate(y),
                                queuedEvents, serial);
 }
@@ -156,6 +158,10 @@ static inline X11RelativeMouseMotion X11RelativeMouseHandleMotion(X11RelativeMou
     result.deltaY = rootY - mouse->physicalY;
     mouse->physicalX = rootX;
     mouse->physicalY = rootY;
+    if (!warpsHonoured) {
+        mouse->virtualX = rootX;
+        mouse->virtualY = rootY;
+    }
     result.post = result.deltaX != 0.0 || result.deltaY != 0.0;
     int warpX = X11RelativeMouseWarpCoordinate(mouse->virtualX);
     int warpY = X11RelativeMouseWarpCoordinate(mouse->virtualY);
