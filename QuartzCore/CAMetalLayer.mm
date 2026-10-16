@@ -503,27 +503,12 @@ static PresentIntervalSample* beginPresentIntervalSample() {
 	while (_usableDrawablesBitmap == 0) {
 		// No drawable is free: this thread really blocks here (the wait is what the pool starvation costs the game).
 		Indium::Waits::Block block("nextDrawable");
-		if ([NSThread isMainThread]) {
-			if (_queuedDrawableCount > 0 && self->_context) {
-				[_drawableCondition unlock];
-				[self->_context render];
-				[self->_context flush];
-				[_drawableCondition lock];
-				if (_usableDrawablesBitmap != 0) break;
+		if (_allowsNextDrawableTimeout) {
+			if (![_drawableCondition waitUntilDate: endTime]) {
+				break;
 			}
-			[_drawableCondition unlock];
-			CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.001, YES);
-			[_drawableCondition lock];
-			if (_usableDrawablesBitmap != 0) break;
-			if (CACurrentMediaTime() >= waitStart + 1.0) break;
 		} else {
-			if (_allowsNextDrawableTimeout) {
-				if (![_drawableCondition waitUntilDate: endTime]) {
-					break;
-				}
-			} else {
-				[_drawableCondition wait];
-			}
+			[_drawableCondition wait];
 		}
 	}
 
@@ -576,7 +561,7 @@ static PresentIntervalSample* beginPresentIntervalSample() {
 	// right now, CALayer is missing all the needs-display logic (which is currently in NSView)
     // Present only after the Vulkan/GL synchronization has been prepared, on
     // the window thread. display alone does not drive the layer compositor.
-    void (^renderBlock)(void) = ^{
+    dispatch_async(dispatch_get_main_queue(), ^{
         if (intervalSample) intervalSample->renderStart.store(presentIntervalNow());
         darlingMetalTrace("present-block-runs", 0, 0);
         CFTimeInterval blockStart = CACurrentMediaTime();
@@ -587,13 +572,7 @@ static PresentIntervalSample* beginPresentIntervalSample() {
         [self->_context flush];
         if (intervalSample) intervalSample->flushDone.store(presentIntervalNow(), std::memory_order_release);
         darlingMetalTiming("mainBlockFlush", CACurrentMediaTime() - renderDone);
-    };
-
-    if ([NSThread isMainThread]) {
-        renderBlock();
-    } else {
-        dispatch_async(dispatch_get_main_queue(), renderBlock);
-    }
+    });
 }
 
 - (void)releaseDrawable: (NSUInteger)drawableID
