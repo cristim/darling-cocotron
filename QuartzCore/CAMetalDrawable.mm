@@ -250,9 +250,26 @@ static std::string memoryFlagsString(VkMemoryPropertyFlags flags) {
 // (see reportGpuDeviceMatch) -- so they take the first allowed DEVICE_LOCAL type,
 // falling back to first fit. Without framebufferOnly they still need host-visible,
 // coherent memory and keep first fit. On RADV type 0 is DEVICE_LOCAL: unchanged.
+//
+// League sets framebufferOnly=NO, so its drawables lived in system RAM and crossed
+// PCIe every frame. framebufferOnly=NO lets Metal sample or blit the texture; it
+// does not make it CPU-mapped, and nothing here maps either image (replaceRegion
+// aborts, getBytes is a stub), so those drawables are placed like framebufferOnly
+// ones too. On the RX 6600 that gave about 20 FPS more in a practice-tool fight and
+// the same FPS when idle. The guest flag file /tmp/metal-no-drawable-vram restores
+// host-visible memory. Read once per process, when the first drawable is created.
 static size_t findSharedMemory(const VkMemoryRequirements& reqs, std::shared_ptr<Indium::PrivateDevice> device, bool framebufferOnly, bool internal) {
+	static const bool drawableVram = access("/tmp/metal-no-drawable-vram", F_OK) != 0;
+	static std::once_flag logSwitch;
+	std::call_once(logSwitch, []() {
+		appendDeviceLog(std::string("drawable-vram=") + (drawableVram ? "on" : "off (file:/tmp/metal-no-drawable-vram)"));
+	});
+
+	const bool vramDrawable = !framebufferOnly && drawableVram;
+	const bool gpuOnly = framebufferOnly || vramDrawable;
 	const auto& memory = device->memoryProperties();
 	size_t firstFit = SIZE_MAX;
+	size_t legacy = SIZE_MAX; // the choice before 2026-10-16 (host-visible drawables), for the log
 	size_t targetIndex = SIZE_MAX;
 
 	for (size_t i = 0; i < memory.memoryTypeCount; ++i) {
@@ -262,11 +279,12 @@ static size_t findSharedMemory(const VkMemoryRequirements& reqs, std::shared_ptr
 			continue;
 		}
 
-		if (!framebufferOnly && (type.propertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) == 0) {
-			continue;
+		const bool hostVisible = (type.propertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) != 0 && (type.propertyFlags & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT) != 0;
+		if (legacy == SIZE_MAX && (framebufferOnly || hostVisible)) {
+			legacy = i;
 		}
 
-		if (!framebufferOnly && (type.propertyFlags & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT) == 0) {
+		if (!gpuOnly && !hostVisible) {
 			continue;
 		}
 
@@ -274,9 +292,9 @@ static size_t findSharedMemory(const VkMemoryRequirements& reqs, std::shared_ptr
 			firstFit = i;
 		}
 
-		if (!framebufferOnly || (type.propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) != 0) {
+		// no early exit: the scan continues to find the legacy choice for the log
+		if (targetIndex == SIZE_MAX && (!gpuOnly || (type.propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) != 0)) {
 			targetIndex = i;
-			break;
 		}
 	}
 
@@ -287,25 +305,30 @@ static size_t findSharedMemory(const VkMemoryRequirements& reqs, std::shared_ptr
 		return targetIndex;
 	}
 
-	// Once per (image, framebufferOnly, type) in the process, in Indium's device log.
-	static std::atomic<uint64_t> logged[2] {};
-	const size_t bit = ((internal ? 2u : 0u) + (framebufferOnly ? 1u : 0u)) * 32 + targetIndex;
+	// Once per (image, storage, type) in the process, in Indium's device log.
+	static std::atomic<uint64_t> logged[3] {};
+	const size_t storage = vramDrawable ? 2 : (framebufferOnly ? 1 : 0);
+	const size_t bit = ((internal ? 3u : 0u) + storage) * 32 + targetIndex;
 	const uint64_t mask = uint64_t(1) << (bit & 63);
 	if ((logged[bit >> 6].load(std::memory_order_relaxed) & mask) == 0 && (logged[bit >> 6].fetch_or(mask) & mask) == 0) {
 		auto describe = [&](size_t index) {
+			if (index == SIZE_MAX) {
+				return std::string("none");
+			}
 			const auto& type = memory.memoryTypes[index];
 			return std::to_string(index) + " flags=" + memoryFlagsString(type.propertyFlags)
 				+ " heap=" + std::to_string(type.heapIndex)
 				+ " heapDeviceLocal=" + ((memory.memoryHeaps[type.heapIndex].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT) ? "yes" : "no");
 		};
+		static const char* storageNames[] = { "hostVisible", "framebufferOnly", "vram" };
 		char typeBits[16];
 		snprintf(typeBits, sizeof(typeBits), "0x%08x", (unsigned) reqs.memoryTypeBits);
 		appendDeviceLog(std::string("memory alloc kind=") + (internal ? "drawable-internal" : "drawable")
-			+ " storage=" + (framebufferOnly ? "framebufferOnly" : "hostVisible")
+			+ " storage=" + storageNames[storage]
 			+ " typeBits=" + typeBits
 			+ " type=" + describe(targetIndex)
-			+ " firstFit=" + describe(firstFit)
-			+ (targetIndex != firstFit ? " changed=yes" : " changed=no"));
+			+ " firstFit=" + describe(legacy)
+			+ (targetIndex != legacy ? " changed=yes" : " changed=no"));
 	}
 
 	return targetIndex;
