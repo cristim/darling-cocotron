@@ -149,6 +149,19 @@ static void reportGpuDeviceMatch(std::shared_ptr<Indium::PrivateDevice> device) 
 	});
 }
 
+// The internal image is shared with OpenGL as linear memory because of a Mesa bug with
+// optimal tiling on AMD. NVIDIA's proprietary GL rejects GL_LINEAR_TILING_EXT
+// (GL_INVALID_VALUE), leaving the texture optimal and its storage import failing, which
+// shows as a black window. Only NVIDIA's own driver takes the optimal path; the check
+// runs once, with the presenting GL context current.
+static bool interopUsesLinearTiling() {
+	static const bool linear = []() {
+		const GLubyte* vendor = glGetString(GL_VENDOR);
+		return !(vendor && strstr(reinterpret_cast<const char*>(vendor), "NVIDIA"));
+	}();
+	return linear;
+}
+
 //
 // helper classes
 //
@@ -379,7 +392,7 @@ CAMetalDrawableTexture::CAMetalDrawableTexture(CGSize size, Indium::PixelFormat 
 	// some drivers (e.g. AMD's drivers) don't play nice when sharing
 	// Vulkan images and OpenGL textures with optimal tiling
 	// (https://gitlab.freedesktop.org/mesa/mesa/-/issues/7657)
-	imgInfo.tiling = VK_IMAGE_TILING_LINEAR;
+	imgInfo.tiling = interopUsesLinearTiling() ? VK_IMAGE_TILING_LINEAR : VK_IMAGE_TILING_OPTIMAL;
 
 	VkExternalMemoryImageCreateInfo extMemInfo {};
 
@@ -590,7 +603,9 @@ CAMetalDrawableTexture::CAMetalDrawableTexture(CGSize size, Indium::PixelFormat 
 
 	glCreateTextures(GL_TEXTURE_2D, 1, &_textureID);
 	reportGLErrors();
-	glTextureParameteri(_textureID, GL_TEXTURE_TILING_EXT, GL_LINEAR_TILING_EXT /*GL_OPTIMAL_TILING_EXT*/);
+	if (interopUsesLinearTiling()) {
+		glTextureParameteri(_textureID, GL_TEXTURE_TILING_EXT, GL_LINEAR_TILING_EXT);
+	}
 	glTextureParameteri(_textureID, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glTextureParameteri(_textureID, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTextureParameteri(_textureID, GL_TEXTURE_WRAP_S, GL_REPEAT);
@@ -617,10 +632,11 @@ CAMetalDrawableTexture::CAMetalDrawableTexture(CGSize size, Indium::PixelFormat 
 		glGetTextureParameteriv(_textureID, GL_TEXTURE_TILING_EXT, &tiling);
 		const GLenum queryError = glGetError();
 		char line[512];
-		snprintf(line, sizeof(line), "drawable GL import%s dedicated=%s size=%llu %dx%d memoryType=%zu tiling=linear glTiling=%s"
+		snprintf(line, sizeof(line), "drawable GL import%s dedicated=%s size=%llu %dx%d memoryType=%zu vkTiling=%s glTiling=%s"
 			" dedicated_error=0x%x import_error=0x%x setup_error=0x%x storage_error=0x%x query_error=0x%x%s",
 			first ? " (first)" : "", dedicatedReadBack == GL_TRUE ? "yes" : (dedicatedReadBack == -1 ? "unknown" : "no"),
 			(unsigned long long) reqs.size, (int) _size.width, (int) _size.height, targetIndex,
+			interopUsesLinearTiling() ? "linear" : "optimal",
 			tiling == GL_LINEAR_TILING_EXT ? "linear" : (tiling == GL_OPTIMAL_TILING_EXT ? "optimal" : "unknown"),
 			dedicatedError, importError, setupError, storageError, queryError, failed ? " FAILED" : " ok");
 		appendDeviceLog(line);
