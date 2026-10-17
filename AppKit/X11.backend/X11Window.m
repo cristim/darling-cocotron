@@ -635,7 +635,7 @@ static NSData *makeWindowIcon() {
     // onto one.
     BOOL fullscreen = [self wantsFullscreenWithStyleMask: _styleMask
                                                    frame: frame];
-    if (!fullscreen)
+    if (!fullscreen && _fullscreenRequested)
         [self requestFullscreen: NO force: NO];
     XMoveResizeWindow(_display, _window, deviceFrame.origin.x,
                       deviceFrame.origin.y, deviceFrame.size.width,
@@ -648,7 +648,7 @@ static NSData *makeWindowIcon() {
     // real change so a drag does not re-issue them per pixel.
     if (!NSEqualSizes(previousDeviceSize, deviceFrame.size))
         [self updateSizeHints: _styleMask];
-    if (fullscreen)
+    if (fullscreen && !_fullscreenRequested)
         [self requestFullscreen: YES force: NO];
 }
 
