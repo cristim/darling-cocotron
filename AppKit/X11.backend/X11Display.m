@@ -252,15 +252,6 @@ static void socketCallback(CFSocketRef s, CFSocketCallBackType type,
                       NSWidth(primary) / scale, NSHeight(primary) / scale};
 }
 
-// Converts a global point between Cocoa's space (y up) and CoreGraphics' (y down):
-// they differ only in the direction of y, both measured from the main monitor, so
-// the flip is its own inverse.
-- (NSPoint) flipGlobalPoint: (NSPoint) point {
-    X11Point flipped = X11FlipY([self primaryFrameInPoints].height,
-                                (X11Point){point.x, point.y});
-    return NSMakePoint(flipped.x, flipped.y);
-}
-
 - (NSArray *) rootScreenFallback {
     CGFloat scale = [self backingScale];
     int width = DisplayWidth(_display, DefaultScreen(_display));
@@ -2049,31 +2040,35 @@ void CGNativeBorderFrameWidthsForStyle(NSUInteger styleMask, CGFloat *top,
     return frame;
 }
 
-// Takes CoreGraphics global POINTS (origin at the main monitor's top-left corner,
-// y down): CGWarpMouseCursorPosition hands its argument straight through, and on
-// macOS that API is documented in points of that space.
-// XWarpPointer wants device pixels, so the conversion belongs here rather than at
-// every caller. Invisible at 1x, off by the scale factor at 2x.
+// Takes a Cocoa global point in POINTS, the space -mouseLocation reports, so warping
+// to what mouseLocation returned changes nothing; CGWarpMouseCursorPosition converts
+// and clips before it gets here. XWarpPointer wants whole device pixels: the point is
+// scaled and rounded to the nearest one, so reading the pointer back returns
+// round(p * scale) / scale. Invisible at 1x, off by the scale factor at 2x.
 //
 // The relative-mode state and Xlib are only used from the main thread (the one that
-// pumps X events), and CGWarpMouseCursorPosition may be called from any thread, so a
-// call from another thread is handed over. The warp produces no delta, so the caller
-// need not wait.
-- (void) warpMouse: (NSPoint) position {
+// pumps X events), and CGWarpMouseCursorPosition may be called from any thread. A call
+// from another thread is queued for the main thread and returns YES without waiting:
+// YES means "queued", the warp happens later, and a mouseLocation read straight after
+// it on that thread can still see the old position (on macOS the warp is synchronous).
+// A warp produces no delta, so nothing else depends on the wait. A main-thread call
+// warps before it returns, as #457's contract says.
+- (BOOL) warpMouse: (NSPoint) position {
     if (![NSThread isMainThread]) {
         [self performSelectorOnMainThread: @selector(warpMouseOnMainThread:)
                                withObject: [NSValue valueWithPoint: position]
                             waitUntilDone: NO];
-        return;
+        return YES;
     }
     [self warpMouseOnMainThread: [NSValue valueWithPoint: position]];
+    return YES;
 }
 
 - (void) warpMouseOnMainThread: (NSValue *) target {
     NSPoint position = [target pointValue];
     NSRect primary = [self primaryRootFrame];
     CGFloat scale = [self backingScale];
-    X11Point root = X11CGPointToRoot(
+    X11Point root = X11PointToRoot(
             (X11Frame){NSMinX(primary), NSMinY(primary), NSWidth(primary),
                        NSHeight(primary)},
             (X11Point){position.x * scale, position.y * scale});

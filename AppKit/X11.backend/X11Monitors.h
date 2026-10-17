@@ -152,12 +152,6 @@ static inline X11Point X11CGPointToRoot(X11Frame primaryRoot, X11Point point) {
     return root;
 }
 
-/* Cocoa point to CoreGraphics point and back: the same flip against the main monitor's height. */
-static inline X11Point X11FlipY(double primaryHeight, X11Point point) {
-    X11Point flipped = {point.x, primaryHeight - point.y};
-    return flipped;
-}
-
 /* The backing scale factor the user asked for: DARLING_X11_SCALE, else GDK_SCALE. X11 has no scale protocol, so
  * an explicit value is read instead of inferred from the panel's physical size (a 4K panel reports about 140 DPI
  * and a 13" 1x panel about 190, so DPI says nothing about whether the compositor upscales). An unparsable or

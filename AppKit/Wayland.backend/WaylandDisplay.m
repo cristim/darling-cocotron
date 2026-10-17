@@ -1216,8 +1216,10 @@ static NSString *stringWithCodepoint(uint32_t codepoint) {
     return NSMakePoint(frame.origin.x + location.x, frame.origin.y + location.y);
 }
 
-- (void) warpMouse: (NSPoint) position {
-    // Wayland clients can't move the pointer.
+- (BOOL) warpMouse: (NSPoint) position {
+    // Wayland clients can't move the pointer, and without a pointer lock there is
+    // no virtual cursor to move either: say so rather than report a warp.
+    return NO;
 }
 
 - (void) grabMouse: (BOOL) doGrab {

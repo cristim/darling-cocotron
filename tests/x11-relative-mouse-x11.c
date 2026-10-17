@@ -72,22 +72,18 @@ static void move(Display *display, int dx, int dy) {
     XFlush(display);
 }
 
-/* +[NSEvent mouseLocation] is Cocoa's space (y up), CGWarpMouseCursorPosition and CGEventGetLocation are
- * CoreGraphics' (y down), both measured from the main monitor: flipping the reported location and warping to it
- * lands on the pointer, for the real pointer and for the frozen relative-mode cursor alike. */
+/* -warpMouse: takes the space +[NSEvent mouseLocation] reports (Cocoa, y up from the main monitor's bottom-left):
+ * warping to the reported location of the real pointer, or of the frozen relative-mode cursor, lands on the
+ * pointer. The conversions are X11Monitors.h's, which the backend calls. */
 static void globalPointRoundTrip(void) {
     X11Frame layouts[] = {{0, 0, 1280, 720}, {1280, 0, 1920, 1080}, {0, 360, 1280, 720}};
     for (int l = 0; l < 3; l++)
         for (int rootX = 0; rootX < 1280; rootX += 97)
             for (int rootY = 0; rootY < 720; rootY += 61) {
                 X11Point cocoa = X11PointFromRoot(layouts[l], (X11Point){rootX, rootY});
-                X11Point cg = X11FlipY(layouts[l].height, cocoa);
-                X11Point back = X11CGPointToRoot(layouts[l], cg);
+                X11Point back = X11PointToRoot(layouts[l], cocoa);
                 CHECK(back.x == rootX && back.y == rootY, "layout %d: root %d,%d came back as %g,%g", l, rootX, rootY,
                       back.x, back.y);
-                X11Point direct = X11CGPointFromRoot(layouts[l], (X11Point){rootX, rootY});
-                CHECK(direct.x == cg.x && direct.y == cg.y, "CG and flipped Cocoa agree: %g,%g vs %g,%g", direct.x,
-                      direct.y, cg.x, cg.y);
             }
 }
 
