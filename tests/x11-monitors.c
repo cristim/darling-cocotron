@@ -120,6 +120,34 @@ static void displayIDs(void) {
         CHECK(X11MonitorDisplayID(i) != 0, "no output has the null display ID");
 }
 
+static double scaleWith(const char *darling, const char *gdk, const char **source) {
+    if (darling)
+        setenv("DARLING_X11_SCALE", darling, 1);
+    else
+        unsetenv("DARLING_X11_SCALE");
+    if (gdk)
+        setenv("GDK_SCALE", gdk, 1);
+    else
+        unsetenv("GDK_SCALE");
+    return X11ScaleFromEnvironment(source);
+}
+
+static void scale(void) {
+    const char *source;
+    CHECK(scaleWith(NULL, NULL, &source) == 1 && source == NULL, "no variable: 1x");
+    CHECK(scaleWith("2", NULL, &source) == 2 && source && !strcmp(source, "DARLING_X11_SCALE"), "DARLING_X11_SCALE=2");
+    CHECK(scaleWith(NULL, "1.5", &source) == 1.5 && source && !strcmp(source, "GDK_SCALE"), "fractional GDK_SCALE");
+    CHECK(scaleWith("3", "2", &source) == 3, "DARLING_X11_SCALE wins over GDK_SCALE");
+    CHECK(scaleWith("0.5", NULL, &source) == 1 && source == NULL, "a scale under 1 is ignored");
+    CHECK(scaleWith("2x", NULL, &source) == 1 && source == NULL, "trailing junk is ignored");
+    CHECK(scaleWith("nan", NULL, &source) == 1 && source == NULL, "a non-finite scale is ignored");
+    CHECK(scaleWith("", NULL, &source) == 1 && source == NULL, "an empty scale is ignored");
+    CHECK(scaleWith("junk", "2", &source) == 2 && source && !strcmp(source, "GDK_SCALE"),
+          "an invalid first variable falls through to the second");
+    unsetenv("DARLING_X11_SCALE");
+    unsetenv("GDK_SCALE");
+}
+
 static void setCrtc(Display *display, int x, int y, unsigned width, unsigned height, bool enable) {
     Window root = DefaultRootWindow(display);
     XRRScreenResources *resources = XRRGetScreenResources(display, root);
@@ -203,6 +231,7 @@ int main(void) {
     order();
     frames();
     displayIDs();
+    scale();
     Display *display = XOpenDisplay(NULL);
     if (!display) {
         printf("no X display: run through tests/x11-monitors.sh\n");

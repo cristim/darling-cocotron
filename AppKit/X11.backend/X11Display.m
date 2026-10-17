@@ -193,35 +193,16 @@ static void socketCallback(CFSocketRef s, CFSocketCallBackType type,
     return _display;
 }
 
-// X11 has no scale protocol. Read an explicit value instead of inferring one
-// from the panel's physical size: a 4K panel reports ~140 DPI and a 13" 1x
-// panel ~190 DPI, so DPI says nothing about whether the compositor upscales.
-// An unparsable or sub-1 value is ignored rather than trusted, and 1.0 is the
-// overwhelmingly common case, so it must stay reachable.
+// X11 has no scale protocol; see X11ScaleFromEnvironment() for what is read.
 - (CGFloat) backingScale {
     if (_backingScale > 0)
         return _backingScale;
 
-    _backingScale = 1;
-    const char *names[] = { "DARLING_X11_SCALE", "GDK_SCALE" };
-    for (size_t i = 0; i < sizeof(names) / sizeof(*names); i++) {
-        const char *value = getenv(names[i]);
-        if (value == NULL)
-            continue;
-        char *end = NULL;
-        double parsed = strtod(value, &end);
-        // Reject trailing junk, non-finite values, and anything under 1x.
-        // Fractional scales are honoured: X11 window geometry is integral, but
-        // -[X11Window deviceRect:] and -deviceSize: round points to whole device
-        // pixels, so 1.5 gives a 1280x800 display a 853.3x533.3 point screen and a
-        // 400x300 point window a 600x450 pixel one. Verified at GDK_SCALE 1.5.
-        if (end == value || *end != '\0' || !isfinite(parsed) || parsed < 1)
-            continue;
-        _backingScale = (CGFloat) parsed;
-        NSLog(@"X11 backend: %s=%s, using a %.2fx backing scale", names[i],
-              value, (double) _backingScale);
-        break;
-    }
+    const char *source = NULL;
+    _backingScale = (CGFloat) X11ScaleFromEnvironment(&source);
+    if (source != NULL)
+        NSLog(@"X11 backend: %s=%s, using a %.2fx backing scale", source,
+              getenv(source), (double) _backingScale);
     return _backingScale;
 }
 

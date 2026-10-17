@@ -12,6 +12,7 @@
 
 #include <X11/Xlib.h>
 #include <X11/extensions/Xrandr.h>
+#include <math.h>
 #include <stdbool.h>
 #include <stdlib.h>
 
@@ -114,6 +115,73 @@ static inline X11Frame X11FrameFromRoot(X11Frame primaryRoot, X11Frame root) {
     X11Frame frame = {root.x - primaryRoot.x, (primaryRoot.y + primaryRoot.height) - root.y - root.height,
                       root.width, root.height};
     return frame;
+}
+
+/* The global coordinate conventions, all with the main monitor as the origin (as on macOS):
+ *   - Cocoa (AppKit): origin at the main monitor's bottom-left corner, y up. NSScreen frames, window frames and
+ *     +[NSEvent mouseLocation].
+ *   - CoreGraphics: origin at the main monitor's top-left corner, y down. CGDisplayBounds, CGEventGetLocation,
+ *     CGWarpMouseCursorPosition.
+ *   - Root: origin at the top-left of the X root window, y down. Everything Xlib reports.
+ * primaryRoot is the main monitor's rectangle in root coordinates, in the same unit as the points converted. */
+typedef struct {
+    double x, y;
+} X11Point;
+
+/* Root point to Cocoa point. */
+static inline X11Point X11PointFromRoot(X11Frame primaryRoot, X11Point root) {
+    X11Point point = {root.x - primaryRoot.x, (primaryRoot.y + primaryRoot.height) - root.y};
+    return point;
+}
+
+/* Cocoa point to root point. */
+static inline X11Point X11PointToRoot(X11Frame primaryRoot, X11Point point) {
+    X11Point root = {point.x + primaryRoot.x, (primaryRoot.y + primaryRoot.height) - point.y};
+    return root;
+}
+
+/* Root point to CoreGraphics point. */
+static inline X11Point X11CGPointFromRoot(X11Frame primaryRoot, X11Point root) {
+    X11Point point = {root.x - primaryRoot.x, root.y - primaryRoot.y};
+    return point;
+}
+
+/* CoreGraphics point to root point. */
+static inline X11Point X11CGPointToRoot(X11Frame primaryRoot, X11Point point) {
+    X11Point root = {point.x + primaryRoot.x, point.y + primaryRoot.y};
+    return root;
+}
+
+/* Cocoa point to CoreGraphics point and back: the same flip against the main monitor's height. */
+static inline X11Point X11FlipY(double primaryHeight, X11Point point) {
+    X11Point flipped = {point.x, primaryHeight - point.y};
+    return flipped;
+}
+
+/* The backing scale factor the user asked for: DARLING_X11_SCALE, else GDK_SCALE. X11 has no scale protocol, so
+ * an explicit value is read instead of inferred from the panel's physical size (a 4K panel reports about 140 DPI
+ * and a 13" 1x panel about 190, so DPI says nothing about whether the compositor upscales). An unparsable or
+ * sub-1 value is ignored rather than trusted, and 1.0 is the overwhelmingly common case, so it stays reachable.
+ * Fractional scales are honoured: X11 window geometry is integral, but -[X11Window deviceRect:] and -deviceSize:
+ * round points to whole device pixels, so 1.5 gives a 1280x800 display a 853.3x533.3 point screen and a 400x300
+ * point window a 600x450 pixel one. Returns 1 when none is set; *source names the variable used, or
+ * NULL. */
+static inline double X11ScaleFromEnvironment(const char **source) {
+    static const char *const names[] = {"DARLING_X11_SCALE", "GDK_SCALE"};
+    *source = NULL;
+    for (size_t i = 0; i < sizeof names / sizeof *names; i++) {
+        const char *value = getenv(names[i]);
+        if (value == NULL)
+            continue;
+        char *end = NULL;
+        double parsed = strtod(value, &end);
+        /* Reject trailing junk, non-finite values and anything under 1x. */
+        if (end == value || *end != '\0' || !isfinite(parsed) || parsed < 1)
+            continue;
+        *source = names[i];
+        return parsed;
+    }
+    return 1;
 }
 
 /* A display's CGDirectDisplayID is tied to the RandR output it drives (output index + 1), not to its place in the
