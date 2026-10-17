@@ -3,7 +3,7 @@
 // calls, and checks that the cursor stays frozen, the deltas add up, and a warp's own echo is never taken for
 // motion (no feedback loop). Use tests/x11-relative-mouse-x11.sh, which runs it on its own Xvfb.
 // Build: cc x11-relative-mouse-x11.c -lX11 -lXtst -lXrandr -lm
-#include "../AppKit/X11.backend/X11GlobalPoint.h"
+#include "../AppKit/X11.backend/X11Monitors.h"
 #include "../AppKit/X11.backend/X11RelativeMouseGrab.h"
 #include <X11/extensions/XTest.h>
 #include <X11/extensions/Xrandr.h>
@@ -72,29 +72,23 @@ static void move(Display *display, int dx, int dy) {
     XFlush(display);
 }
 
-/* -mouseLocation and CGWarpMouseCursorPosition share one point space: warping to the reported location puts the
- * pointer where it was, at any scale. */
+/* +[NSEvent mouseLocation] is Cocoa's space (y up), CGWarpMouseCursorPosition and CGEventGetLocation are
+ * CoreGraphics' (y down), both measured from the main monitor: flipping the reported location and warping to it
+ * lands on the pointer, for the real pointer and for the frozen relative-mode cursor alike. */
 static void globalPointRoundTrip(void) {
-    double scales[] = {1.0, 1.5, 2.0};
-    for (int s = 0; s < 3; s++)
+    X11Frame layouts[] = {{0, 0, 1280, 720}, {1280, 0, 1920, 1080}, {0, 360, 1280, 720}};
+    for (int l = 0; l < 3; l++)
         for (int rootX = 0; rootX < 1280; rootX += 97)
             for (int rootY = 0; rootY < 720; rootY += 61) {
-                double x, y;
-                int backX, backY;
-                X11PointerLocationFromRoot(rootX, rootY, scales[s], &x, &y);
-                X11RootFromWarpTarget(x, y, scales[s], &backX, &backY);
-                CHECK(backX == rootX && backY == rootY, "round trip at scale %g: %d,%d came back as %d,%d", scales[s],
-                      rootX, rootY, backX, backY);
+                X11Point cocoa = X11PointFromRoot(layouts[l], (X11Point){rootX, rootY});
+                X11Point cg = X11FlipY(layouts[l].height, cocoa);
+                X11Point back = X11CGPointToRoot(layouts[l], cg);
+                CHECK(back.x == rootX && back.y == rootY, "layout %d: root %d,%d came back as %g,%g", l, rootX, rootY,
+                      back.x, back.y);
+                X11Point direct = X11CGPointFromRoot(layouts[l], (X11Point){rootX, rootY});
+                CHECK(direct.x == cg.x && direct.y == cg.y, "CG and flipped Cocoa agree: %g,%g vs %g,%g", direct.x,
+                      direct.y, cg.x, cg.y);
             }
-    /* A frozen cursor has a fractional position: it lands on the nearest pixel, not a mirrored one. */
-    double x, y;
-    int backX, backY;
-    X11PointerLocationFromRoot(150.75, 120.5, 2.0, &x, &y);
-    X11RootFromWarpTarget(x, y, 2.0, &backX, &backY);
-    CHECK(backX == 151 && backY == 121, "fractional cursor warps to the nearest pixel: %d,%d", backX, backY);
-    /* y grows downwards in both directions: a point below the top is below the top in root pixels. */
-    X11RootFromWarpTarget(10, 100, 1.0, &backX, &backY);
-    CHECK(backY == 100, "no y flip: %d", backY);
 }
 
 int main(void) {
