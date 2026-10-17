@@ -8,6 +8,7 @@
 
 #import <AppKit/NSDisplay.h>
 #import "X11Monitors.h"
+#import "X11RelativeMouseGrab.h"
 #import <X11/Xlib.h>
 #import <X11/Xresource.h>
 #import <X11/Xlocale.h>
@@ -50,8 +51,19 @@
     XID _lastClickWindow;
     NSPoint _lastClickPoint;   // Logical points, so the radius is scale-independent.
     X11Cursor *_blankCursor, *_defaultCursor;
-    BOOL _cursorGrabbed;
     int _ignoreWarpMotionCount;
+    // Relative mouse mode (CGAssociateMouseAndMouseCursorPosition(false)).
+    // _relativeRequested stays set while the application wants it;
+    // _relativeMouse.active only while the pointer grab on _relativeWindow is
+    // held, which losing the focus releases and regaining it retakes.
+    BOOL _relativeRequested;
+    int _relativeRetriesLeft;
+    Window _relativeWindow;
+    X11RelativeMouse _relativeMouse;
+    // Xwayland forwards a pointer warp to the compositor only while the X
+    // cursor is hidden, so warps are not honoured with a visible cursor there.
+    BOOL _isXwayland;
+    BOOL _cursorHidden;
     KeySym _lastKeySym;
     // The aggregate modifier mask as of the last key event, so a change that
     // no modifier key reported (a modifier released while another app had the
