@@ -30,12 +30,21 @@
 #import <X11/extensions/Xrandr.h>
 #import <X11/XKBlib.h>
 #import <X11/extensions/XKBrules.h>
+// The main-monitor model and conversions shared with AppKit's X11 backend.
+#import "../../AppKit/X11.backend/X11Monitors.h"
 
 // TODO: Use XInput2:
 // https://stackoverflow.com/questions/44095001/getting-double-rawkeypress-events-using-xinput2
 // https://github.com/openbsd/xenocara/blob/master/app/xinput/src/test_xi2.c
 
-@implementation CGSConnectionX11
+@implementation CGSConnectionX11 {
+	// The main monitor in root coordinates (device pixels) and the backing scale,
+	// cached for -mouseLocation. Guarded by @synchronized(self); the cache is dropped
+	// when XRandR reports a reconfiguration, like _screens.
+	X11Frame _primaryRoot;
+	BOOL _primaryRootValid;
+	double _backingScale;
+}
 
 static int errorHandler(Display* display, XErrorEvent* errorEvent)
 {
@@ -289,6 +298,40 @@ static BOOL isRandREvent(int xrrEventBase, XEvent* event)
 	return _display;
 }
 
+// The main monitor's rectangle in root coordinates (device pixels) and the backing
+// scale. Without RandR, or with no active output, the root window stands in, as in
+// AppKit's X11 backend.
+-(void) _getPrimaryRoot:(X11Frame*)primary scale:(double*)scale
+{
+	@synchronized (self)
+	{
+		if (!_primaryRootValid)
+		{
+			int screen = DefaultScreen(_display);
+			_primaryRoot = (X11Frame){0, 0, DisplayWidth(_display, screen), DisplayHeight(_display, screen)};
+
+			int count, mainIndex;
+			X11Monitor* monitors = X11MonitorsCopy(_display, &count, &mainIndex);
+			if (monitors != NULL && mainIndex >= 0)
+				_primaryRoot = (X11Frame){monitors[mainIndex].x, monitors[mainIndex].y,
+					monitors[mainIndex].width, monitors[mainIndex].height};
+			free(monitors);
+
+			const char* source;
+			_backingScale = X11ScaleFromEnvironment(&source);
+			_primaryRootValid = YES;
+		}
+		*primary = _primaryRoot;
+		*scale = _backingScale;
+	}
+}
+
+// CoreGraphics' global space: points, origin at the main monitor's top-left corner, y
+// down. It is the space of CGDisplayBounds() and CGWarpMouseCursorPosition(), so the
+// pointer at a monitor's corner equals that corner of its bounds. X11 reports the pointer
+// in device pixels from the top-left of the root window; the main monitor's rectangle
+// and the backing scale, which AppKit's X11 backend also reads, turn that into this
+// space without using AppKit's Xlib connection from another thread.
 -(CGPoint) mouseLocation
 {
 	Window child, root = DefaultRootWindow(_display);
@@ -298,7 +341,12 @@ static BOOL isRandREvent(int xrrEventBase, XEvent* event)
     unsigned int mask;
 
     XQueryPointer(_display, root, &root, &child, &root_x, &root_y, &win_x, &win_y, &mask);
-	return CGPointMake(root_x, root_y);
+
+	X11Frame primary;
+	double scale;
+	[self _getPrimaryRoot: &primary scale: &scale];
+	X11Point point = X11CGPointFromRoot(primary, (X11Point){root_x, root_y});
+	return CGPointMake(point.x / scale, point.y / scale);
 }
 
 -(void) processXEvent:(XEvent*) event
@@ -362,13 +410,11 @@ static BOOL isRandREvent(int xrrEventBase, XEvent* event)
 			// they live in g_cgsNotifyProc, which CGS.m keeps hidden, so a backend
 			// bundle cannot reach them.
 			// Invalidate cached information
-			if (_screens)
+			@synchronized (self)
 			{
-				@synchronized (self)
-				{
-					[_screens release];
-					_screens = nil;
-				}
+				[_screens release];
+				_screens = nil;
+				_primaryRootValid = NO;
 			}
 		}
 	}
@@ -385,11 +431,12 @@ static BOOL isRandREvent(int xrrEventBase, XEvent* event)
 	}
 }
 
-// One CGSScreen per X11 screen, describing that screen's root window rather than a
-// CRTC: -mouseLocation reports root coordinates, and the one reader of this array,
-// CGEventGetUnflippedLocation(), flips a y against the first screen's height, which
-// of two monitors stacked is the root's, not the shorter one's. The mode list is not
-// rebuilt from RandR, because CGDisplayModeGet* reads AppKit's, which already walks it.
+// One CGSScreen per X11 screen. The one reader of this array,
+// CGEventGetUnflippedLocation(), flips the y of -mouseLocation (CoreGraphics' global
+// space, y down from the main monitor's top) against the first screen's height, so the
+// default screen is described by the main monitor, in points, and the others by their
+// root window. The mode list is not rebuilt from RandR, because CGDisplayModeGet* reads
+// AppKit's, which already walks it.
 -(void) _doGetScreenInformation
 {
 	NSMutableArray* screens = [NSMutableArray array];
@@ -398,10 +445,21 @@ static BOOL isRandREvent(int xrrEventBase, XEvent* event)
 	{
 		Screen* screen = XScreenOfDisplay(_display, i);
 
+		NSNumber* width = @(WidthOfScreen(screen));
+		NSNumber* height = @(HeightOfScreen(screen));
+		if (i == DefaultScreen(_display))
+		{
+			X11Frame primary;
+			double scale;
+			[self _getPrimaryRoot: &primary scale: &scale];
+			width = @(lround(primary.width / scale));
+			height = @(lround(primary.height / scale));
+		}
+
 		CGSScreen* cgScreen = [CGSScreen new];
 		cgScreen.modes = @[ @{
-			@"Width": @(WidthOfScreen(screen)),
-			@"Height": @(HeightOfScreen(screen)),
+			@"Width": width,
+			@"Height": height,
 			@"Depth": @(DefaultDepthOfScreen(screen)),
 			// Each X11 screen has a root window of its own, all at the origin of the
 			// coordinate space -mouseLocation works in.
