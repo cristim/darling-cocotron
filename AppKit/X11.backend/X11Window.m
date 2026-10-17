@@ -1031,10 +1031,7 @@ static int ignoreBadWindow(Display *display, XErrorEvent *errorEvent) {
 
 // The main monitor in root coordinates, in logical points like _frame.
 - (X11Frame) primaryFrameInPoints {
-    CGFloat scale = [self backingScaleFactor];
-    NSRect primary = [(X11Display *) [NSDisplay currentDisplay] primaryRootFrame];
-    return (X11Frame){NSMinX(primary) / scale, NSMinY(primary) / scale,
-                      NSWidth(primary) / scale, NSHeight(primary) / scale};
+    return [(X11Display *) [NSDisplay currentDisplay] primaryFrameInPoints];
 }
 
 // `pos` is in DEVICE pixels, so the flip is against the device height. _frame

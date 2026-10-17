@@ -236,6 +236,23 @@ static void socketCallback(CFSocketRef s, CFSocketCallBackType type,
     return _primaryRootFrame;
 }
 
+// The main monitor in root coordinates, in logical points.
+- (X11Frame) primaryFrameInPoints {
+    CGFloat scale = [self backingScale];
+    NSRect primary = [self primaryRootFrame];
+    return (X11Frame){NSMinX(primary) / scale, NSMinY(primary) / scale,
+                      NSWidth(primary) / scale, NSHeight(primary) / scale};
+}
+
+// Converts a global point between Cocoa's space (y up) and CoreGraphics' (y down):
+// they differ only in the direction of y, both measured from the main monitor, so
+// the flip is its own inverse.
+- (NSPoint) flipGlobalPoint: (NSPoint) point {
+    X11Point flipped = X11FlipY([self primaryFrameInPoints].height,
+                                (X11Point){point.x, point.y});
+    return NSMakePoint(flipped.x, flipped.y);
+}
+
 - (NSArray *) rootScreenFallback {
     CGFloat scale = [self backingScale];
     int width = DisplayWidth(_display, DefaultScreen(_display));
@@ -297,11 +314,16 @@ static void socketCallback(CFSocketRef s, CFSocketCallBackType type,
 
         if (monitors[i].active) {
             // NSScreen.frame is in logical points, like the Wayland
-            // backend's: CRTC geometry is device pixels, so divide it.
-            NSRect frame = NSMakeRect(
-                    (monitors[i].x - NSMinX(_primaryRootFrame)) / scale,
-                    (monitors[i].y - NSMinY(_primaryRootFrame)) / scale,
-                    monitors[i].width / scale, monitors[i].height / scale);
+            // backend's: CRTC geometry is device pixels, so divide it. The
+            // frame is in Cocoa's global space, y up from the main monitor's
+            // bottom-left corner, like window frames.
+            X11Frame global = X11FrameFromRoot(
+                    [self primaryFrameInPoints],
+                    (X11Frame){monitors[i].x / scale, monitors[i].y / scale,
+                               monitors[i].width / scale,
+                               monitors[i].height / scale});
+            NSRect frame = NSMakeRect(global.x, global.y, global.width,
+                                      global.height);
 
             nsscreen = [[[X11Screen alloc] initWithFrame: frame
                                             visibleFrame: frame] autorelease];
@@ -1077,19 +1099,17 @@ static int compareFontPatterns(const void *a, const void *b) {
 
     XQueryPointer(_display, root, &root, &child, &root_x, &root_y, &win_x,
                   &win_y, &mask);
-    // No Y flip. AppKit's global screen space has its origin at the TOP-left of the
-    // primary display, which is the space NSScreen.frame and CGWarpMouseCursorPosition
-    // both use, and X already reports root_y from the top. Flipping here put the pointer
-    // at the mirrored position and made a warp not round-trip. (Window-local
-    // -[X11Window mouseLocationOutsideOfEventStream] does flip, correctly: view
-    // coordinates are bottom-left origin.)
+    // Cocoa's global space, as +[NSEvent mouseLocation] reports on macOS: points,
+    // origin at the main monitor's bottom-left corner, y up, so the result can be
+    // compared with window and screen frames. CGEventGetLocation() reports the same
+    // point in CoreGraphics' y-down space (see CGSConnectionX11).
+    // -[X11Window mouseLocationOutsideOfEventStream] is window-local.
     //
     // XQueryPointer reports device pixels, so divide by the scale to get points.
     CGFloat scale = [self backingScale];
-    // Relative to the main monitor, which is the origin of the global space.
-    NSRect primary = [self primaryRootFrame];
-    return NSMakePoint((root_x - NSMinX(primary)) / scale,
-                       (root_y - NSMinY(primary)) / scale);
+    X11Point point = X11PointFromRoot([self primaryFrameInPoints],
+                                      (X11Point){root_x / scale, root_y / scale});
+    return NSMakePoint(point.x, point.y);
 }
 
 - (void) setWindow: (id) window forID: (XID) i {
@@ -1623,7 +1643,7 @@ static NSPoint windowEventPoint(Display *dpy, X11Window *window, Window eventWin
                 if (pos.x < 50 || pos.x > w - 50 || pos.y < 50 || pos.y > h - 50) {
                     NSPoint centerCocoa = NSMakePoint(winFrame.origin.x + w / 2.0,
                                                       winFrame.origin.y + h / 2.0);
-                    [self warpMouse: centerCocoa];
+                    [self warpMouse: [self flipGlobalPoint: centerCocoa]];
                 }
             }
 
@@ -1942,15 +1962,21 @@ void CGNativeBorderFrameWidthsForStyle(NSUInteger styleMask, CGFloat *top,
     return frame;
 }
 
-// Takes POINTS, like NSScreen.frame and +[NSEvent mouseLocation]: CGWarpMouseCursorPosition
-// hands its argument straight through, and on macOS that API is documented in points.
-// XWarpPointer wants device pixels, so the conversion belongs here rather than at every
-// caller. Invisible at 1x, off by the scale factor at 2x.
+// Takes CoreGraphics global POINTS (origin at the main monitor's top-left corner,
+// y down): CGWarpMouseCursorPosition hands its argument straight through, and on
+// macOS that API is documented in points of that space. Internal callers that
+// hold a Cocoa point convert it with -flipGlobalPoint:.
+// XWarpPointer wants device pixels, so the conversion belongs here rather than at
+// every caller. Invisible at 1x, off by the scale factor at 2x.
 - (void) warpMouse: (NSPoint) position {
     NSRect primary = [self primaryRootFrame];
     CGFloat scale = [self backingScale];
-    int root_x = (int) NSMinX(primary) + (int) round(position.x * scale);
-    int root_y = (int) NSMaxY(primary) - (int) round(position.y * scale);
+    X11Point root = X11CGPointToRoot(
+            (X11Frame){NSMinX(primary), NSMinY(primary), NSWidth(primary),
+                       NSHeight(primary)},
+            (X11Point){position.x * scale, position.y * scale});
+    int root_x = (int) round(root.x);
+    int root_y = (int) round(root.y);
 
     XWarpPointer(_display, None, DefaultRootWindow(_display), 0, 0, 0, 0,
                  root_x, root_y);
@@ -1966,7 +1992,9 @@ void CGNativeBorderFrameWidthsForStyle(NSUInteger styleMask, CGFloat *top,
     if (nswin) {
         X11Window *xwin = (X11Window *) [nswin platformWindow];
         if (xwin) {
-            NSPoint ptLocal = [nswin convertScreenToBase: position];
+            // position is CoreGraphics' space; the window wants Cocoa's.
+            NSPoint ptLocal = [nswin
+                    convertScreenToBase: [self flipGlobalPoint: position]];
             CGFloat s = [xwin backingScaleFactor];
             NSRect wf = [nswin frame];
             // Cocoa bottom-left logical → X11 top-left device pixels
@@ -2017,7 +2045,7 @@ void CGNativeBorderFrameWidthsForStyle(NSUInteger styleMask, CGFloat *top,
                 CGPoint deviceCenter = NSMakePoint(ptLocal.x * s,
                                                     (wf.size.height - ptLocal.y) * s);
                 [xwin setLastKnownCursorPosition: deviceCenter];
-                [self warpMouse: centerCocoa];
+                [self warpMouse: [self flipGlobalPoint: centerCocoa]];
             }
         } else {
             NSLog(@"XGrabPointer() failed with error %d for window %lu\n",

@@ -7,6 +7,7 @@
 //
 
 #import <AppKit/NSDisplay.h>
+#import "X11Monitors.h"
 #import <X11/Xlib.h>
 #import <X11/Xresource.h>
 #import <X11/Xlocale.h>
@@ -78,6 +79,8 @@
 // The main monitor's rectangle in root coordinates (device pixels). It is the
 // origin of the global coordinate space; see X11Monitors.h.
 - (NSRect) primaryRootFrame;
+// The same rectangle in logical points, like window frames.
+- (X11Frame) primaryFrameInPoints;
 
 - (void) setWindow: (id) window forID: (XID) i;
 
