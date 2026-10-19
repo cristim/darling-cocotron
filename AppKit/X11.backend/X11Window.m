@@ -35,6 +35,7 @@
 #import <QuartzCore/CAWindowOpenGLContext.h>
 
 #import "X11Display.h"
+#import "X11Fullscreen.h"
 #import "X11Monitors.h"
 #import "X11SubWindow.h"
 #import "X11Window.h"
@@ -371,12 +372,26 @@ static NSData *makeWindowIcon() {
     XFree(sh);
 }
 
-- (void) setStyleMaskInternal: (NSUInteger) mask force: (BOOL) force {
-    if (force || (mask & NSWindowStyleMaskResizable) !=
-                         (_styleMask & NSWindowStyleMaskResizable)) {
-        [self updateSizeHints: mask];
+// Whether the window manager should hold this window fullscreen: the
+// application asked for it, or it is a managed borderless window sitting exactly on
+// a monitor (see X11Fullscreen.h). `frame` is in logical points, like _frame.
+- (BOOL) wantsFullscreenWithStyleMask: (NSUInteger) mask frame: (O2Rect) frame {
+    BOOL styleFullScreen = (mask & NSWindowStyleMaskFullScreen) != 0;
+    BOOL titled = (mask & NSWindowStyleMaskTitled) != 0;
+    BOOL coversMonitor = NO;
+    // The monitor test is a server round trip; skip it when it cannot change the answer.
+    if (!_overrideRedirect && !styleFullScreen && !titled) {
+        O2Rect device = [self deviceRect: [self transformFrame: frame]];
+        X11FullscreenRect rect = {(int) device.origin.x, (int) device.origin.y,
+                                  (unsigned int) device.size.width,
+                                  (unsigned int) device.size.height};
+        coversMonitor = X11FullscreenRectIsMonitor(_display, rect);
     }
+    return X11FullscreenWanted(_overrideRedirect, styleFullScreen, titled,
+                               coversMonitor);
+}
 
+- (void) requestFullscreen: (BOOL) fullscreen force: (BOOL) force {
     if (!_mapped) {
         long states[2];
         int states_cnt = 0;
@@ -384,7 +399,7 @@ static NSData *makeWindowIcon() {
             states[states_cnt++] =
                     (long) XInternAtom(_display, "_NET_WM_STATE_MODAL", False);
         }
-        if (mask & NSWindowStyleMaskFullScreen) {
+        if (fullscreen) {
             states[states_cnt++] = (long) XInternAtom(
                     _display, "_NET_WM_STATE_FULLSCREEN", False);
         }
@@ -392,21 +407,21 @@ static NSData *makeWindowIcon() {
                         XInternAtom(_display, "_NET_WM_STATE", False), XA_ATOM,
                         32, PropModeReplace, (const unsigned char *) states,
                         states_cnt);
-    } else if (force || ((mask & NSWindowStyleMaskFullScreen) !=
-                         (_styleMask & NSWindowStyleMaskFullScreen))) {
-        XClientMessageEvent event = {0};
-        event.type = ClientMessage;
-        event.window = _window;
-        event.message_type = XInternAtom(_display, "_NET_WM_STATE", False);
-        event.format = 32;
-        event.data.l[0] = (mask & NSWindowStyleMaskFullScreen) ? 1 : 2;
-        event.data.l[1] =
-                (long) XInternAtom(_display, "_NET_WM_STATE_FULLSCREEN", False);
-        event.data.l[3] = 1;
-        XSendEvent(_display, DefaultRootWindow(_display), False,
-                   SubstructureNotifyMask | SubstructureRedirectMask,
-                   (XEvent *) &event);
+    } else if (force || fullscreen != _fullscreenRequested) {
+        X11FullscreenRequest(_display, _window, fullscreen);
     }
+    _fullscreenRequested = fullscreen;
+}
+
+- (void) setStyleMaskInternal: (NSUInteger) mask force: (BOOL) force {
+    if (force || (mask & NSWindowStyleMaskResizable) !=
+                         (_styleMask & NSWindowStyleMaskResizable)) {
+        [self updateSizeHints: mask];
+    }
+
+    [self requestFullscreen: [self wantsFullscreenWithStyleMask: mask
+                                                          frame: _frame]
+                      force: force];
 }
 
 - (void) setStyleMask: (NSUInteger) mask {
@@ -615,6 +630,13 @@ static NSData *makeWindowIcon() {
     O2Rect transformed = [self transformFrame: frame];
     O2Rect deviceFrame = [self deviceRect: transformed];
     NSSize previousDeviceSize = [self deviceSize: _frame.size];
+    // Leave fullscreen before moving to a frame that does not cover a monitor,
+    // or the manager keeps imposing its fullscreen size; enter it after moving
+    // onto one.
+    BOOL fullscreen = [self wantsFullscreenWithStyleMask: _styleMask
+                                                   frame: frame];
+    if (!fullscreen)
+        [self requestFullscreen: NO force: NO];
     XMoveResizeWindow(_display, _window, deviceFrame.origin.x,
                       deviceFrame.origin.y, deviceFrame.size.width,
                       deviceFrame.size.height);
@@ -626,6 +648,8 @@ static NSData *makeWindowIcon() {
     // real change so a drag does not re-issue them per pixel.
     if (!NSEqualSizes(previousDeviceSize, deviceFrame.size))
         [self updateSizeHints: _styleMask];
+    if (fullscreen)
+        [self requestFullscreen: YES force: NO];
 }
 
 - (void) setHasShadow: (BOOL) value {
