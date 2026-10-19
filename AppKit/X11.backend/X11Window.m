@@ -413,6 +413,15 @@ static NSData *makeWindowIcon() {
     _fullscreenRequested = fullscreen;
 }
 
+// The window manager changes _NET_WM_STATE on its own too (it leaves fullscreen
+// on a keybinding), so follow it: a later setFrame: onto the same monitor then
+// asks again instead of trusting the last request. While the window is unmapped
+// the property is ours.
+- (void) propertyNotify: (XPropertyEvent *) event {
+    if (_mapped && event->atom == XInternAtom(_display, "_NET_WM_STATE", False))
+        _fullscreenRequested = X11FullscreenIsSet(_display, _window);
+}
+
 - (void) setStyleMaskInternal: (NSUInteger) mask force: (BOOL) force {
     if (force || (mask & NSWindowStyleMaskResizable) !=
                          (_styleMask & NSWindowStyleMaskResizable)) {
@@ -441,6 +450,10 @@ static NSData *makeWindowIcon() {
 
 - (void) ensureMapped {
     if (!_mapped) {
+        // A withdrawn window loses _NET_WM_STATE (EWMH), so a window that covers a
+        // monitor has to say again, before it is mapped, that it is fullscreen.
+        if ([self wantsFullscreenWithStyleMask: _styleMask frame: _frame])
+            [self requestFullscreen: YES force: NO];
         XMapWindow(_display, _window);
         _mapped = YES;
         XFlush(_display);
@@ -469,7 +482,7 @@ static NSData *makeWindowIcon() {
                 StructureNotifyMask | EnterWindowMask | LeaveWindowMask |
                 ButtonPressMask | ButtonReleaseMask | ButtonMotionMask |
                 PointerMotionMask | PointerMotionHintMask |
-                VisibilityChangeMask | FocusChangeMask |
+                VisibilityChangeMask | FocusChangeMask | PropertyChangeMask |
                 SubstructureRedirectMask;
 
     XSelectInput(_display, _window, mask);
@@ -686,6 +699,8 @@ static NSData *makeWindowIcon() {
 - (void) hideWindow {
     XUnmapWindow(_display, _window);
     _mapped = NO;
+    // The window manager drops the fullscreen state of a withdrawn window.
+    _fullscreenRequested = NO;
     // A focus request still waiting for MapNotify is void once the window is
     // ordered out; otherwise a later non-key orderFront would take focus.
     _wantsInputFocus = NO;
