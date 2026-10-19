@@ -650,11 +650,15 @@ static NSData *makeWindowIcon() {
     O2Rect deviceFrame = [self deviceRect: transformed];
     NSSize previousDeviceSize = [self deviceSize: _frame.size];
     // Leave fullscreen before moving to a frame that does not cover a monitor,
-    // or the manager keeps imposing its fullscreen size; enter it after moving
-    // onto one.
+    // or the manager keeps imposing its fullscreen size, and before moving a
+    // fullscreen window elsewhere, which the manager would ignore; enter it after
+    // moving onto a monitor.
     BOOL fullscreen = [self wantsFullscreenWithStyleMask: _styleMask
                                                    frame: frame];
-    if (!fullscreen && _fullscreenRequested)
+    O2Rect previousDeviceFrame = [self deviceRect: [self transformFrame: _frame]];
+    BOOL moved = previousDeviceFrame.origin.x != deviceFrame.origin.x ||
+                 previousDeviceFrame.origin.y != deviceFrame.origin.y;
+    if (X11FullscreenLeaveBeforeMove(fullscreen, _fullscreenRequested, moved))
         [self requestFullscreen: NO force: NO];
     XMoveResizeWindow(_display, _window, deviceFrame.origin.x,
                       deviceFrame.origin.y, deviceFrame.size.width,
