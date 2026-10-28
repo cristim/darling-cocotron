@@ -42,6 +42,7 @@ COREGRAPHICS_EXPORT const CFStringRef kCGColorSpaceExtendedLinearSRGB;
 COREGRAPHICS_EXPORT const CFStringRef kCGColorSpaceExtendedGray;
 COREGRAPHICS_EXPORT const CFStringRef kCGColorSpaceLinearGray;
 COREGRAPHICS_EXPORT const CFStringRef kCGColorSpaceExtendedLinearGray;
+COREGRAPHICS_EXPORT const CFStringRef kCGColorSpaceExtendedLinearITUR_2020;
 
 typedef CF_ENUM(int32_t, CGColorRenderingIntent) {
     kCGRenderingIntentDefault CF_SWIFT_NAME(defaultIntent),
