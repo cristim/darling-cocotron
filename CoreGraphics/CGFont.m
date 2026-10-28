@@ -18,6 +18,7 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 #import <CoreGraphics/CGFont.h>
+#import <CoreGraphics/CoreGraphicsPrivate.h>
 #import <Onyx2D/O2Font.h>
 
 CFTypeID CGFontGetTypeID(void) {
@@ -154,4 +155,21 @@ bool CGFontGetGlyphBBoxes(CGFontRef self, const CGGlyph *glyphs, size_t count, C
         bboxes[i] = CGFontGetFontBBox(self);
     }
     return true;
+}
+
+/* Whether the user turned off font smoothing: the AppleFontSmoothing global default, where 0
+ * means smoothing is disabled. An absent or non-numeric value leaves smoothing enabled. */
+bool CGFontRenderingGetFontSmoothingDisabled(void) {
+    bool disabled = false;
+    CFPropertyListRef value = CFPreferencesCopyAppValue(CFSTR("AppleFontSmoothing"),
+                                                        kCFPreferencesAnyApplication);
+    if (value != NULL) {
+        int smoothing = 0;
+        if (CFGetTypeID(value) == CFNumberGetTypeID() &&
+            CFNumberGetValue((CFNumberRef) value, kCFNumberIntType, &smoothing)) {
+            disabled = smoothing == 0;
+        }
+        CFRelease(value);
+    }
+    return disabled;
 }
