@@ -1009,6 +1009,7 @@ static NSString *stringWithCodepoint(uint32_t codepoint) {
     // sends leave and then motion with no window; dropping that motion left
     // _pointerSurfacePoint stale and the following button landed wherever the
     // pointer last was over a known surface.
+    CGPoint previousPoint = _pointerSurfacePoint;
     _pointerSurfacePoint = CGPointMake(x, y);
 
     WaylandWindow *window = _pointerWindow;
@@ -1018,6 +1019,14 @@ static NSString *stringWithCodepoint(uint32_t codepoint) {
     NSPoint location = [window transformPoint: _pointerSurfacePoint];
     NSPoint last = [window mouseLocationOutsideOfEventStream];
     [window setLastKnownCursorPosition: location];
+
+    // The pointer moved: a cursor hidden until then comes back, even when the
+    // application does not want the mouse-moved event. A compositor repeats the
+    // position when a surface changes under a still pointer, and a locked pointer
+    // moves nothing on screen: neither is a move. The AppKit work runs outside
+    // libwayland's listener, as for the cursor below.
+    if (!_pointerLocked && (x != previousPoint.x || y != previousPoint.y))
+        [self performAfterDispatch: ^{ [self pointerMoved]; }];
 
     if (_pressedButtons == 0 && [window isDecorationPoint: _pointerSurfacePoint]) {
         [self performAfterDispatch: ^{ [self applyCursor]; }];
