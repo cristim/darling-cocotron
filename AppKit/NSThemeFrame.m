@@ -260,7 +260,14 @@ static const CGFloat kTitleBarHeight = 28.0;
 - (void) resizeSubviewsWithOldSize: (NSSize) oldSize {
     NSView *menuView = nil;
     NSToolbarView *toolbarView = nil;
-    NSView *contentView = nil;
+    // The subview that holds the window's content view (the content view
+    // itself, or a wrapper around it). Apps may add their own subviews here,
+    // after the content view; those are not the content.
+    NSView *contentView = [[self window] contentView];
+    while ([contentView superview] != nil && [contentView superview] != self)
+        contentView = [contentView superview];
+    if ([contentView superview] != self)
+        contentView = nil;
 
     // tile the subviews, when/if we add titlebars and such do it here
     for (NSView *view in _subviews) {
@@ -270,8 +277,13 @@ static const CGFloat kTitleBarHeight = 28.0;
             menuView = view;
         else if ([view isKindOfClass: [NSToolbarView class]])
             toolbarView = (NSToolbarView *) view;
-        else
-            contentView = view;
+    }
+
+    // Any other subview follows its own autoresizing mask.
+    for (NSView *view in [[_subviews copy] autorelease]) {
+        if (view != contentView && view != menuView && view != toolbarView &&
+            ![view isKindOfClass: [NSThemeFrameButton class]])
+            [view resizeWithOldSuperviewSize: oldSize];
     }
 
     // subtracts menu height but not toolbar height
