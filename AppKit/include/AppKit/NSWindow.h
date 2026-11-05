@@ -133,6 +133,12 @@ typedef NS_OPTIONS(NSUInteger, NSWindowCollectionBehavior) {
     NSWindowCollectionBehaviorIgnoresCycle = 0x40
 };
 
+typedef NS_ENUM(NSUInteger, NSWindowTabbingMode) {
+	NSWindowTabbingModeAutomatic = 0,
+	NSWindowTabbingModePreferred,
+	NSWindowTabbingModeDisallowed,
+};
+
 typedef NS_ENUM(NSUInteger, NSWindowSharingType) {
     NSWindowSharingNone = 0x00,
     NSWindowSharingReadOnly = 0x01,
@@ -220,6 +226,8 @@ APPKIT_EXPORT const NSNotificationName NSWindowDidExitVersionBrowserNotification
     NSSize _maxSize;
     NSSize _contentMinSize;
     NSSize _contentMaxSize;
+    NSWindowCollectionBehavior _collectionBehavior;
+    NSWindowTabbingMode _tabbingMode;
 
     NSWindow *_parentWindow;
     NSMutableArray<NSWindow *> *_childWindows;
@@ -553,12 +561,6 @@ APPKIT_EXPORT const NSNotificationName NSWindowDidExitVersionBrowserNotification
 /* Window tabbing. Declared because games set it while configuring a window, and an
  * unrecognised selector on NSWindow takes the process down at launch. Window tabbing is
  * not implemented, so the value is stored and ignored. */
-typedef NS_ENUM(NSUInteger, NSWindowTabbingMode) {
-	NSWindowTabbingModeAutomatic = 0,
-	NSWindowTabbingModePreferred,
-	NSWindowTabbingModeDisallowed,
-};
-
 - (NSWindowTabbingMode) tabbingMode;
 - (void) setTabbingMode: (NSWindowTabbingMode)tabbingMode;
 
