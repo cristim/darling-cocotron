@@ -1448,7 +1448,6 @@ static BOOL _allowsAutomaticWindowTabbing;
 
 - (void) setShowsResizeIndicator: (BOOL) value {
     _showsResizeIndicator = value;
-    NSUnimplementedMethod();
 }
 
 - (void) setShowsToolbarButton: (BOOL) value {
@@ -1673,7 +1672,7 @@ static BOOL _allowsAutomaticWindowTabbing;
 }
 
 - (BOOL) isOnActiveSpace {
-    NSUnimplementedMethod();
+    // There is a single space, so every window is on the active one.
     return YES;
 }
 
@@ -2015,14 +2014,25 @@ static BOOL _allowsAutomaticWindowTabbing;
     }
 }
 
+// While the new key view is made first responder, -keyViewSelectionDirection
+// tells it which way the selection is moving (a view that tracks an inner
+// selection starts from its first or last item).
 - (void) selectKeyViewFollowingView: (NSView *) view {
     NSView *next = [view nextValidKeyView];
+    NSSelectionDirection saved = _keyViewSelectionDirection;
+
+    _keyViewSelectionDirection = NSSelectingNext;
     [self makeFirstResponder: next];
+    _keyViewSelectionDirection = saved;
 }
 
 - (void) selectKeyViewPrecedingView: (NSView *) view {
     NSView *next = [view previousValidKeyView];
+    NSSelectionDirection saved = _keyViewSelectionDirection;
+
+    _keyViewSelectionDirection = NSSelectingPrevious;
     [self makeFirstResponder: next];
+    _keyViewSelectionDirection = saved;
 }
 
 - (void) recalculateKeyViewLoopIfNeeded {
@@ -2048,8 +2058,7 @@ static BOOL _allowsAutomaticWindowTabbing;
 }
 
 - (NSSelectionDirection) keyViewSelectionDirection {
-    NSUnimplementedMethod();
-    return 0;
+    return _keyViewSelectionDirection;
 }
 
 - (void) disableKeyEquivalentForDefaultButtonCell {

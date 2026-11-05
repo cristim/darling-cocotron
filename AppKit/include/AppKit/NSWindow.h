@@ -157,7 +157,11 @@ typedef NS_ENUM(NSInteger, NSWindowAnimationBehavior) {
     NSWindowAnimationBehaviorAlertPanel = 5
 };
 
-typedef int NSSelectionDirection;
+typedef NS_ENUM(NSUInteger, NSSelectionDirection) {
+    NSDirectSelection = 0,
+    NSSelectingNext,
+    NSSelectingPrevious
+};
 
 APPKIT_EXPORT const NSNotificationName NSWindowDidBecomeKeyNotification
         NS_SWIFT_NAME(NSWindow.didBecomeKeyNotification);
@@ -298,6 +302,7 @@ APPKIT_EXPORT const NSNotificationName NSWindowDidExitVersionBrowserNotification
     BOOL _allowsToolTipsWhenApplicationIsInactive;
     BOOL _defaultButtonCellKeyEquivalentDisabled;
     BOOL _autorecalculatesKeyViewLoop;
+    NSSelectionDirection _keyViewSelectionDirection;
     BOOL _hasBeenOnScreen;
 
     BOOL _isInLiveResize;
