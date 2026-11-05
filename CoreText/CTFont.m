@@ -400,6 +400,9 @@ CFStringRef CTFontCopyDisplayName(CTFontRef self)
 
 CFStringRef _Nullable CTFontCopyName(CTFontRef font, CFStringRef nameKey)
 {
+    // CFEqual halts on a NULL argument; a missing key names nothing.
+    if (nameKey == NULL)
+        return NULL;
     if (CFEqual(nameKey, kCTFontPostScriptNameKey))
         return CTFontCopyPostScriptName(font);
     if (CFEqual(nameKey, kCTFontFamilyNameKey))
