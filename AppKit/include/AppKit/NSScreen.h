@@ -47,6 +47,12 @@ typedef NSString *NSDeviceDescriptionKey;
 
 - (CGFloat) userSpaceScaleFactor;
 @property (readonly) CGFloat backingScaleFactor;
+@property (readonly, copy) NSString *localizedName;
+@property (readonly) CGFloat maximumExtendedDynamicRangeColorComponentValue;
+@property (readonly) CGFloat maximumPotentialExtendedDynamicRangeColorComponentValue;
+@property (readonly) CGFloat maximumReferenceExtendedDynamicRangeColorComponentValue;
+@property (readonly) NSTimeInterval minimumRefreshInterval;
+@property (readonly) NSTimeInterval maximumRefreshInterval;
 
 @end
 

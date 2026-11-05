@@ -25,6 +25,43 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 NSNotificationName const NSScreenColorSpaceDidChangeNotification = @"NSScreenColorSpaceDidChangeNotification";
 
+// The display product name descriptor (tag 0xFC) of an EDID base block: one
+// of the four 18-byte descriptors at offset 54, text ended by 0x0A and
+// padded with spaces (VESA E-EDID).
+static NSString *monitorNameFromEDID(NSData *edid) {
+    const uint8_t *bytes = [edid bytes];
+    NSUInteger length = [edid length];
+
+    for (NSUInteger offset = 54; offset <= 108 && offset + 18 <= length;
+         offset += 18) {
+        const uint8_t *d = bytes + offset;
+        if (d[0] != 0 || d[1] != 0 || d[3] != 0xFC)
+            continue;
+        NSUInteger n = 0;
+        while (n < 13 && d[5 + n] != 0x0A)
+            n++;
+        while (n > 0 && d[5 + n - 1] == ' ')
+            n--;
+        if (n > 0)
+            return [[[NSString alloc] initWithBytes: d + 5
+                                             length: n
+                                           encoding: NSASCIIStringEncoding]
+                    autorelease];
+    }
+    return nil;
+}
+
+// One frame at the current mode's refresh rate. The backends report one
+// rate per mode, so the shortest and longest intervals are the same; 60 Hz
+// when the rate is unknown.
+static NSTimeInterval refreshIntervalForDisplay(CGDirectDisplayID display) {
+    CGDisplayModeRef mode = CGDisplayCopyDisplayMode(display);
+    double rate = mode ? CGDisplayModeGetRefreshRate(mode) : 0;
+
+    CGDisplayModeRelease(mode);
+    return 1.0 / (rate > 0 ? rate : 60.0);
+}
+
 @implementation NSScreen
 
 - initWithFrame: (NSRect) frame visibleFrame: (NSRect) visibleFrame {
@@ -79,6 +116,37 @@ NSNotificationName const NSScreenColorSpaceDidChangeNotification = @"NSScreenCol
                                        [super description],
                                        NSStringFromRect(_frame),
                                        NSStringFromRect(_visibleFrame)];
+}
+
+- (NSString *) localizedName {
+    NSString *name = _edid ? monitorNameFromEDID(_edid) : nil;
+
+    if (name == nil)
+        name = [NSString stringWithFormat: @"Display %u",
+                                           (unsigned) [self cgDirectDisplayID]];
+    return name;
+}
+
+// Surfaces are presented as SDR: no headroom above 1.0, and no reference
+// rendering.
+- (CGFloat) maximumExtendedDynamicRangeColorComponentValue {
+    return 1.0;
+}
+
+- (CGFloat) maximumPotentialExtendedDynamicRangeColorComponentValue {
+    return 1.0;
+}
+
+- (CGFloat) maximumReferenceExtendedDynamicRangeColorComponentValue {
+    return 0.0;
+}
+
+- (NSTimeInterval) minimumRefreshInterval {
+    return refreshIntervalForDisplay([self cgDirectDisplayID]);
+}
+
+- (NSTimeInterval) maximumRefreshInterval {
+    return refreshIntervalForDisplay([self cgDirectDisplayID]);
 }
 
 - (NSDictionary<NSDeviceDescriptionKey, id> *) deviceDescription {
