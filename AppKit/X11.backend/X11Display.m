@@ -1258,6 +1258,43 @@ static unsigned int x11StateAfterKeyEvent(const X11ModifierKey *key,
              atStart: NO];
 }
 
+// A compositor can keep a modifier's release from the window: GNOME's
+// overview grabs the keyboard while Super is down, the KeyRelease goes to the
+// grab, and the grab's FocusOut and FocusIn are ignored in -postXEvent:. The
+// key window then reported Command held until the next key event. Pointer
+// events carry the server's modifier state too, so they correct the aggregate
+// the same way, ahead of the pointer event itself. Keyboard events go to the
+// key window only, and events another client sent carry whatever state it
+// chose.
+- (void) syncModifierFlagsWithPointerEvent: (XEvent *) ev
+                                  inWindow: (X11Window *) window {
+    unsigned int state;
+    if (ev->xany.send_event)
+        return;
+    switch (ev->type) {
+    case ButtonPress:
+    case ButtonRelease:
+        state = ev->xbutton.state;
+        break;
+    case MotionNotify:
+        state = ev->xmotion.state;
+        break;
+    case EnterNotify:
+    case LeaveNotify:
+        state = ev->xcrossing.state;
+        break;
+    default:
+        return;
+    }
+    if (![[window delegate] isKeyWindow])
+        return;
+    NSEventModifierFlags flags = [self modifierFlagsForState: state];
+    if (flags == _modifierFlags)
+        return;
+    _modifierFlags = flags;
+    [self postFlagsChanged: 0xFFFF flags: flags inWindow: window];
+}
+
 // Cocoa groups clicks only within its double-click interval and four logical
 // points of the preceding press, and only for the same button in the same
 // window. Without the button and the window, a left click followed by a right
@@ -1423,6 +1460,8 @@ static BOOL relativeEventPoint(Display *dpy, X11Window *window, const X11Relativ
     // synced; motion ages them itself.
     if (_relativeMouse.active && ev->type != MotionNotify)
         X11RelativeMouseTick(&_relativeMouse);
+
+    [self syncModifierFlagsWithPointerEvent: ev inWindow: window];
 
     switch (ev->type) {
     case KeyPress:
