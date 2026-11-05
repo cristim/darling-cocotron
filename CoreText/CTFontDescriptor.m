@@ -3,6 +3,10 @@
 #import <Foundation/NSDictionary.h>
 #import <Foundation/NSArray.h>
 #import <Foundation/NSValue.h>
+#import <Foundation/NSSet.h>
+#import <Foundation/NSString.h>
+#import <Foundation/NSURL.h>
+#import <Onyx2D/O2Font_freetype.h>
 
 #include <stdio.h>
 
@@ -70,16 +74,98 @@ CFTypeRef CTFontDescriptorCopyAttribute(CTFontDescriptorRef descriptor, CFString
     return (CFTypeRef)[val retain];
 }
 
+CFTypeRef CTFontDescriptorCopyLocalizedAttribute(CTFontDescriptorRef descriptor, CFStringRef attribute,
+                                                 CFStringRef *language)
+{
+    // Only the canonical value is known; its language is not.
+    if (language)
+        *language = NULL;
+    return CTFontDescriptorCopyAttribute(descriptor, attribute);
+}
+
+// Descriptor name attributes and the fontconfig property each one matches.
+static const struct {
+    const CFStringRef *attribute;
+    const char *property;
+} matchedNames[] = {
+    { &kCTFontFamilyNameAttribute, FC_FAMILY },
+    { &kCTFontNameAttribute, FC_POSTSCRIPT_NAME },
+    { &kCTFontPostScriptNameAttribute, FC_POSTSCRIPT_NAME },
+    { &kCTFontStyleNameAttribute, FC_STYLE },
+    { &kCTFontDisplayNameAttribute, FC_FULLNAME },
+};
+
+// The installed faces whose names match the descriptor's, as descriptors.
+// FcFontList, unlike FcFontMatch, never substitutes another family for a
+// missing one, so a family that is not installed matches nothing.
 CFArrayRef CTFontDescriptorCreateMatchingFontDescriptors(CTFontDescriptorRef descriptor, CFSetRef mandatoryAttributes)
 {
     if (!descriptor) return (CFArrayRef)[[NSArray array] retain];
-    return (CFArrayRef)[[NSArray arrayWithObject:(id)descriptor] retain];
+    NSDictionary *query = (NSDictionary *)descriptor;
+    const size_t count = sizeof(matchedNames) / sizeof(matchedNames[0]);
+
+    FcPattern *pattern = FcPatternCreate();
+    // Not the variadic FcObjectSetBuild(): fontconfig is a native library and
+    // arm64 Darwin and Linux pass variadic arguments differently.
+    FcObjectSet *properties = FcObjectSetCreate();
+    for (size_t i = 0; i < count; i++) {
+        id value = [query objectForKey:(id)*matchedNames[i].attribute];
+        if ([value isKindOfClass:[NSString class]])
+            FcPatternAddString(pattern, matchedNames[i].property, (const FcChar8 *)[value UTF8String]);
+        FcObjectSetAdd(properties, matchedNames[i].property);
+    }
+    FcObjectSetAdd(properties, FC_FILE);
+
+    FcFontSet *fonts = FcFontList(O2FontSharedFontConfig(), pattern, properties);
+    NSMutableArray *result = [NSMutableArray array];
+    id size = [query objectForKey:(id)kCTFontSizeAttribute];
+    for (int i = 0; fonts != NULL && i < fonts->nfont; i++) {
+        NSMutableDictionary *attributes = [NSMutableDictionary dictionary];
+        FcChar8 *text;
+        for (size_t j = 0; j < count; j++) {
+            if (FcPatternGetString(fonts->fonts[i], matchedNames[j].property, 0, &text) == FcResultMatch) {
+                NSString *value = [NSString stringWithUTF8String:(const char *)text];
+                if (value)
+                    [attributes setObject:value forKey:(id)*matchedNames[j].attribute];
+            }
+        }
+        if (FcPatternGetString(fonts->fonts[i], FC_FILE, 0, &text) == FcResultMatch) {
+            NSString *path = [NSString stringWithUTF8String:(const char *)text];
+            if (path)
+                [attributes setObject:[NSURL fileURLWithPath:path] forKey:(id)kCTFontURLAttribute];
+        }
+        // The point size is part of the request, not of the installed face.
+        if (size)
+            [attributes setObject:size forKey:(id)kCTFontSizeAttribute];
+
+        BOOL matches = YES;
+        for (id key in (NSSet *)mandatoryAttributes) {
+            id expected = [query objectForKey:key];
+            if (expected == nil || ![expected isEqual:[attributes objectForKey:key]]) {
+                matches = NO;
+                break;
+            }
+        }
+        if (matches) {
+            CTFontDescriptorRef match = CTFontDescriptorCreateWithAttributes((CFDictionaryRef)attributes);
+            [result addObject:(id)match];
+            CFRelease(match);
+        }
+    }
+    if (fonts)
+        FcFontSetDestroy(fonts);
+    FcObjectSetDestroy(properties);
+    FcPatternDestroy(pattern);
+    return (CFArrayRef)[result retain];
 }
 
 CTFontDescriptorRef CTFontDescriptorCreateMatchingFontDescriptor(CTFontDescriptorRef descriptor, CFSetRef mandatoryAttributes)
 {
     if (!descriptor) return NULL;
-    return (CTFontDescriptorRef)[(id)descriptor retain];
+    NSArray *matches = (NSArray *)CTFontDescriptorCreateMatchingFontDescriptors(descriptor, mandatoryAttributes);
+    id result = [matches count] ? [[matches objectAtIndex:0] retain] : nil;
+    [matches release];
+    return (CTFontDescriptorRef)result;
 }
 
 CTFontDescriptorRef CTFontDescriptorCreateCopyWithAttributes(CTFontDescriptorRef descriptor, CFDictionaryRef attributes)

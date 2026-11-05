@@ -2,6 +2,9 @@
 #import <CoreText/CTFontDescriptor.h>
 #import <Foundation/NSArray.h>
 #import <Foundation/NSData.h>
+#import <Foundation/NSDictionary.h>
+#import <Foundation/NSSet.h>
+#import <Foundation/NSString.h>
 #import <Foundation/NSURL.h>
 
 const CFStringRef kCTFontManagerRegisteredFontsChangedNotification = CFSTR("CTFontManagerFontChangedNotification");
@@ -18,20 +21,21 @@ bool CTFontManagerUnregisterGraphicsFont(CGFontRef font, CFErrorRef *error)
     return nil;
 }
 
+// The families of the installed faces, as fontconfig lists them, sorted.
+// Hidden families (a leading ".") are left out.
 CFArrayRef CTFontManagerCopyAvailableFontFamilyNames(void)
 {
-    NSArray *families = [NSArray arrayWithObjects:
-        @"Helvetica",
-        @"Times",
-        @"Courier",
-        @"Arial",
-        @"Menlo",
-        @"Monaco",
-        @"Geneva",
-        @"Symbol",
-        @"Apple Color Emoji",
-        nil];
-    return (CFArrayRef)[families copy];
+    CTFontDescriptorRef all = CTFontDescriptorCreateWithAttributes(NULL);
+    NSArray *descriptors = (NSArray *)CTFontDescriptorCreateMatchingFontDescriptors(all, NULL);
+    NSMutableSet *families = [NSMutableSet set];
+    for (NSDictionary *descriptor in descriptors) {
+        NSString *family = [descriptor objectForKey:(id)kCTFontFamilyNameAttribute];
+        if ([family length] > 0 && ![family hasPrefix:@"."])
+            [families addObject:family];
+    }
+    [descriptors release];
+    CFRelease(all);
+    return (CFArrayRef)[[[families allObjects] sortedArrayUsingSelector:@selector(compare:)] copy];
 }
 
 CFArrayRef CTFontManagerCreateFontDescriptorsFromData(CFDataRef data)

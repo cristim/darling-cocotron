@@ -63,4 +63,5 @@ add_framework(CoreText
 		Onyx2D
 		# native
 		FreeType
+		fontconfig
 )
