@@ -3994,7 +3994,11 @@ static inline NSRect scaleWindowRect(NSRect rect, CGFloat scale) {
 }
 
 - (void) setTitlebarAppearsTransparent: (BOOL) transparent {
+    if (_titlebarAppearsTransparent == transparent)
+        return;
     _titlebarAppearsTransparent = transparent;
+    // The platform window decides from this whether the system draws a title bar.
+    [_platformWindow setStyleMask: _styleMask];
 }
 
 - (NSTitlebarSeparatorStyle) titlebarSeparatorStyle {
@@ -4010,7 +4014,11 @@ static inline NSRect scaleWindowRect(NSRect rect, CGFloat scale) {
 }
 
 - (void) setTitleVisibility: (NSWindowTitleVisibility) value {
+    if (_titleVisibility == value)
+        return;
     _titleVisibility = value;
+    // The platform window decides from this whether the system draws a title bar.
+    [_platformWindow setStyleMask: _styleMask];
 }
 
 @end

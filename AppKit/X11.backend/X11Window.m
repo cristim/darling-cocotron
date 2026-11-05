@@ -320,10 +320,6 @@ static NSData *makeWindowIcon() {
 
     [(X11Display *) [NSDisplay currentDisplay] setWindow: self forID: _window];
 
-    // FIXME: Move this call into setStyleMaskInternal below!
-    if (_styleMask == NSBorderlessWindowMask || isPanel) {
-        [[self class] removeDecorationForWindow: _window onDisplay: _display];
-    }
     [self setStyleMaskInternal: _styleMask force: YES];
 
     [self setWindowIcon];
@@ -429,11 +425,28 @@ static NSData *makeWindowIcon() {
         _fullscreenRequested = X11FullscreenIsSet(_display, _window);
 }
 
+// The window manager draws a title bar only for a titled window that leaves
+// its title bar to the system. A transparent title bar with a hidden title is
+// an application drawing its own chrome under it. Style and title bar changes
+// after creation come back here, so the hint follows them both ways.
+- (void) updateDecorationsForStyleMask: (NSUInteger) mask {
+    BOOL clientDrawn = [_delegate titlebarAppearsTransparent] &&
+                       [_delegate titleVisibility] == NSWindowTitleHidden;
+    if (!(mask & NSWindowStyleMaskTitled) || clientDrawn ||
+        [_delegate isKindOfClass: [NSPanel class]]) {
+        [[self class] removeDecorationForWindow: _window onDisplay: _display];
+    } else {
+        XDeleteProperty(_display, _window,
+                        XInternAtom(_display, "_MOTIF_WM_HINTS", False));
+    }
+}
+
 - (void) setStyleMaskInternal: (NSUInteger) mask force: (BOOL) force {
     if (force || (mask & NSWindowStyleMaskResizable) !=
                          (_styleMask & NSWindowStyleMaskResizable)) {
         [self updateSizeHints: mask];
     }
+    [self updateDecorationsForStyleMask: mask];
 
     [self requestFullscreen: [self wantsFullscreenWithStyleMask: mask
                                                           frame: _frame]
