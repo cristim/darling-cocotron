@@ -21,6 +21,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 #import <AppKit/NSATSTypesetter.h>
 #import <AppKit/NSAccessibility.h>
+#import <AppKit/NSAccessibilityCustomAction.h>
 #import <AppKit/NSAccessibilityElement.h>
 #import <AppKit/NSActionCell.h>
 #import <AppKit/NSAdaptiveImageGlyph.h>
@@ -134,6 +135,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSPopUpButtonCell.h>
 #import <AppKit/NSPopover.h>
 #import <AppKit/NSPopoverTouchBarItem.h>
+#import <AppKit/NSPreviewRepresentingActivityItem.h>
 #import <AppKit/NSPrintInfo.h>
 #import <AppKit/NSPrintOperation.h>
 #import <AppKit/NSPrintPanel.h>
