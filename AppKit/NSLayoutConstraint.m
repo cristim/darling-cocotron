@@ -28,6 +28,7 @@
 // initialiser it yielded 1.38e19, so every "no intrinsic metric" test failed.
 const CGFloat NSViewNoInstrinsicMetric = -1.0;
 const CGFloat NSViewNoIntrinsicMetric = -1.0;
+const NSDirectionalEdgeInsets NSDirectionalEdgeInsetsZero = {0, 0, 0, 0};
 
 // "-" between two views, and between a view and its superview's edge.
 static const CGFloat VFLStandardSiblingSpacing = 8;

@@ -26,6 +26,8 @@ APPKIT_EXPORT NSSharingServiceName const NSSharingServiceNameAddToIPhoto;
 APPKIT_EXPORT NSSharingServiceName const NSSharingServiceNameAddToSafariReadingList;
 APPKIT_EXPORT NSSharingServiceName const NSSharingServiceNameComposeEmail;
 APPKIT_EXPORT NSSharingServiceName const NSSharingServiceNameComposeMessage;
+APPKIT_EXPORT NSSharingServiceName const NSSharingServiceNameCloudSharing;
+APPKIT_EXPORT NSSharingServiceName const NSSharingServiceNameSendViaAirDrop;
 
 /* Deprecated */
 APPKIT_EXPORT NSSharingServiceName const NSSharingServiceNamePostOnFacebook;

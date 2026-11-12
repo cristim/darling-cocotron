@@ -48,3 +48,9 @@ typedef NSInteger NSPrintPanelOptions;
 
 APPKIT_EXPORT NSString *const NSPrintPanelAccessorySummaryItemNameKey;
 APPKIT_EXPORT NSString *const NSPrintPanelAccessorySummaryItemDescriptionKey;
+
+typedef NSString *NSPrintPanelJobStyleHint;
+
+APPKIT_EXPORT NSPrintPanelJobStyleHint const NSPrintPhotoJobStyleHint;
+APPKIT_EXPORT NSPrintPanelJobStyleHint const NSPrintAllPresetsJobStyleHint;
+APPKIT_EXPORT NSPrintPanelJobStyleHint const NSPrintNoPresetsJobStyleHint;

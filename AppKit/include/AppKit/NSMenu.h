@@ -28,6 +28,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 APPKIT_EXPORT const NSNotificationName NSMenuWillSendActionNotification;
 APPKIT_EXPORT const NSNotificationName NSMenuDidSendActionNotification;
 APPKIT_EXPORT const NSNotificationName NSMenuDidBeginTrackingNotification;
+APPKIT_EXPORT const NSNotificationName NSMenuDidCompleteInteractionNotification;
 APPKIT_EXPORT const NSNotificationName NSMenuDidEndTrackingNotification;
 
 APPKIT_EXPORT NSString *const NSFontMenuName;

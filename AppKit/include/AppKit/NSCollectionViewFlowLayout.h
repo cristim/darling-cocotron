@@ -24,6 +24,11 @@
 APPKIT_EXPORT NSString *const NSCollectionElementKindSectionHeader;
 APPKIT_EXPORT NSString *const NSCollectionElementKindSectionFooter;
 
+// Not in Apple's public headers: exported because applications import them.
+APPKIT_EXPORT NSString *const NSFlowLayoutCommonRowHorizontalAlignmentKey;
+APPKIT_EXPORT NSString *const NSFlowLayoutLastRowHorizontalAlignmentKey;
+APPKIT_EXPORT NSString *const NSFlowLayoutRowVerticalAlignmentKey;
+
 @interface NSCollectionViewFlowLayout : NSCollectionViewLayout
 {
     NSSize _itemSize;

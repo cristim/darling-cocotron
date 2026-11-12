@@ -41,6 +41,8 @@ typedef enum {
 
 APPKIT_EXPORT const NSNotificationName NSToolbarWillAddItemNotification;
 APPKIT_EXPORT const NSNotificationName NSToolbarDidRemoveItemNotification;
+// userInfo key of NSToolbarWillAddItemNotification; its documented value is "item".
+APPKIT_EXPORT NSString *const NSToolbarItemKey;
 
 typedef NSString *NSToolbarIdentifier;
 

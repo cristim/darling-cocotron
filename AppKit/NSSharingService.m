@@ -4,6 +4,8 @@ NSSharingServiceName const NSSharingServiceNameAddToIPhoto = @"com.apple.share.S
 NSSharingServiceName const NSSharingServiceNameAddToSafariReadingList = @"com.apple.share.System.add-to-safari-reading-list";
 NSSharingServiceName const NSSharingServiceNameComposeEmail = @"com.apple.share.Mail.compose";
 NSSharingServiceName const NSSharingServiceNameComposeMessage = @"com.apple.messages.ShareExtension";
+NSSharingServiceName const NSSharingServiceNameCloudSharing = @"NSSharingServiceNameCloudSharing";
+NSSharingServiceName const NSSharingServiceNameSendViaAirDrop = @"NSSharingServiceNameSendViaAirDrop";
 
 NSSharingServiceName const NSSharingServiceNamePostOnFacebook = @"com.apple.share.Facebook.post";
 NSSharingServiceName const NSSharingServiceNamePostOnTwitter = @"com.apple.share.Twitter.post";

@@ -30,6 +30,16 @@ APPKIT_EXPORT NSTouchBarItemIdentifier const
         NSTouchBarItemIdentifierFlexibleSpace;
 APPKIT_EXPORT NSTouchBarItemIdentifier const
         NSTouchBarItemIdentifierOtherItemsProxy;
+APPKIT_EXPORT NSTouchBarItemIdentifier const
+        NSTouchBarItemIdentifierCandidateList;
+APPKIT_EXPORT NSTouchBarItemIdentifier const
+        NSTouchBarItemIdentifierTextAlignment;
+APPKIT_EXPORT NSTouchBarItemIdentifier const
+        NSTouchBarItemIdentifierTextColorPicker;
+APPKIT_EXPORT NSTouchBarItemIdentifier const
+        NSTouchBarItemIdentifierTextList;
+APPKIT_EXPORT NSTouchBarItemIdentifier const
+        NSTouchBarItemIdentifierTextStyle;
 
 @interface NSTouchBarItem : NSObject <NSCoding>
 {

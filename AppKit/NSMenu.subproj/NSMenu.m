@@ -29,6 +29,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 const NSNotificationName NSMenuWillSendActionNotification = @"NSMenuWillSendActionNotification";
 const NSNotificationName NSMenuDidSendActionNotification = @"NSMenuDidSendActionNotification";
 const NSNotificationName NSMenuDidBeginTrackingNotification = @"NSMenuDidBeginTrackingNotification";
+const NSNotificationName NSMenuDidCompleteInteractionNotification = @"NSMenuDidCompleteInteractionNotification";
 const NSNotificationName NSMenuDidEndTrackingNotification = @"NSMenuDidEndTrackingNotification";
 NSString *const NSFontMenuName = @"Font";
 NSString *const NSHelpMenuName = @"Help";

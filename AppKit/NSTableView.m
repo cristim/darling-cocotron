@@ -31,6 +31,8 @@ NSString *const NSTableViewSelectionIsChangingNotification =
         @"NSTableViewSelectionIsChangingNotification";
 NSString *const NSTableViewSelectionDidChangeNotification =
         @"NSTableViewSelectionDidChangeNotification";
+NSString *const NSTableViewCurrentRowSizeStyleDidChange =
+        @"NSTableViewCurrentRowSizeStyleDidChange";
 NSString *const NSTableViewColumnDidMoveNotification =
         @"NSTableViewColumnDidMoveNotification";
 NSString *const NSTableViewColumnDidResizeNotification =

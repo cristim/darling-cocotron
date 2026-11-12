@@ -61,6 +61,18 @@ NSFontDescriptorSystemDesign const NSFontDescriptorSystemDesignSerif = @"NSCTFon
 NSFontDescriptorSystemDesign const NSFontDescriptorSystemDesignMonospaced = @"NSCTFontUIFontDesignMonospaced";
 NSFontDescriptorSystemDesign const NSFontDescriptorSystemDesignRounded = @"NSCTFontUIFontDesignRounded";
 
+NSFontTextStyle const NSFontTextStyleLargeTitle = @"NSFontTextStyleLargeTitle";
+NSFontTextStyle const NSFontTextStyleTitle1 = @"NSFontTextStyleTitle1";
+NSFontTextStyle const NSFontTextStyleTitle2 = @"NSFontTextStyleTitle2";
+NSFontTextStyle const NSFontTextStyleTitle3 = @"NSFontTextStyleTitle3";
+NSFontTextStyle const NSFontTextStyleHeadline = @"NSFontTextStyleHeadline";
+NSFontTextStyle const NSFontTextStyleSubheadline = @"NSFontTextStyleSubheadline";
+NSFontTextStyle const NSFontTextStyleBody = @"NSFontTextStyleBody";
+NSFontTextStyle const NSFontTextStyleCallout = @"NSFontTextStyleCallout";
+NSFontTextStyle const NSFontTextStyleFootnote = @"NSFontTextStyleFootnote";
+NSFontTextStyle const NSFontTextStyleCaption1 = @"NSFontTextStyleCaption1";
+NSFontTextStyle const NSFontTextStyleCaption2 = @"NSFontTextStyleCaption2";
+
 static NSString *const NSFontUIFontDesignTrait = @"NSCTFontUIFontDesignTrait";
 
 @implementation NSFontDescriptor : NSObject
