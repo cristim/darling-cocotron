@@ -443,6 +443,8 @@ set(AppKit_sources
 	NSSplitViewItem.m
 	NSSplitViewItemAccessoryViewController.m
 	NSStubForwarding.m
+	NSPreviewRepresentingActivityItem.m
+	NSAccessibilityCustomAction.m
 	NSTabViewController.m
 	NSTableViewRowAction.m
 	NSCollectionViewLayoutAttributes.m
