@@ -24,6 +24,13 @@ NSString *const NSCollectionElementKindSectionHeader =
 NSString *const NSCollectionElementKindSectionFooter =
         @"UICollectionElementKindSectionFooter";
 
+NSString *const NSFlowLayoutCommonRowHorizontalAlignmentKey =
+        @"NSFlowLayoutCommonRowHorizontalAlignmentKey";
+NSString *const NSFlowLayoutLastRowHorizontalAlignmentKey =
+        @"NSFlowLayoutLastRowHorizontalAlignmentKey";
+NSString *const NSFlowLayoutRowVerticalAlignmentKey =
+        @"NSFlowLayoutRowVerticalAlignmentKey";
+
 @implementation NSCollectionViewFlowLayout
 @synthesize itemSize = _itemSize;
 @synthesize sectionInset = _sectionInset;

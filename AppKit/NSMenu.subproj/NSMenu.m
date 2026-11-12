@@ -29,6 +29,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 const NSNotificationName NSMenuWillSendActionNotification = @"NSMenuWillSendActionNotification";
 const NSNotificationName NSMenuDidSendActionNotification = @"NSMenuDidSendActionNotification";
 const NSNotificationName NSMenuDidBeginTrackingNotification = @"NSMenuDidBeginTrackingNotification";
+const NSNotificationName NSMenuDidCompleteInteractionNotification = @"NSMenuDidCompleteInteractionNotification";
 const NSNotificationName NSMenuDidEndTrackingNotification = @"NSMenuDidEndTrackingNotification";
 // GUESS (rung 6), NEEDS-REAL-MAC: the string values; the documentation gives the names.
 const NSNotificationName NSMenuDidAddItemNotification = @"NSMenuDidAddItemNotification";

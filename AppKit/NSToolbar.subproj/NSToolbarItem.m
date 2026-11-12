@@ -45,6 +45,12 @@ const NSToolbarItemIdentifier NSToolbarShowFontsItemIdentifier =
         @"NSToolbarShowFontsItem";
 const NSToolbarItemIdentifier NSToolbarSpaceItemIdentifier =
         @"NSToolbarSpaceItem";
+const NSToolbarItemIdentifier NSToolbarSidebarTrackingSeparatorItemIdentifier =
+        @"NSToolbarSidebarTrackingSeparatorItem";
+const NSToolbarItemIdentifier NSToolbarToggleSidebarItemIdentifier =
+        @"NSToolbarToggleSidebarItem";
+const NSToolbarItemIdentifier NSToolbarWritingToolsItemIdentifier =
+        @"NSToolbarWritingToolsItem";
 
 extern NSSize _NSToolbarSizeRegular;
 extern NSSize _NSToolbarSizeSmall;
