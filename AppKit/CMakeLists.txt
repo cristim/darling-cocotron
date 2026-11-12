@@ -366,6 +366,8 @@ set(AppKit_sources
 	NSToolbar.subproj/NSToolbarView.m
 	NSToolbar.subproj/NSToolbar.m
 	NSToolbar.subproj/NSToolbarItem.m
+	NSToolbar.subproj/NSTrackingSeparatorToolbarItem.m
+	NSToolbar.subproj/NSSeparatorToolbarItem.m
 	NSToolbar.subproj/NSSearchToolbarItem.m
 	NSToolbar.subproj/NSToolbarCustomizationPalette.m
 	NSToolbar.subproj/NSToolbarItemView.m
@@ -460,6 +462,8 @@ set(AppKit_sources
 	NSTouchDevice.m
 	NSSplitViewController.m
 	NSSplitViewItem.m
+	NSSplitViewItemAccessoryViewController.m
+	NSStubForwarding.m
 	NSTabViewController.m
 	NSTableViewRowAction.m
 	NSCollectionViewLayoutAttributes.m
