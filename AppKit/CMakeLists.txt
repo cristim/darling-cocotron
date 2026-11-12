@@ -440,7 +440,10 @@ set(AppKit_sources
 	NSSplitViewItem.m
 	NSSplitViewItemAccessoryViewController.m
 	NSStubForwarding.m
+	NSPrivateStubClasses.m
+	NSFilePromiseReceiver.m
 	NSPreviewRepresentingActivityItem.m
+	NSMediaLibraryBrowserController.m
 	NSAccessibilityCustomAction.m
 	NSTabViewController.m
 	NSTableViewRowAction.m
