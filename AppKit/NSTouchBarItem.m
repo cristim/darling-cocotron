@@ -27,6 +27,16 @@ NSTouchBarItemIdentifier const NSTouchBarItemIdentifierFlexibleSpace =
         @"NSTouchBarItemIdentifierFlexibleSpace";
 NSTouchBarItemIdentifier const NSTouchBarItemIdentifierOtherItemsProxy =
         @"NSTouchBarItemIdentifierOtherItemsProxy";
+NSTouchBarItemIdentifier const NSTouchBarItemIdentifierCandidateList =
+        @"NSTouchBarItemIdentifierCandidateList";
+NSTouchBarItemIdentifier const NSTouchBarItemIdentifierTextAlignment =
+        @"NSTouchBarItemIdentifierTextAlignment";
+NSTouchBarItemIdentifier const NSTouchBarItemIdentifierTextColorPicker =
+        @"NSTouchBarItemIdentifierTextColorPicker";
+NSTouchBarItemIdentifier const NSTouchBarItemIdentifierTextList =
+        @"NSTouchBarItemIdentifierTextList";
+NSTouchBarItemIdentifier const NSTouchBarItemIdentifierTextStyle =
+        @"NSTouchBarItemIdentifierTextStyle";
 NSTouchBarItemIdentifier const NSTouchBarItemIdentifierCharacterPicker =
         @"NSTouchBarItemIdentifierCharacterPicker";
 
