@@ -441,3 +441,65 @@ enum {
 }
 
 @end
+
+@implementation NSCollectionViewCompositionalLayoutConfiguration
+@synthesize scrollDirection = _scrollDirection;
+@synthesize interSectionSpacing = _interSectionSpacing;
+@synthesize boundarySupplementaryItems = _boundarySupplementaryItems;
+
+- (void) dealloc {
+    [_boundarySupplementaryItems release];
+    [super dealloc];
+}
+
+- (id) copyWithZone: (NSZone *) zone {
+    NSCollectionViewCompositionalLayoutConfiguration *copy = [[[self class] allocWithZone: zone] init];
+    copy->_scrollDirection = _scrollDirection;
+    copy->_interSectionSpacing = _interSectionSpacing;
+    copy->_boundarySupplementaryItems = [_boundarySupplementaryItems copy];
+    return copy;
+}
+
+@end
+
+@implementation NSCollectionViewCompositionalLayout
+@synthesize configuration = _configuration;
+
+- (instancetype) initWithSection: (NSCollectionLayoutSection *) section {
+    return [self initWithSection: section configuration: nil];
+}
+
+- (instancetype) initWithSection: (NSCollectionLayoutSection *) section
+                    configuration: (NSCollectionViewCompositionalLayoutConfiguration *) configuration {
+    if ((self = [super init]) != nil) {
+        _section = [section retain];
+        _configuration = configuration != nil
+                ? [configuration copy]
+                : [[NSCollectionViewCompositionalLayoutConfiguration alloc] init];
+    }
+    return self;
+}
+
+- (instancetype) initWithSectionProvider: (NSCollectionViewCompositionalLayoutSectionProvider) sectionProvider {
+    return [self initWithSectionProvider: sectionProvider configuration: nil];
+}
+
+- (instancetype) initWithSectionProvider: (NSCollectionViewCompositionalLayoutSectionProvider) sectionProvider
+                            configuration: (NSCollectionViewCompositionalLayoutConfiguration *) configuration {
+    if ((self = [super init]) != nil) {
+        _sectionProvider = [sectionProvider copy];
+        _configuration = configuration != nil
+                ? [configuration copy]
+                : [[NSCollectionViewCompositionalLayoutConfiguration alloc] init];
+    }
+    return self;
+}
+
+- (void) dealloc {
+    [_section release];
+    [_sectionProvider release];
+    [_configuration release];
+    [super dealloc];
+}
+
+@end
