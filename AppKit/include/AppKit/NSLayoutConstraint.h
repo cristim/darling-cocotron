@@ -148,3 +148,15 @@ typedef NS_OPTIONS(NSUInteger, NSDirectionalRectEdge) {
     NSDirectionalRectEdgeAll = NSDirectionalRectEdgeTop | NSDirectionalRectEdgeLeading |
                                NSDirectionalRectEdgeBottom | NSDirectionalRectEdgeTrailing,
 };
+
+typedef NS_ENUM(NSInteger, NSRectAlignment) {
+    NSRectAlignmentNone = 0,
+    NSRectAlignmentTop,
+    NSRectAlignmentTopLeading,
+    NSRectAlignmentLeading,
+    NSRectAlignmentBottomLeading,
+    NSRectAlignmentBottom,
+    NSRectAlignmentBottomTrailing,
+    NSRectAlignmentTrailing,
+    NSRectAlignmentTopTrailing,
+};
