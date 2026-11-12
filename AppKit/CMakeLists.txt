@@ -413,6 +413,7 @@ set(AppKit_sources
 	NSVisualEffectView.m
 	NSOpenGLLayer.m
 	NSCollectionViewLayout.m
+	NSCollectionViewCompositionalLayout.m
 
 	NSSharingService.m
 	NSUserInterfaceCompressionOptions.m
