@@ -106,3 +106,85 @@
 @property(readonly, retain) NSCollectionLayoutSize *layoutSize;
 @property(readonly, copy) NSArray<NSCollectionLayoutSupplementaryItem *> *supplementaryItems;
 @end
+
+@interface NSCollectionLayoutSupplementaryItem : NSCollectionLayoutItem {
+    NSString *_elementKind;
+    NSCollectionLayoutAnchor *_containerAnchor;
+    NSCollectionLayoutAnchor *_itemAnchor;
+    NSInteger _zIndex;
+}
++ (instancetype) supplementaryItemWithLayoutSize: (NSCollectionLayoutSize *) layoutSize
+                                      elementKind: (NSString *) elementKind
+                                  containerAnchor: (NSCollectionLayoutAnchor *) containerAnchor;
++ (instancetype) supplementaryItemWithLayoutSize: (NSCollectionLayoutSize *) layoutSize
+                                      elementKind: (NSString *) elementKind
+                                  containerAnchor: (NSCollectionLayoutAnchor *) containerAnchor
+                                       itemAnchor: (NSCollectionLayoutAnchor *) itemAnchor;
+@property NSInteger zIndex;
+@property(readonly, copy) NSString *elementKind;
+@property(readonly, retain) NSCollectionLayoutAnchor *containerAnchor;
+@property(readonly, retain) NSCollectionLayoutAnchor *itemAnchor;
+@end
+
+@interface NSCollectionLayoutBoundarySupplementaryItem : NSCollectionLayoutSupplementaryItem {
+    NSRectAlignment _alignment;
+    NSPoint _offset;
+    BOOL _extendsBoundary;
+    BOOL _pinToVisibleBounds;
+}
++ (instancetype) boundarySupplementaryItemWithLayoutSize: (NSCollectionLayoutSize *) layoutSize
+                                              elementKind: (NSString *) elementKind
+                                                alignment: (NSRectAlignment) alignment;
++ (instancetype) boundarySupplementaryItemWithLayoutSize: (NSCollectionLayoutSize *) layoutSize
+                                              elementKind: (NSString *) elementKind
+                                                alignment: (NSRectAlignment) alignment
+                                           absoluteOffset: (NSPoint) absoluteOffset;
+@property BOOL extendsBoundary;
+@property BOOL pinToVisibleBounds;
+@property(readonly) NSRectAlignment alignment;
+@property(readonly) NSPoint offset;
+@end
+
+@interface NSCollectionLayoutDecorationItem : NSCollectionLayoutItem {
+    NSString *_elementKind;
+    NSInteger _zIndex;
+}
++ (instancetype) backgroundDecorationItemWithElementKind: (NSString *) elementKind;
+@property NSInteger zIndex;
+@property(readonly, copy) NSString *elementKind;
+@end
+
+@interface NSCollectionLayoutGroup : NSCollectionLayoutItem {
+    NSArray *_subitems;
+    BOOL _vertical;
+    NSCollectionLayoutSpacing *_interItemSpacing;
+}
++ (instancetype) horizontalGroupWithLayoutSize: (NSCollectionLayoutSize *) layoutSize
+                                        subitem: (NSCollectionLayoutItem *) subitem
+                                          count: (NSInteger) count;
++ (instancetype) horizontalGroupWithLayoutSize: (NSCollectionLayoutSize *) layoutSize
+                                       subitems: (NSArray<NSCollectionLayoutItem *> *) subitems;
++ (instancetype) verticalGroupWithLayoutSize: (NSCollectionLayoutSize *) layoutSize
+                                      subitem: (NSCollectionLayoutItem *) subitem
+                                        count: (NSInteger) count;
++ (instancetype) verticalGroupWithLayoutSize: (NSCollectionLayoutSize *) layoutSize
+                                     subitems: (NSArray<NSCollectionLayoutItem *> *) subitems;
+@property(copy) NSCollectionLayoutSpacing *interItemSpacing;
+@property(readonly, copy) NSArray<NSCollectionLayoutItem *> *subitems;
+@end
+
+@interface NSCollectionLayoutSection : NSObject <NSCopying> {
+    NSCollectionLayoutGroup *_group;
+    NSDirectionalEdgeInsets _contentInsets;
+    CGFloat _interGroupSpacing;
+    NSArray *_boundarySupplementaryItems;
+    NSArray *_decorationItems;
+    BOOL _supplementariesFollowContentInsets;
+}
++ (instancetype) sectionWithGroup: (NSCollectionLayoutGroup *) group;
+@property NSDirectionalEdgeInsets contentInsets;
+@property CGFloat interGroupSpacing;
+@property(copy) NSArray<NSCollectionLayoutBoundarySupplementaryItem *> *boundarySupplementaryItems;
+@property BOOL supplementariesFollowContentInsets;
+@property(copy) NSArray<NSCollectionLayoutDecorationItem *> *decorationItems;
+@end
