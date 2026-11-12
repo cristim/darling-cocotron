@@ -70,3 +70,8 @@ NSString *const NSFlowLayoutRowVerticalAlignmentKey =
 }
 
 @end
+
+@implementation NSCollectionViewFlowLayoutInvalidationContext
+@synthesize invalidateFlowLayoutDelegateMetrics = _invalidateFlowLayoutDelegateMetrics;
+@synthesize invalidateFlowLayoutAttributes = _invalidateFlowLayoutAttributes;
+@end
