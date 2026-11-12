@@ -36,6 +36,9 @@ NSTableViewRowSizeStyle NSTableViewCurrentRowSizeStyle(void) {
     return NSTableViewRowSizeStyleMedium;
 }
 
+
+NSString *const NSTableViewCurrentRowSizeStyleDidChange =
+        @"NSTableViewCurrentRowSizeStyleDidChange";
 NSString *const NSTableViewColumnDidMoveNotification =
         @"NSTableViewColumnDidMoveNotification";
 NSString *const NSTableViewColumnDidResizeNotification =

@@ -77,3 +77,7 @@ NSString *const NSPrintPanelAccessorySummaryItemNameKey =
         @"NSPrintPanelAccessorySummaryItemName";
 NSString *const NSPrintPanelAccessorySummaryItemDescriptionKey =
         @"NSPrintPanelAccessorySummaryItemDescription";
+
+NSPrintPanelJobStyleHint const NSPrintPhotoJobStyleHint = @"NSPrintPhotoJobStyleHint";
+NSPrintPanelJobStyleHint const NSPrintAllPresetsJobStyleHint = @"NSPrintAllPresetsJobStyleHint";
+NSPrintPanelJobStyleHint const NSPrintNoPresetsJobStyleHint = @"NSPrintNoPresetsJobStyleHint";

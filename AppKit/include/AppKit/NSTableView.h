@@ -52,6 +52,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 APPKIT_EXPORT NSString *const NSTableViewSelectionIsChangingNotification;
 APPKIT_EXPORT NSString *const NSTableViewSelectionDidChangeNotification;
+// Not in Apple's public headers: exported because applications import it.
+APPKIT_EXPORT NSString *const NSTableViewCurrentRowSizeStyleDidChange;
 APPKIT_EXPORT NSString *const NSTableViewColumnDidMoveNotification;
 APPKIT_EXPORT NSString *const NSTableViewColumnDidResizeNotification;
 

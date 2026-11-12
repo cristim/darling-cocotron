@@ -136,3 +136,5 @@ NS_INLINE NSDirectionalEdgeInsets NSDirectionalEdgeInsetsMake(CGFloat top, CGFlo
 	NSDirectionalEdgeInsets insets = {top, leading, bottom, trailing};
 	return insets;
 }
+
+APPKIT_EXPORT const NSDirectionalEdgeInsets NSDirectionalEdgeInsetsZero;
