@@ -49,6 +49,8 @@ set(CoreData_sources
     NSXMLPersistentStore.m
     NSMergeConflict.m
     NSMergePolicy.m
+    NSPersistentStoreRequest.m
+    NSBatchUpdateRequest.m
 )
 
 set_source_files_properties(${CoreData_sources} LANGUAGE C)
