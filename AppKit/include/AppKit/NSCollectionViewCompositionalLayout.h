@@ -18,11 +18,14 @@
 */
 
 #import <AppKit/AppKitExport.h>
+#import <AppKit/NSCollectionViewFlowLayout.h>
 #import <AppKit/NSLayoutConstraint.h>
 #import <Foundation/Foundation.h>
 
-// The classes that describe a compositional layout. They are plain value
-// objects; nothing lays items out from them yet.
+// The classes that describe a compositional layout are plain value objects.
+// NSCollectionViewCompositionalLayout only stores its description: nothing
+// lays items out from it yet, and NSCollectionViewLayout logs each
+// unimplemented call.
 
 @class NSCollectionLayoutSection, NSCollectionLayoutBoundarySupplementaryItem,
         NSCollectionLayoutDecorationItem, NSCollectionLayoutSupplementaryItem;
@@ -187,4 +190,42 @@
 @property(copy) NSArray<NSCollectionLayoutBoundarySupplementaryItem *> *boundarySupplementaryItems;
 @property BOOL supplementariesFollowContentInsets;
 @property(copy) NSArray<NSCollectionLayoutDecorationItem *> *decorationItems;
+@end
+
+@protocol NSCollectionLayoutContainer <NSObject>
+@property(readonly) NSSize contentSize;
+@property(readonly) NSSize effectiveContentSize;
+@property(readonly) NSDirectionalEdgeInsets contentInsets;
+@property(readonly) NSDirectionalEdgeInsets effectiveContentInsets;
+@end
+
+@protocol NSCollectionLayoutEnvironment <NSObject>
+@property(readonly) id<NSCollectionLayoutContainer> container;
+@end
+
+typedef NSCollectionLayoutSection * (^NSCollectionViewCompositionalLayoutSectionProvider)(
+        NSInteger sectionIndex, id<NSCollectionLayoutEnvironment> layoutEnvironment);
+
+@interface NSCollectionViewCompositionalLayoutConfiguration : NSObject <NSCopying> {
+    NSCollectionViewScrollDirection _scrollDirection;
+    CGFloat _interSectionSpacing;
+    NSArray *_boundarySupplementaryItems;
+}
+@property NSCollectionViewScrollDirection scrollDirection;
+@property CGFloat interSectionSpacing;
+@property(copy) NSArray<NSCollectionLayoutBoundarySupplementaryItem *> *boundarySupplementaryItems;
+@end
+
+@interface NSCollectionViewCompositionalLayout : NSCollectionViewLayout {
+    NSCollectionLayoutSection *_section;
+    NSCollectionViewCompositionalLayoutSectionProvider _sectionProvider;
+    NSCollectionViewCompositionalLayoutConfiguration *_configuration;
+}
+- (instancetype) initWithSection: (NSCollectionLayoutSection *) section;
+- (instancetype) initWithSection: (NSCollectionLayoutSection *) section
+                    configuration: (NSCollectionViewCompositionalLayoutConfiguration *) configuration;
+- (instancetype) initWithSectionProvider: (NSCollectionViewCompositionalLayoutSectionProvider) sectionProvider;
+- (instancetype) initWithSectionProvider: (NSCollectionViewCompositionalLayoutSectionProvider) sectionProvider
+                            configuration: (NSCollectionViewCompositionalLayoutConfiguration *) configuration;
+@property(copy) NSCollectionViewCompositionalLayoutConfiguration *configuration;
 @end

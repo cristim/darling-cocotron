@@ -20,6 +20,7 @@
 #import <AppKit/AppKitExport.h>
 #import <Foundation/NSString.h>
 #import <AppKit/NSCollectionViewLayout.h>
+#import <AppKit/NSCollectionViewLayoutInvalidationContext.h>
 
 APPKIT_EXPORT NSString *const NSCollectionElementKindSectionHeader;
 APPKIT_EXPORT NSString *const NSCollectionElementKindSectionFooter;
@@ -28,6 +29,11 @@ APPKIT_EXPORT NSString *const NSCollectionElementKindSectionFooter;
 APPKIT_EXPORT NSString *const NSFlowLayoutCommonRowHorizontalAlignmentKey;
 APPKIT_EXPORT NSString *const NSFlowLayoutLastRowHorizontalAlignmentKey;
 APPKIT_EXPORT NSString *const NSFlowLayoutRowVerticalAlignmentKey;
+
+typedef NS_ENUM(NSInteger, NSCollectionViewScrollDirection) {
+    NSCollectionViewScrollDirectionVertical,
+    NSCollectionViewScrollDirectionHorizontal,
+};
 
 @interface NSCollectionViewFlowLayout : NSCollectionViewLayout
 {
@@ -41,5 +47,15 @@ APPKIT_EXPORT NSString *const NSFlowLayoutRowVerticalAlignmentKey;
 @property NSEdgeInsets sectionInset;
 @property CGFloat minimumLineSpacing;
 @property CGFloat minimumInteritemSpacing;
+
+@end
+
+@interface NSCollectionViewFlowLayoutInvalidationContext : NSCollectionViewLayoutInvalidationContext {
+    BOOL _invalidateFlowLayoutDelegateMetrics;
+    BOOL _invalidateFlowLayoutAttributes;
+}
+
+@property BOOL invalidateFlowLayoutDelegateMetrics;
+@property BOOL invalidateFlowLayoutAttributes;
 
 @end
