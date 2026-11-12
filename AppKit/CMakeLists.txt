@@ -283,6 +283,7 @@ set(AppKit_sources
 	NSHelpManager.m
 	NSProgressIndicator.m
 	NSFontCollection.m
+	UIFontNames.m
 	NSDisplay.m
 
 	NSOpenGL/NSOpenGLView.m
