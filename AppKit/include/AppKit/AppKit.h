@@ -75,6 +75,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSDrawer.h>
 #import <AppKit/NSEPSImageRep.h>
 #import <AppKit/NSEvent.h>
+#import <AppKit/NSFilePromiseReceiver.h>
 #import <AppKit/NSFileWrapperExtensions.h>
 #import <AppKit/NSFont.h>
 #import <AppKit/NSFontCollection.h>
@@ -105,6 +106,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSLevelIndicator.h>
 #import <AppKit/NSLevelIndicatorCell.h>
 #import <AppKit/NSMatrix.h>
+#import <AppKit/NSMediaLibraryBrowserController.h>
 #import <AppKit/NSMenu.h>
 #import <AppKit/NSMenuItem.h>
 #import <AppKit/NSMovie.h>
