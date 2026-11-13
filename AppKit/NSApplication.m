@@ -400,6 +400,44 @@ NSApplication *NSApp = nil;
     return result;
 }
 
+// Private, required by Mac Catalyst frameworks and not documented. The
+// window-cycling command (Cmd-` and Shift-Cmd-`). -orderedWindows is front to
+// back and activating a window moves it to the front, so cycling by position
+// next to the key window would only alternate between two windows. Forward
+// makes the backmost window key and frontmost, which visits every window in
+// turn; reversed sends the key window to the back and makes the window that is
+// then frontmost key. Only visible, not miniaturized windows that can become
+// key take part; panels are left out because -orderedWindows leaves them out.
+// With no candidate nothing happens.
+- (void) _cycleWindowsReversed: (BOOL) reversed {
+    NSMutableArray *candidates = [NSMutableArray array];
+
+    for (NSWindow *window in [self orderedWindows]) {
+        if ([window isVisible] && ![window isMiniaturized] &&
+            [window canBecomeKeyWindow])
+            [candidates addObject: window];
+    }
+
+    NSWindow *key = [self keyWindow];
+    NSWindow *target = nil;
+
+    if (!reversed) {
+        target = [candidates lastObject];
+    } else {
+        for (NSWindow *window in candidates) {
+            if (window != key) {
+                target = window;
+                break;
+            }
+        }
+        if (target != nil && [candidates indexOfObjectIdenticalTo: key] != NSNotFound)
+            [key orderBack: nil];
+    }
+
+    if (target != nil && target != key)
+        [target makeKeyAndOrderFront: nil];
+}
+
 - (void) preventWindowOrdering {
     NSUnimplementedMethod();
 }
