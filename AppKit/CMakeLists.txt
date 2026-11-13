@@ -251,6 +251,7 @@ set(AppKit_sources
 	NSControl.m
 	NSControlAuxiliary.m
 	NSViewController.m
+	NSViewCornerConfiguration.m
 
 	NSTextView.subproj/NSTextView.m
 	NSTextView.subproj/NSBidiHelper.m
@@ -420,6 +421,7 @@ set(AppKit_sources
 	NSCandidateListTouchBarItem.m
 	NSCollectionViewFlowLayout.m
 	NSTouchBarItem.m
+	NSTouch.m
 	NSLayoutConstraint.m
 	NSSpeechSynthesizer.m
 	NSCustomTouchBarItem.m
