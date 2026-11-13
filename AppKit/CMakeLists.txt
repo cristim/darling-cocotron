@@ -251,6 +251,7 @@ set(AppKit_sources
 	NSTextView.subproj/NSSecureLayoutManager.m
 	NSTextView.subproj/NSUndoTextOperation.m
 	NSTextView.subproj/NSSubTextStorage.m
+	NSTextSystemConstants.m
 	NSTextView.subproj/NSSecureTextView.m
 
 	NSTableColumn.m
