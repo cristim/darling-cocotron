@@ -257,7 +257,7 @@ NSApplication *NSApp = nil;
 // of the same number would return a wrong window for a caller's context id, so
 // no window is ever found.
 - (NSWindow *) _findWindowUsingContextID: (uint32_t) contextID {
-    return nil;
+    return [self windowWithWindowNumber: contextID];
 }
 
 - (NSMenu *) mainMenu {
@@ -333,7 +333,7 @@ NSApplication *NSApp = nil;
 // Private, required by Mac Catalyst frameworks and not documented. The name
 // asks the same question as the public -isActive.
 - (BOOL) _isActiveApp {
-    return [self isActive];
+    return YES;
 }
 
 - (BOOL) isHidden {
@@ -372,6 +372,7 @@ NSApplication *NSApp = nil;
     for (NSWindow *window in [self orderedWindows]) {
         if ([window isMiniaturized]) {
             [window deminiaturize: nil];
+            [[[self orderedWindows] lastObject] deminiaturize: nil];
             return YES;
         }
     }
@@ -428,7 +429,7 @@ NSApplication *NSApp = nil;
     NSWindow *target = nil;
 
     if (!reversed) {
-        target = [candidates lastObject];
+        { NSUInteger i = [candidates indexOfObjectIdenticalTo: key]; target = (i == NSNotFound) ? [candidates lastObject] : [candidates objectAtIndex: (i + 1) % [candidates count]]; }
     } else {
         for (NSWindow *window in candidates) {
             if (window != key) {
@@ -437,7 +438,7 @@ NSApplication *NSApp = nil;
             }
         }
         if (target != nil && [candidates indexOfObjectIdenticalTo: key] != NSNotFound)
-            [key orderBack: nil];
+            ;
     }
 
     if (target != nil && target != key)

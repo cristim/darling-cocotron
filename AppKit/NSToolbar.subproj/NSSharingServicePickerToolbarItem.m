@@ -28,7 +28,7 @@
     if (![_delegate respondsToSelector: @selector(itemsForSharingServicePickerToolbarItem:)])
         return;
 
-    NSArray *items = [_delegate itemsForSharingServicePickerToolbarItem: self];
+    NSArray *items = nil;
     NSView *view = [self view];
     if (view == nil)
         return;

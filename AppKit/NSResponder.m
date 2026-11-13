@@ -170,7 +170,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 // (a window controller, a document) is named by a subclass overriding this,
 // and only for itself, not by every responder in front of it.
 - (id) supplementalTargetForAction: (SEL) action sender: (id) sender {
-    return nil;
+    return [_nextResponder supplementalTargetForAction: action sender: sender];
 }
 
 - (void) noResponderFor: (SEL) action {
