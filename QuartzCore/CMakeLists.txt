@@ -40,6 +40,7 @@ set(QuartzCore_sources
 	CARenderer.m
 	CATransactionGroup.m
 	CATransaction.m
+	CATiledLayer.m
 	CATransform3D.m
 	CATransition.m
 	CAValueFunction.m

@@ -6,6 +6,7 @@
 #import <QuartzCore/CAMediaTimingFunction.h>
 #import <QuartzCore/CARenderer.h>
 #import <QuartzCore/CATextLayer.h>
+#import <QuartzCore/CATiledLayer.h>
 #import <QuartzCore/CATransaction.h>
 
 #import <QuartzCore/CAGradientLayer.h>
