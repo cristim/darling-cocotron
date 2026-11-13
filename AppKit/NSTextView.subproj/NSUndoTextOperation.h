@@ -20,30 +20,6 @@
 
 #import <AppKit/AppKit.h>
 
-@interface _NSAttributes : NSObject {
-    NSDictionary *_attributes;
-    NSRange _range;
-}
-- (id) initWithAttributes: (NSDictionary *) attributes range: (NSRange) range;
-- (void) dealloc;
-- (void) setAttributesInTextStorage: (NSTextStorage *) textStorage;
-@end
-
-@interface _NSAttributeRun : NSObject <NSCopying> {
-    NSRange _range;
-    NSTextStorage *_textStorage;
-    // Array of _NSAttributes
-    NSMutableArray *_attributesArray;
-}
-- (id) initWithTextStorage: (NSTextStorage *) textStorage
-                     range: (NSRange) range;
-- (void) dealloc;
-- (void) restoreAttributesOfTextStorage: (NSTextStorage *) textStorage;
-- (id) copyWithZone: (NSZone *) zone;
-- (NSRange) range;
-
-@end
-
 @interface NSUndoTextOperation : NSObject {
     NSRange _affectedRange;
     NSUndoManager *_undoManager;
@@ -82,7 +58,7 @@
 @end
 
 @interface NSUndoSetAttributes : NSUndoTextOperation {
-    _NSAttributeRun *_attributes;
+    NSMutableArray *_savedRuns;
 }
 - (id) initWithAffectedRange: (NSRange) range
                layoutManager: (NSLayoutManager *) layoutManager
