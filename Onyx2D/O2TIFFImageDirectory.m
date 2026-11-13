@@ -26,6 +26,24 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <Onyx2D/O2Defines_libtiff.h>
 
 #if LIBTIFF_PRESENT
+#ifdef DARLING
+#include <elfcalls.h>
+#endif
+// libtiff is a host (ELF) library and branches to the client procs it is
+// given without authenticating them, so under arm64e they must be passed
+// as plain addresses. The macro comes from elfcalls.h; the fallback keeps
+// this file building against a superproject that does not have it yet.
+#ifndef ELFCALLS_STRIP
+#if defined(__has_feature)
+#if __has_feature(ptrauth_calls)
+# define ELFCALLS_STRIP(fn) \
+	((__typeof__(&*(fn)))__builtin_ptrauth_strip((void*)(fn), 0))
+#endif
+#endif
+#endif
+#ifndef ELFCALLS_STRIP
+#define ELFCALLS_STRIP(fn) (fn)
+#endif
 #define uint64 tiff_uint64
 #import <tiffio.h>
 #undef uint64
@@ -157,9 +175,13 @@ static void sTIFFUnmapFileProc(thandle_t userData, tdata_t data, toff_t size) {
     // and with a lot of tiff files
     TIFFErrorHandler prevHandler = TIFFSetWarningHandler(NULL);
     TIFF *tif = TIFFClientOpen([NSStringFromClass([self class]) UTF8String],
-                               "r", self, sTIFFReadProc, sTIFFWriteProc,
-                               sTIFFSeekProc, sTIFFCloseProc, sTIFFSizeProc,
-                               sTIFFMapFileProc, sTIFFUnmapFileProc);
+                               "r", self, ELFCALLS_STRIP(sTIFFReadProc),
+                               ELFCALLS_STRIP(sTIFFWriteProc),
+                               ELFCALLS_STRIP(sTIFFSeekProc),
+                               ELFCALLS_STRIP(sTIFFCloseProc),
+                               ELFCALLS_STRIP(sTIFFSizeProc),
+                               ELFCALLS_STRIP(sTIFFMapFileProc),
+                               ELFCALLS_STRIP(sTIFFUnmapFileProc));
 
     uint32 width = 0;
     uint32 height = 0;
