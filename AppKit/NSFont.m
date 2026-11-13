@@ -17,6 +17,7 @@ COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
+#import "UIFAppKit.h"
 #import <AppKit/NSFont.h>
 #import <AppKit/NSFontDescriptor.h>
 #import <AppKit/NSFontFamily.h>
@@ -245,7 +246,7 @@ static NSLock *_cacheLock = nil;
 
 + (NSFont *) boldSystemFontOfSize: (CGFloat) size {
     NSFont *font = [self systemFontOfSize: size];
-    return [[NSFontManager sharedFontManager] convertFont: font
+    return [[UIFAppKitClass(NSFontManager) sharedFontManager] convertFont: font
                                               toHaveTrait: NSBoldFontMask];
 }
 
@@ -306,7 +307,7 @@ static NSLock *_cacheLock = nil;
         font = [self systemFontOfSize: actualSize];
     }
     if (weight > 0.2) {
-        NSFont *boldFont = [[NSFontManager sharedFontManager] convertFont: font toHaveTrait: NSBoldFontMask];
+        NSFont *boldFont = [[UIFAppKitClass(NSFontManager) sharedFontManager] convertFont: font toHaveTrait: NSBoldFontMask];
         if (boldFont != nil) {
             return boldFont;
         }
@@ -570,7 +571,7 @@ static NSLock *_cacheLock = nil;
     NSString *fontFamily = [attributes objectForKey: NSFontFamilyAttribute];
 
     if (fontFamily) {
-        NSFontManager *fontMgr = [NSFontManager sharedFontManager];
+        NSFontManager *fontMgr = [UIFAppKitClass(NSFontManager) sharedFontManager];
 
         NSArray *matchingFonts =
                 [fontMgr availableMembersOfFontFamily: fontFamily];
@@ -660,14 +661,14 @@ static NSLock *_cacheLock = nil;
 
 - (NSString *) familyName {
     NSString *familyName =
-            [[NSFontFamily fontFamilyWithTypefaceName: _name] name];
+            [[UIFAppKitClass(NSFontFamily) fontFamilyWithTypefaceName: _name] name];
     if (familyName == nil) {
         NSString *blank = @" ";
         NSMutableArray *nameComponents = [NSMutableArray
                 arrayWithArray: [_name componentsSeparatedByString: blank]];
         while ([nameComponents count] > 1 && familyName == nil) {
             [nameComponents removeLastObject];
-            familyName = [[NSFontFamily
+            familyName = [[UIFAppKitClass(NSFontFamily)
                     fontFamilyWithName:
                             [nameComponents componentsJoinedByString: blank]]
                     name];
@@ -682,17 +683,17 @@ static NSLock *_cacheLock = nil;
 }
 
 - (NSString *) displayName {
-    NSFontTypeface *typeFace = [NSFontFamily fontTypefaceWithName: _name];
+    NSFontTypeface *typeFace = [UIFAppKitClass(NSFontFamily) fontTypefaceWithName: _name];
     return [typeFace displayName];
 }
 
 - (NSDictionary *) _fontTraitsAsDictionary {
-    NSFontManager *fm = [NSFontManager sharedFontManager];
+    NSFontManager *fm = [UIFAppKitClass(NSFontManager) sharedFontManager];
 
     NSMutableDictionary *traitsDictionary =
             [NSMutableDictionary dictionaryWithCapacity: 4];
     NSFontFamily *family =
-            [NSFontFamily fontFamilyWithTypefaceName: [self fontName]];
+            [UIFAppKitClass(NSFontFamily) fontFamilyWithTypefaceName: [self fontName]];
     NSFontTypeface *typeface = [family typefaceWithName: [self fontName]];
     NSFontTraitMask symbolicTraits = [typeface traits];
     [traitsDictionary setObject: [NSNumber numberWithInt: symbolicTraits]
@@ -710,7 +711,7 @@ static NSLock *_cacheLock = nil;
 - (NSFontDescriptor *) fontDescriptor {
 
     NSFontFamily *fontFamily =
-            [NSFontFamily fontFamilyWithName: [self familyName]];
+            [UIFAppKitClass(NSFontFamily) fontFamilyWithName: [self familyName]];
     NSFontTypeface *typeface = [fontFamily typefaceWithName: [self fontName]];
 
     NSDictionary *attributes = [NSDictionary
@@ -872,7 +873,7 @@ static NSLock *_cacheLock = nil;
     CGAffineTransform textMatrix;
 
     // FIX, should check the focusView in the context instead of NSView's
-    if ([[NSGraphicsContext currentContext] isFlipped])
+    if ([[UIFAppKitClass(NSGraphicsContext) currentContext] isFlipped])
         textMatrix = (CGAffineTransform){1, 0, 0, -1, 0, 0};
     else
         textMatrix = CGAffineTransformIdentity;
@@ -881,7 +882,7 @@ static NSLock *_cacheLock = nil;
 }
 
 - (void) set {
-    [self setInContext: [NSGraphicsContext currentContext]];
+    [self setInContext: [UIFAppKitClass(NSGraphicsContext) currentContext]];
 }
 
 - (NSPoint) positionOfGlyph: (NSGlyph) current

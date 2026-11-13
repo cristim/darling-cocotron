@@ -17,6 +17,7 @@ COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
+#import "UIFAppKit.h"
 #import <AppKit/NSBezierPath.h>
 #import <AppKit/NSGlyphGenerator.h>
 #import <AppKit/NSGraphicsContextFunctions.h>
@@ -420,7 +421,7 @@ static inline NSGlyphFragment *fragmentAtGlyphIndex(NSLayoutManager *self,
             [_textStorage attributesAtIndex: characterRange.location
                              effectiveRange: NULL];
 
-    return NSFontAttributeInDictionary(attributes);
+    return UIFFontAttributeInDictionary(attributes);
 }
 
 #define DEBUG_LM_LAYOUT 0
@@ -1757,12 +1758,12 @@ static inline void _appendRectToCache(NSLayoutManager *self, NSRect rect) {
                      color: (NSColor *) color
         printingAdjustment: (NSSize) printingAdjustment
 {
-    CGContextRef context = NSCurrentGraphicsPort();
-    [font setInContext: [NSGraphicsContext currentContext]];
+    CGContextRef context = UIFCurrentGraphicsPort();
+    [font setInContext: [UIFAppKitClass(NSGraphicsContext) currentContext]];
     if (color)
         [color setFill];
     else
-        [[NSColor controlTextColor] setFill];
+        [[UIFAppKitClass(NSColor) controlTextColor] setFill];
     CGGlyph *cgGlyphs = (CGGlyph *) glyphs;
     NSInteger cgGlyphsLength = length / 2;
     CGSize advances[cgGlyphsLength];
@@ -1815,14 +1816,14 @@ static inline void _appendRectToCache(NSLayoutManager *self, NSRect rect) {
 #endif
 
     if (selectedColor == nil)
-        selectedColor = [NSColor selectedTextBackgroundColor];
+        selectedColor = [UIFAppKitClass(NSColor) selectedTextBackgroundColor];
 
     [selectedColor setFill];
     for (i = 0; i < rectCount; i++) {
         NSRect fill = rectArray[i];
         fill.origin.x += origin.x;
         fill.origin.y += origin.y;
-        NSRectFill(fill);
+        UIFRectFill(fill);
     }
 }
 
@@ -1847,7 +1848,7 @@ static inline void _appendRectToCache(NSLayoutManager *self, NSRect rect) {
                                                   actualGlyphRange: NULL];
         NSUInteger location = characterRange.location;
         NSUInteger limit = NSMaxRange(characterRange);
-        BOOL isFlipped = [[NSGraphicsContext currentContext] isFlipped];
+        BOOL isFlipped = [[UIFAppKitClass(NSGraphicsContext) currentContext] isFlipped];
         CGFloat usedHeight =
                 [self usedRectForTextContainer: container].size.height;
 
@@ -1915,7 +1916,7 @@ static inline void _appendRectToCache(NSLayoutManager *self, NSRect rect) {
                     tempAttrs = [_delegate layoutManager: self
                             shouldUseTemporaryAttributes: tempAttrs
                                       forDrawingToScreen:
-                                              [[NSGraphicsContext
+                                              [[UIFAppKitClass(NSGraphicsContext)
                                                       currentContext]
                                                       isDrawingToScreen]
                                         atCharacterIndex: location
@@ -1953,7 +1954,7 @@ static inline void _appendRectToCache(NSLayoutManager *self, NSRect rect) {
                     fill.origin.x += origin.x;
                     fill.origin.y += origin.y;
 
-                    NSRectFill(fill);
+                    UIFRectFill(fill);
                 }
             }
 
@@ -1984,7 +1985,7 @@ static inline void _appendRectToCache(NSLayoutManager *self, NSRect rect) {
     NSUInteger i, rectCount;
     NSRange characterRange = [self characterRangeForGlyphRange: glyphRange
                                               actualGlyphRange: NULL];
-    BOOL isFlipped = [[NSGraphicsContext currentContext] isFlipped];
+    BOOL isFlipped = [[UIFAppKitClass(NSGraphicsContext) currentContext] isFlipped];
     NSTextContainer *container =
             [self textContainerForGlyphAtIndex: glyphRange.location
                                 effectiveRange: NULL];
@@ -1994,7 +1995,7 @@ static inline void _appendRectToCache(NSLayoutManager *self, NSRect rect) {
                                      inTextContainer: container
                                            rectCount: &rectCount];
 
-    NSBezierPath *path = [NSBezierPath bezierPath];
+    NSBezierPath *path = [UIFAppKitClass(NSBezierPath) bezierPath];
 
     // Lots more stylistic options available than just this
     [path setLineWidth: (underlineVal & NSUnderlineStyleThick) ? 1 : .5];
@@ -2040,7 +2041,7 @@ static inline void _appendRectToCache(NSLayoutManager *self, NSRect rect) {
         if (checkTemporaryAttributesUsage) {
             tmpAttrs = [_delegate layoutManager: self
                     shouldUseTemporaryAttributes: tmpAttrs
-                              forDrawingToScreen: [[NSGraphicsContext
+                              forDrawingToScreen: [[UIFAppKitClass(NSGraphicsContext)
                                                           currentContext]
                                                           isDrawingToScreen]
                                 atCharacterIndex: characterRange.location
@@ -2059,7 +2060,7 @@ static inline void _appendRectToCache(NSLayoutManager *self, NSRect rect) {
                 [attributes objectForKey: NSForegroundColorAttributeName];
         if (underlineColor == nil) {
             // ... and to black if still no luck
-            underlineColor = [NSColor blackColor];
+            underlineColor = [UIFAppKitClass(NSColor) blackColor];
         }
     }
     [underlineColor set];
@@ -2102,7 +2103,7 @@ static inline void _appendRectToCache(NSLayoutManager *self, NSRect rect) {
     NSUInteger i, rectCount;
     NSRange characterRange = [self characterRangeForGlyphRange: glyphRange
                                               actualGlyphRange: NULL];
-    BOOL isFlipped = [[NSGraphicsContext currentContext] isFlipped];
+    BOOL isFlipped = [[UIFAppKitClass(NSGraphicsContext) currentContext] isFlipped];
     NSTextContainer *container =
             [self textContainerForGlyphAtIndex: glyphRange.location
                                 effectiveRange: NULL];
@@ -2111,7 +2112,7 @@ static inline void _appendRectToCache(NSLayoutManager *self, NSRect rect) {
                                      inTextContainer: container
                                            rectCount: &rectCount];
 
-    NSBezierPath *path = [NSBezierPath bezierPath];
+    NSBezierPath *path = [UIFAppKitClass(NSBezierPath) bezierPath];
 
     // Lots more stylistic options available than just this
     [path setLineWidth: (strikethroughVal & NSUnderlineStyleThick) ? 1 : .5];
@@ -2143,7 +2144,7 @@ static inline void _appendRectToCache(NSLayoutManager *self, NSRect rect) {
     NSColor *underlineColor =
             [attributes objectForKey: NSUnderlineColorAttributeName];
     if (underlineColor == nil) {
-        underlineColor = [NSColor blackColor];
+        underlineColor = [UIFAppKitClass(NSColor) blackColor];
     }
     [underlineColor set];
     [path stroke];
@@ -2183,14 +2184,14 @@ static inline void _appendRectToCache(NSLayoutManager *self, NSRect rect) {
     NSUInteger i, rectCount;
     NSRange characterRange = [self characterRangeForGlyphRange: glyphRange
                                               actualGlyphRange: NULL];
-    BOOL isFlipped = [[NSGraphicsContext currentContext] isFlipped];
+    BOOL isFlipped = [[UIFAppKitClass(NSGraphicsContext) currentContext] isFlipped];
     CGFloat usedHeight = [self usedRectForTextContainer: container].size.height;
     NSRect *rects = [self rectArrayForCharacterRange: characterRange
                         withinSelectedCharacterRange: NSMakeRange(NSNotFound, 0)
                                      inTextContainer: container
                                            rectCount: &rectCount];
 
-    NSBezierPath *path = [NSBezierPath bezierPath];
+    NSBezierPath *path = [UIFAppKitClass(NSBezierPath) bezierPath];
     [path setLineWidth: 2.];
     [path setLineCapStyle: NSRoundLineCapStyle];
     CGFloat lineDash[] = {.75, 3.25};
@@ -2210,7 +2211,7 @@ static inline void _appendRectToCache(NSLayoutManager *self, NSRect rect) {
         CGFloat width = fill.size.width;
         [path relativeLineToPoint: NSMakePoint(width, 0)];
     }
-    [[NSColor redColor] setStroke];
+    [[UIFAppKitClass(NSColor) redColor] setStroke];
     [path stroke];
 }
 
@@ -2220,7 +2221,7 @@ static inline void _appendRectToCache(NSLayoutManager *self, NSRect rect) {
             objectForKey: NSForegroundColorAttributeName];
 
     if (selectedColor == nil) {
-        selectedColor = [NSColor selectedTextColor];
+        selectedColor = [UIFAppKitClass(NSColor) selectedTextColor];
     }
     return selectedColor;
 }
@@ -2241,8 +2242,8 @@ static inline void _appendRectToCache(NSLayoutManager *self, NSRect rect) {
 #define DEBUG_LM_DRAWGLYPHS 0
 #endif
 
-    NSColor *color = NSForegroundColorAttributeInDictionary(attributes);
-    NSFont *font = NSFontAttributeInDictionary(attributes);
+    NSColor *color = UIFForegroundColorAttributeInDictionary(attributes);
+    NSFont *font = UIFFontAttributeInDictionary(attributes);
 
     // First draw the packed glyphs
     char packedGlyphs[length * 2]; // Specs says length*4+1 but needed buffer
@@ -2284,7 +2285,7 @@ static inline void _appendRectToCache(NSLayoutManager *self, NSRect rect) {
             NSColor *strikeThruColor = [attributes
                     objectForKey: NSStrikethroughColorAttributeName];
             if (strikeThruColor == nil) {
-                strikeThruColor = [NSColor blackColor];
+                strikeThruColor = [UIFAppKitClass(NSColor) blackColor];
             }
             [self strikethroughGlyphRange: glyphRange
                          strikethroughType: NSUnderlineStyleThick
@@ -2366,7 +2367,7 @@ static inline void _appendRectToCache(NSLayoutManager *self, NSRect rect) {
 
     NSRange intersectRange = NSIntersectionRange(selectedRange, characterRange);
 
-    NSColor *color = NSForegroundColorAttributeInDictionary(attributes);
+    NSColor *color = UIFForegroundColorAttributeInDictionary(attributes);
 
     NSTextAttachment *attachment =
             [attributes objectForKey: NSAttachmentAttributeName];
@@ -2374,7 +2375,7 @@ static inline void _appendRectToCache(NSLayoutManager *self, NSRect rect) {
     // Get the location of the fragment
     NSPoint point = fragment->location;
 
-    NSGraphicsContext *context = [NSGraphicsContext currentContext];
+    NSGraphicsContext *context = [UIFAppKitClass(NSGraphicsContext) currentContext];
     BOOL isFlipped = [context isFlipped];
 
     // Correct its y-coord depending on the flippedness of the context
@@ -2394,7 +2395,7 @@ static inline void _appendRectToCache(NSLayoutManager *self, NSRect rect) {
      * baseline down to the bottom of the taller fragment. For a line with no tall attachment the
      * fragment is exactly the font's line height and `extra` is zero, so ordinary text is not
      * moved at all. */
-    NSFont *runFont = NSFontAttributeInDictionary(attributes);
+    NSFont *runFont = UIFFontAttributeInDictionary(attributes);
     if (runFont != nil) {
         NSRect lineFragment =
             [self lineFragmentRectForGlyphAtIndex: range.location effectiveRange: NULL];
@@ -2422,7 +2423,7 @@ static inline void _appendRectToCache(NSLayoutManager *self, NSRect rect) {
 
         // Prepare the font - we're within an attribute run - so this font will
         // be good for this entire range
-        NSFont *font = NSFontAttributeInDictionary(attributes);
+        NSFont *font = UIFFontAttributeInDictionary(attributes);
         [font setInContext: context];
 
         // We intersect with the selection so we apparently need to tread
@@ -2709,7 +2710,7 @@ static inline void _appendRectToCache(NSLayoutManager *self, NSRect rect) {
                             tempAttrs = [_delegate layoutManager: self
                                     shouldUseTemporaryAttributes: tempAttrs
                                               forDrawingToScreen:
-                                                      [[NSGraphicsContext
+                                                      [[UIFAppKitClass(NSGraphicsContext)
                                                               currentContext]
                                                               isDrawingToScreen]
                                                 atCharacterIndex: charIndex
@@ -3074,16 +3075,16 @@ static inline void _appendRectToCache(NSLayoutManager *self, NSRect rect) {
     // Don't add these markers for now - their values are ignored by the layout manager
     NSRulerMarker *marker = nil;
     
-    marker = [NSRulerMarker leftMarginMarkerWithRulerView:ruler location:style.headIndent + delta];
+    marker = [UIFAppKitClass(NSRulerMarker) leftMarginMarkerWithRulerView:ruler location:style.headIndent + delta];
     [marker setRepresentedObject:@"NSHeadIndentRulerMarkerTag"];
     [markers addObject:marker];
     
     // Looks like tailIndent value is a bit more complex - see Cocoa specs
-    marker = [NSRulerMarker rightMarginMarkerWithRulerView:ruler location:view.textContainer.containerSize.width - style.tailIndent - delta];
+    marker = [UIFAppKitClass(NSRulerMarker) rightMarginMarkerWithRulerView:ruler location:view.textContainer.containerSize.width - style.tailIndent - delta];
     [marker setRepresentedObject:@"NSTailIndentRulerMarkerTag"];
     [markers addObject:marker];
     
-    marker = [NSRulerMarker firstIndentMarkerWithRulerView:ruler location:style.firstLineHeadIndent + delta];
+    marker = [UIFAppKitClass(NSRulerMarker) firstIndentMarkerWithRulerView:ruler location:style.firstLineHeadIndent + delta];
     [marker setRepresentedObject:@"NSFirstLineHeadIndentRulerMarkerTag"];
     [markers addObject:marker];
 #endif
@@ -3092,22 +3093,22 @@ static inline void _appendRectToCache(NSLayoutManager *self, NSRect rect) {
         NSRulerMarker *marker = nil;
         switch (textTab.tabStopType) {
         case NSLeftTabStopType:
-            marker = [NSRulerMarker
+            marker = [UIFAppKitClass(NSRulerMarker)
                     leftTabMarkerWithRulerView: ruler
                                       location: textTab.location + delta];
             break;
         case NSRightTabStopType:
-            marker = [NSRulerMarker
+            marker = [UIFAppKitClass(NSRulerMarker)
                     rightTabMarkerWithRulerView: ruler
                                        location: textTab.location + delta];
             break;
         case NSCenterTabStopType:
-            marker = [NSRulerMarker
+            marker = [UIFAppKitClass(NSRulerMarker)
                     centerTabMarkerWithRulerView: ruler
                                         location: textTab.location + delta];
             break;
         case NSDecimalTabStopType:
-            marker = [NSRulerMarker
+            marker = [UIFAppKitClass(NSRulerMarker)
                     decimalTabMarkerWithRulerView: ruler
                                          location: textTab.location + delta];
             break;

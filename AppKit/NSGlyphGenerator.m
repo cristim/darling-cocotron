@@ -17,6 +17,7 @@ COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
+#import "UIFAppKit.h"
 #import <AppKit/NSAttributedString.h>
 #import <AppKit/NSGlyphGenerator.h>
 
@@ -54,7 +55,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
         if (!NSLocationInRange(characterIndex, effectiveRange)) {
             attributes = [text attributesAtIndex: characterIndex
                                   effectiveRange: &effectiveRange];
-            font = NSFontAttributeInDictionary(attributes);
+            font = UIFFontAttributeInDictionary(attributes);
         }
         if (chunkSize > (NSMaxRange(effectiveRange) - characterIndex))
             chunkSize = NSMaxRange(effectiveRange) - characterIndex;

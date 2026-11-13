@@ -18,6 +18,7 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 // Original - Christopher Lloyd <cjwl@objc.net>
+#import "UIFAppKit.h"
 #import <AppKit/NSFileWrapper.h>
 #import <AppKit/NSImage.h>
 #import <AppKit/NSTextAttachment.h>
@@ -73,7 +74,7 @@ static NSMutableDictionary *viewProviderClasses;
          * _drawAttachment:] only ever reaches the cell through -[NSTextAttachment attachmentCell].
          * Without this, an attachment created from data had a nil cell, so the layout manager drew
          * nothing for it at all -- silently, because messaging nil is a no-op. */
-        _cell = [[NSTextAttachmentCell alloc] init];
+        _cell = [[UIFAppKitClass(NSTextAttachmentCell) alloc] init];
         [_cell setAttachment: self];
     }
     return self;
@@ -86,7 +87,7 @@ static NSMutableDictionary *viewProviderClasses;
 - (instancetype) initWithFileWrapper: (NSFileWrapper *) fileWrapper {
     if ((self = [self initWithData: nil ofType: nil])) {
         _fileWrapper = [fileWrapper retain];
-        _cell = [[NSTextAttachmentCell alloc] init];
+        _cell = [[UIFAppKitClass(NSTextAttachmentCell) alloc] init];
     }
     return self;
 }
@@ -216,7 +217,7 @@ static NSMutableDictionary *viewProviderClasses;
     if (_image != nil)
         return _image;
     NSData *contents = [self contents];
-    return contents ? [[[NSImage alloc] initWithData: contents] autorelease] : nil;
+    return contents ? [[[UIFAppKitClass(NSImage) alloc] initWithData: contents] autorelease] : nil;
 }
 
 - (CGRect) attachmentBoundsForAttributes: (NSDictionary<NSAttributedStringKey, id> *) attributes
