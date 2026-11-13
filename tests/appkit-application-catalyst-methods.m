@@ -1,4 +1,5 @@
 #import <AppKit/AppKit.h>
+#include <objc/runtime.h>
 #include <stdlib.h>
 
 // Private NSApplication methods that Mac Catalyst frameworks require.
@@ -69,6 +70,19 @@ int main(void)
 
         expect([app respondsToSelector:@selector(_isActiveApp)], @"NSApplication answers -_isActiveApp");
         expect([app _isActiveApp] == [app isActive], @"-_isActiveApp agrees with -isActive");
+
+        Class pickerClass = NSClassFromString(@"NSSharingServicePickerToolbarItem");
+        expect(pickerClass != Nil && [pickerClass isSubclassOfClass:[NSToolbarItem class]],
+               @"NSSharingServicePickerToolbarItem is an NSToolbarItem subclass");
+        expect(class_getInstanceMethod(pickerClass, @selector(validate)) != NULL,
+               @"NSSharingServicePickerToolbarItem resolves -validate");
+        NSToolbarItem *picker = [[pickerClass alloc] initWithItemIdentifier:@"share"];
+        id delegate = [[NSObject alloc] init];
+        [(id)picker setDelegate:delegate];
+        expect([(id)picker delegate] == delegate, @"the picker item keeps its delegate");
+        [picker validate];
+        [picker release];
+        [delegate release];
 
         NSLog(@"PASS: NSApplication catalyst methods");
     }
