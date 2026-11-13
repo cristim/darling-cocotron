@@ -91,6 +91,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSGraphics.h>
 #import <AppKit/NSGraphicsContext.h>
 #import <AppKit/NSGroupTouchBarItem.h>
+#import <AppKit/NSButtonTouchBarItem.h>
 #import <AppKit/NSHaptics.h>
 #import <AppKit/NSHelpManager.h>
 #import <AppKit/NSImage.h>
@@ -214,6 +215,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSToolbarItem.h>
 #import <AppKit/NSToolbarItemGroup.h>
 #import <AppKit/NSTouchBar.h>
+#import <AppKit/NSStepperTouchBarItem.h>
 #import <AppKit/NSTouchBarItem.h>
 #import <AppKit/NSTrackingArea.h>
 #import <AppKit/NSTreeController.h>
