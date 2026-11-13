@@ -427,6 +427,7 @@ set(AppKit_sources
 	NSClickGestureRecognizer.m
 	NSDraggingItem.m
 	NSGroupTouchBarItem.m
+	NSButtonTouchBarItem.m
 	NSKeyBindingManager.m
 	NSPasteboardItem.m
 	NSPopoverTouchBarItem.m
@@ -435,6 +436,7 @@ set(AppKit_sources
 	NSTableCellView.m
 	NSTableRowView.m
 	NSTouchBar.m
+	NSStepperTouchBarItem.m
 	NSTreeNode.m
 	NSVisualEffectView.m
 	NSATSTypesetter.m
