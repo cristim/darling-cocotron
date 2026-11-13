@@ -233,6 +233,8 @@ int main(void)
                @"NSSharingServicePickerToolbarItem is an NSToolbarItem subclass");
         expect(class_getInstanceMethod(pickerClass, @selector(validate)) != NULL,
                @"NSSharingServicePickerToolbarItem resolves -validate");
+        expect(class_getInstanceMethod(pickerClass, @selector(share:)) != NULL,
+               @"NSSharingServicePickerToolbarItem resolves -share:");
         expect(pickerProtocolInheritsPickerDelegate(),
                @"the toolbar item delegate protocol inherits NSSharingServicePickerDelegate");
         NSToolbarItem *picker = [[pickerClass alloc] initWithItemIdentifier:@"share"];
@@ -240,6 +242,14 @@ int main(void)
         [(id)picker setDelegate:delegate];
         expect([(id)picker delegate] == delegate, @"the picker item keeps its delegate");
         [picker validate];
+        [(id)picker share:nil];
+        expect(delegate->asked == 1 && delegate->askedBy == picker,
+               @"share: asks the delegate once, passing the item");
+        [(id)picker setDelegate:nil];
+        [(id)picker share:nil];
+        expect(delegate->asked == 1, @"share: without a delegate asks nobody");
+        [(id)picker setDelegate:(id)[[[NSObject alloc] init] autorelease]];
+        [(id)picker share:nil];
 
         id configuration = [[NSObject alloc] init];
         [(id)picker setActivityItemsConfiguration:configuration];
