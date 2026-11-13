@@ -1,4 +1,4 @@
-// NSButtonTouchBarItem, NSStepperTouchBarItem and NSSharingServicePickerToolbarItem: class, metaclass, superclass, property types and documented behaviour.
+// NSButtonTouchBarItem and NSStepperTouchBarItem: class, metaclass, superclass, property types and documented behaviour.
 #import <AppKit/AppKit.h>
 #import <objc/runtime.h>
 #include <stdlib.h>
@@ -41,7 +41,6 @@ int main(void)
     {
         checkClass("NSButtonTouchBarItem", "NSTouchBarItem");
         checkClass("NSStepperTouchBarItem", "NSTouchBarItem");
-        checkClass("NSSharingServicePickerToolbarItem", "NSToolbarItem");
         checkProperty("NSButtonTouchBarItem", "title", "@\"NSString\"");
         checkProperty("NSButtonTouchBarItem", "enabled", @encode(BOOL));
         checkProperty("NSButtonTouchBarItem", "action", ":");
@@ -63,8 +62,6 @@ int main(void)
         stepper.value = 12.5;
         expect(stepper.value == 12.5, @"stepper value");
 
-        NSSharingServicePickerToolbarItem *picker = [[NSSharingServicePickerToolbarItem alloc] initWithItemIdentifier:@"p"];
-        expect([picker.itemIdentifier isEqual:@"p"] && picker.delegate == nil, @"picker item identifier");
         printf("PASS: appkit-documented-toolbar-items\n");
     }
     return 0;

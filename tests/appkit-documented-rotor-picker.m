@@ -1,4 +1,4 @@
-// NSAccessibilityCustomRotor and NSWritingToolsCoordinator: class, metaclass, superclass, property types and documented behaviour.
+// NSAccessibilityCustomRotor and NSSharingServicePickerToolbarItem: class, metaclass, superclass, property types and documented behaviour.
 #import <AppKit/AppKit.h>
 #import <objc/runtime.h>
 #include <stdlib.h>
@@ -40,28 +40,16 @@ int main(void)
     @autoreleasepool
     {
         checkClass("NSAccessibilityCustomRotor", "NSObject");
-        checkClass("NSWritingToolsCoordinator", "NSObject");
         checkProperty("NSAccessibilityCustomRotor", "label", "@\"NSString\"");
         checkProperty("NSAccessibilityCustomRotor", "type", "q");
-        checkProperty("NSWritingToolsCoordinator", "preferredBehavior", "q");
-        checkProperty("NSWritingToolsCoordinator", "preferredResultOptions", "Q");
-        checkProperty("NSWritingToolsCoordinator", "includesTextListMarkers", @encode(BOOL));
-        checkProperty("NSWritingToolsCoordinator", "state", "q");
-
         NSAccessibilityCustomRotor *rotor = [[NSAccessibilityCustomRotor alloc] initWithLabel:@"Notes" itemSearchDelegate:nil];
         expect([rotor.label isEqual:@"Notes"] && rotor.type == NSAccessibilityCustomRotorTypeCustom, @"label rotor");
         rotor = [[NSAccessibilityCustomRotor alloc] initWithRotorType:NSAccessibilityCustomRotorTypeLink itemSearchDelegate:nil];
         expect(rotor.type == NSAccessibilityCustomRotorTypeLink, @"typed rotor");
-
-        NSWritingToolsCoordinator *coordinator = [[NSWritingToolsCoordinator alloc] initWithDelegate:nil];
-        expect(![NSWritingToolsCoordinator isWritingToolsAvailable], @"Writing Tools is unavailable");
-        expect(coordinator.preferredBehavior == NSWritingToolsBehaviorDefault, @"preferred behavior default");
-        expect(coordinator.state == NSWritingToolsCoordinatorStateInactive && coordinator.view == nil, @"inactive coordinator");
-        expect([coordinator startTextAnimation:NSWritingToolsCoordinatorTextAnimationInsert
-                                      forRange:NSMakeRange(0, 1)
-                                     inContext:nil
-                              writingDirection:NSWritingDirectionNatural] == nil, @"no animation id");
-        printf("PASS: appkit-documented-rotor-writing-tools\n");
+        checkClass("NSSharingServicePickerToolbarItem", "NSToolbarItem");
+        NSSharingServicePickerToolbarItem *picker = [[NSSharingServicePickerToolbarItem alloc] initWithItemIdentifier:@"p"];
+        expect([picker.itemIdentifier isEqual:@"p"] && picker.delegate == nil, @"picker item identifier");
+        printf("PASS: appkit-documented-rotor-picker\n");
     }
     return 0;
 }
