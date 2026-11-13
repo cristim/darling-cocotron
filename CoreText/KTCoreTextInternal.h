@@ -1,6 +1,7 @@
 #import <CoreText/CTFont.h>
 #import <CoreText/CTLine.h>
 #import <CoreText/CTRun.h>
+#import <CoreText/CTParagraphStyle.h>
 
 CTLineRef KTCoreTextCreateLineWithRange(CFAttributedStringRef string, CFRange range);
 void KTCoreTextFinalizeObject(CFTypeRef object);
@@ -22,6 +23,26 @@ bool KTCoreTextBridgeType(CFTypeID type, const char *className);
 bool KTCoreTextIsDescriptor(CFTypeRef object);
 
 extern const CFStringRef kCTFontAttributeName;
+
+// Private CoreText interfaces that other frameworks use. Declared by their open WebKit SPI header; the semantics are
+// CTLineCreateWithAttributedString and CTTypesetterCreateWithAttributedStringAndOptions on the concatenated chunks.
+// The callback returns the characters from stringIndex on (NULL when there are none), reports how many it returns and
+// their attributes, and the dispose callback (optional) gets the pointer back once its characters were read.
+typedef const UniChar *(*CTUniCharProviderCallback)(CFIndex stringIndex, CFIndex *charCount, CFDictionaryRef *attributes, void *refCon);
+typedef void (*CTUniCharDisposeCallback)(const UniChar *chars, void *refCon);
+CTLineRef CTLineCreateWithUniCharProvider(CTUniCharProviderCallback provider, CTUniCharDisposeCallback dispose, void *refCon);
+CFAttributedStringRef KTCoreTextCreateAttributedStringWithProvider(CTUniCharProviderCallback provider, CTUniCharDisposeCallback dispose, void *refCon);
+CGSize CTRunGetInitialAdvance(CTRunRef run);
+
+// Which language's line composition rules apply (Japanese kinsoku and the like). Public values are the WebKit SPI's.
+typedef CF_ENUM(uint8_t, CTCompositionLanguage) {
+    kCTCompositionLanguageUnset,
+    kCTCompositionLanguageNone,
+    kCTCompositionLanguageJapanese,
+    kCTCompositionLanguageSimplifiedChinese,
+    kCTCompositionLanguageTraditionalChinese,
+};
+void CTParagraphStyleSetCompositionLanguage(CTParagraphStyleRef style, CTCompositionLanguage language);
 
 extern const CFStringRef KTLineAttributedStringKey;
 extern const CFStringRef KTLineRunsKey;

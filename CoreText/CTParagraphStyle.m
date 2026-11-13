@@ -1,6 +1,7 @@
 #import <CoreText/CTParagraphStyle.h>
 #import <CoreText/CTTextTab.h>
 #import <CoreText/CTLine.h>
+#import "KTCoreTextInternal.h"
 #include <CoreFoundation/CFArray.h>
 #include <CoreFoundation/CFRuntime.h>
 #include <pthread.h>
@@ -19,6 +20,7 @@ struct __CTParagraphStyle {
     CFRuntimeBase base;
     union ParagraphValue values[kCTParagraphStyleSpecifierCount];
     CFArrayRef tabs;
+    CTCompositionLanguage compositionLanguage;
 };
 
 static void finalizeParagraph(CFTypeRef value) {
@@ -126,6 +128,11 @@ CTParagraphStyleRef CTParagraphStyleCreate(const CTParagraphStyleSetting *settin
 invalid:
     if (tabs != NULL) CFRelease(tabs);
     return NULL;
+}
+
+void CTParagraphStyleSetCompositionLanguage(CTParagraphStyleRef style, CTCompositionLanguage language) {
+    if (style == NULL || CFGetTypeID(style) != CTParagraphStyleGetTypeID()) return;
+    ((struct __CTParagraphStyle *)style)->compositionLanguage = language;
 }
 
 CTParagraphStyleRef CTParagraphStyleCreateCopy(CTParagraphStyleRef style) {

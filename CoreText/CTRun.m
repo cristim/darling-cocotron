@@ -162,6 +162,13 @@ CGRect CTRunGetImageBounds(CTRunRef run, CGContextRef context, CFRange range)
     return CGRectMake(0, -descent, width, ascent + descent + leading);
 }
 
+// The offset before the first glyph that shaping can introduce (kerning against the previous run). This layout does
+// not shape, so a run always starts at its own origin.
+CGSize CTRunGetInitialAdvance(CTRunRef run)
+{
+    return CGSizeZero;
+}
+
 CGAffineTransform CTRunGetTextMatrix(CTRunRef run)
 {
     return CGAffineTransformIdentity;

@@ -35,6 +35,15 @@ CTTypesetterRef CTTypesetterCreateWithAttributedStringAndOptions(CFAttributedStr
     return (CTTypesetterRef)ts;
 }
 
+CTTypesetterRef CTTypesetterCreateWithUniCharProviderAndOptions(CTUniCharProviderCallback provider,
+        CTUniCharDisposeCallback dispose, void *refCon, CFDictionaryRef options) {
+    CFAttributedStringRef string = KTCoreTextCreateAttributedStringWithProvider(provider, dispose, refCon);
+    if (string == NULL) return NULL;
+    CTTypesetterRef typesetter = CTTypesetterCreateWithAttributedStringAndOptions(string, options);
+    CFRelease(string);
+    return typesetter;
+}
+
 CTLineRef CTTypesetterCreateLine(CTTypesetterRef typesetter, CFRange stringRange) {
     _CTTypesetter *ts = (_CTTypesetter *)typesetter;
     if (!ts || !ts->_string) {
