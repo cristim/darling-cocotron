@@ -51,6 +51,33 @@ static Class registerBridge(void)
 
 static void checkFont(CTFontRef font)
 {
+    expect(CTFontGetUnitsPerEm(font) > 0, @"units per em");
+    CGGlyph letter;
+    UniChar a = 'A';
+    CTFontGetGlyphsForCharacters(font, &a, &letter, 1);
+    CGRect box;
+    CGRect together = CTFontGetBoundingRectsForGlyphs(font, kCTFontOrientationDefault, &letter, &box, 1);
+    expect(box.size.width > 5 && box.size.height > 10 && box.size.height < 40 && CGRectEqualToRect(box, together), @"glyph bounding box in points");
+    CGRect optical;
+    CTFontGetOpticalBoundsForGlyphs(font, &letter, &optical, 1, 0);
+    expect(CGRectEqualToRect(optical, box), @"optical bounds are the bounding box");
+    CGSize translation = CGSizeMake(1, 1);
+    CTFontGetVerticalTranslationsForGlyphs(font, &letter, &translation, 1);
+    expect(translation.width == 0 && translation.height == 0, @"no vertical translation");
+    expect(CTFontGetSymbolicTraits(font) == 0, @"DejaVu Sans is a plain proportional face");
+    CFDictionaryRef traits = CTFontCopyTraits(font);
+    expect(traits != NULL && CFDictionaryContainsKey(traits, kCTFontSymbolicTrait), @"traits carry the symbolic traits");
+    CFRelease(traits);
+    CTFontDescriptorRef described = CTFontCopyFontDescriptor(font);
+    expect(described != NULL, @"a font has a descriptor");
+    CFTypeRef describedSize = CTFontDescriptorCopyAttribute(described, kCTFontSizeAttribute);
+    double describedPoints = 0;
+    expect(describedSize != NULL && CFNumberGetValue(describedSize, kCFNumberDoubleType, &describedPoints) && describedPoints == 20, @"the descriptor has the size");
+    CFRelease(describedSize);
+    CFTypeRef describedFamily = CTFontDescriptorCopyAttribute(described, kCTFontFamilyNameAttribute);
+    expect(describedFamily != NULL, @"and the family name");
+    CFRelease(describedFamily);
+    CFRelease(described);
     expect(!CTFontIsSystemUIFont(font) && !CTFontIsTextStyleFont(font) && !CTFontIsAppleColorEmoji(font) && !CTFontIsLastResort(font), @"an ordinary font is none of the special kinds");
     expect(!CTFontIsVertical(font), @"fonts are horizontal");
     expect(CTFontHasTable(font, 0x68656164) && !CTFontHasTable(font, 0x7a7a7a7a), @"a font has its head table and no zzzz table");

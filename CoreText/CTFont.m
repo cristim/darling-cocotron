@@ -410,8 +410,26 @@ CTFontRef CTFontCreateForStringWithLanguage(CTFontRef currentFont, CFStringRef s
 
 CTFontDescriptorRef CTFontCopyFontDescriptor(CTFontRef font)
 {
-    printf("STUB %s\n", __PRETTY_FUNCTION__);
-    return nil;
+    CFMutableDictionaryRef attributes = CFDictionaryCreateMutable(kCFAllocatorDefault, 0, &kCFTypeDictionaryKeyCallBacks,
+                                                                  &kCFTypeDictionaryValueCallBacks);
+    CFStringRef names[] = {CTFontCopyPostScriptName(font), CTFontCopyFamilyName(font), CTFontCopyDisplayName(font)};
+    CFStringRef keys[] = {kCTFontNameAttribute, kCTFontFamilyNameAttribute, kCTFontDisplayNameAttribute};
+    for (int i = 0; i < 3; i++) {
+        if (names[i] != NULL) {
+            CFDictionarySetValue(attributes, keys[i], names[i]);
+            CFRelease(names[i]);
+        }
+    }
+    double size = fontSize(font);
+    CFNumberRef sizeNumber = CFNumberCreate(kCFAllocatorDefault, kCFNumberDoubleType, &size);
+    CFDictionarySetValue(attributes, kCTFontSizeAttribute, sizeNumber);
+    CFRelease(sizeNumber);
+    NSArray *cascade = fontCascade(font);
+    if (cascade != nil)
+        CFDictionarySetValue(attributes, kCTFontCascadeListAttribute, cascade);
+    CTFontDescriptorRef descriptor = CTFontDescriptorCreateWithAttributes(attributes);
+    CFRelease(attributes);
+    return descriptor;
 }
 
 CFTypeRef CTFontCopyAttribute(CTFontRef font, CFStringRef attribute)
@@ -444,16 +462,37 @@ CGAffineTransform CTFontGetMatrix(CTFontRef font)
     return CGAffineTransformIdentity;
 }
 
+// From the face's style flags and its fixed pitch flag; the other traits (condensed, vertical and the like) are not
+// derived here.
 CTFontSymbolicTraits CTFontGetSymbolicTraits(CTFontRef font)
 {
-    printf("STUB %s\n", __PRETTY_FUNCTION__);
-    return kCTFontTraitItalic;
+    FT_Face face = faceForFont(font);
+    CTFontSymbolicTraits traits = 0;
+    if (face == NULL)
+        return traits;
+    if (face->style_flags & FT_STYLE_FLAG_ITALIC)
+        traits |= kCTFontTraitItalic;
+    if (face->style_flags & FT_STYLE_FLAG_BOLD)
+        traits |= kCTFontTraitBold;
+    if (FT_IS_FIXED_WIDTH(face))
+        traits |= kCTFontTraitMonoSpace;
+    return traits;
 }
 
+// The symbolic traits and neutral normalized weight, width and slant (0): this CoreText derives no more.
 CFDictionaryRef CTFontCopyTraits(CTFontRef font)
 {
-    printf("STUB %s\n", __PRETTY_FUNCTION__);
-    return nil;
+    uint32_t symbolic = CTFontGetSymbolicTraits(font);
+    double zero = 0;
+    CFNumberRef symbolicNumber = CFNumberCreate(kCFAllocatorDefault, kCFNumberSInt32Type, &symbolic);
+    CFNumberRef zeroNumber = CFNumberCreate(kCFAllocatorDefault, kCFNumberDoubleType, &zero);
+    const void *keys[] = {kCTFontSymbolicTrait, kCTFontWeightTrait, kCTFontWidthTrait, kCTFontSlantTrait};
+    const void *values[] = {symbolicNumber, zeroNumber, zeroNumber, zeroNumber};
+    CFDictionaryRef traits = CFDictionaryCreate(kCFAllocatorDefault, keys, values, 4, &kCFTypeDictionaryKeyCallBacks,
+                                                &kCFTypeDictionaryValueCallBacks);
+    CFRelease(symbolicNumber);
+    CFRelease(zeroNumber);
+    return traits;
 }
 
 CFArrayRef CTFontCopyDefaultCascadeListForLanguages(CTFontRef font, CFArrayRef languagePrefList)
@@ -560,8 +599,8 @@ CGFloat CTFontGetLeading(CTFontRef self) {
 
 unsigned int CTFontGetUnitsPerEm(CTFontRef font)
 {
-    printf("STUB %s\n", __PRETTY_FUNCTION__);
-    return 0;
+    int units = CGFontGetUnitsPerEm(graphicsFont(font));
+    return units > 0 ? (unsigned int)units : 0;
 }
 
 CFIndex CTFontGetGlyphCount(CTFontRef font) {
@@ -680,12 +719,25 @@ CGGlyph CTFontGetGlyphWithName(CTFontRef font, CFStringRef glyphName)
     return cgFont ? CGFontGetGlyphWithGlyphName(cgFont, glyphName) : CGNullGlyph;
 }
 
+// The glyph boxes in points, from the face's unscaled metrics; the vertical orientation is not distinguished.
 CGRect CTFontGetBoundingRectsForGlyphs(CTFontRef font, CTFontOrientation orientation,
                                        const CGGlyph *glyphs, CGRect *boundingRects,
                                        CFIndex count)
 {
-    printf("STUB %s\n", __PRETTY_FUNCTION__);
-    return CGRectMake(0, 0, 0, 0);
+    FT_Face face = faceForFont(font);
+    CGRect all = CGRectNull;
+    for (CFIndex i = 0; i < count; i++) {
+        CGRect box = CGRectZero;
+        if (face != NULL && FT_Load_Glyph(face, glyphs[i], FT_LOAD_NO_SCALE) == 0) {
+            const FT_Glyph_Metrics *m = &face->glyph->metrics;
+            box = CGRectMake(scaled(font, m->horiBearingX), scaled(font, m->horiBearingY - m->height),
+                             scaled(font, m->width), scaled(font, m->height));
+        }
+        if (boundingRects != NULL)
+            boundingRects[i] = box;
+        all = CGRectUnion(all, box);
+    }
+    return CGRectIsNull(all) ? CGRectZero : all;
 }
 
 double CTFontGetAdvancesForGlyphs(CTFontRef font, CTFontOrientation orientation,
@@ -706,18 +758,20 @@ double CTFontGetAdvancesForGlyphs(CTFontRef font, CTFontOrientation orientation,
     return sum;
 }
 
+// Optical bounds are the glyph bounding boxes here: no optical adjustment is applied.
 CGRect CTFontGetOpticalBoundsForGlyphs(CTFontRef font, const CGGlyph *glyphs,
                                        CGRect *boundingRects, CFIndex count,
                                        CFOptionFlags options)
 {
-    printf("STUB %s\n", __PRETTY_FUNCTION__);
-    return CGRectMake(0, 0, 0, 0);
+    return CTFontGetBoundingRectsForGlyphs(font, kCTFontOrientationDefault, glyphs, boundingRects, count);
 }
 
+// Horizontal layout only: no glyph is translated for vertical use.
 void CTFontGetVerticalTranslationsForGlyphs(CTFontRef font, const CGGlyph *glyphs,
                                             CGSize *translations, CFIndex count)
 {
-    printf("STUB %s\n", __PRETTY_FUNCTION__);
+    for (CFIndex i = 0; i < count; i++)
+        translations[i] = CGSizeZero;
 }
 
 CFArrayRef CTFontCopyVariationAxes(CTFontRef font)
