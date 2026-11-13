@@ -121,7 +121,7 @@ static CATransactionGroup *createImplicitTransactionGroupIfNeeded() {
 // when no transaction is open. It never opens an implicit transaction, unlike
 // reading a transaction property.
 + (id) currentState {
-    return currentTransactionGroup();
+    return createImplicitTransactionGroupIfNeeded();
 }
 
 + (void) flush {
