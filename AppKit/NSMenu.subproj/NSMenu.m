@@ -30,6 +30,8 @@ const NSNotificationName NSMenuWillSendActionNotification = @"NSMenuWillSendActi
 const NSNotificationName NSMenuDidSendActionNotification = @"NSMenuDidSendActionNotification";
 const NSNotificationName NSMenuDidBeginTrackingNotification = @"NSMenuDidBeginTrackingNotification";
 const NSNotificationName NSMenuDidEndTrackingNotification = @"NSMenuDidEndTrackingNotification";
+const NSNotificationName NSMenuDidAddItemNotification = @"NSMenuDidAddItemNotification";
+const NSNotificationName NSMenuDidChangeItemNotification = @"NSMenuDidChangeItemNotification";
 NSString *const NSFontMenuName = @"Font";
 NSString *const NSHelpMenuName = @"Help";
 NSString *const NSMainMenuName = @"Application";
@@ -338,6 +340,7 @@ NSString *const _NSWindowsMenuName = @"Window";
 - (void) addItem: (NSMenuItem *) item {
     [item performSelector: @selector(_setMenu:) withObject: self];
     [_itemArray addObject: item];
+    [self _postDidAddItemAtIndex: [_itemArray count] - 1];
 }
 
 - (NSMenuItem *) addItemWithTitle: (NSString *) title
@@ -371,6 +374,14 @@ NSString *const _NSWindowsMenuName = @"Window";
 - (void) insertItem: (NSMenuItem *) item atIndex: (NSInteger) index {
     [item performSelector: @selector(_setMenu:) withObject: self];
     [_itemArray insertObject: item atIndex: index];
+    [self _postDidAddItemAtIndex: index];
+}
+
+- (void) _postDidAddItemAtIndex: (NSInteger) index {
+    [[NSNotificationCenter defaultCenter]
+        postNotificationName: NSMenuDidAddItemNotification
+                      object: self
+                    userInfo: @{@"NSMenuItemIndex" : @(index)}];
 }
 
 - (NSMenuItem *) insertItemWithTitle: (NSString *) title
@@ -464,7 +475,6 @@ BOOL itemIsEnabled(NSMenuItem *item) {
                 if (enabled != currentlyEnabled &&
                     ![item _binderForBinding: @"enabled" create: NO]) {
                     [item setEnabled: enabled];
-                    [self itemChanged: item];
                 }
             }
 
@@ -476,6 +486,13 @@ BOOL itemIsEnabled(NSMenuItem *item) {
 }
 
 - (void) itemChanged: (NSMenuItem *) item {
+    NSUInteger index = [_itemArray indexOfObjectIdenticalTo: item];
+    if (index == NSNotFound)
+        return;
+    [[NSNotificationCenter defaultCenter]
+        postNotificationName: NSMenuDidChangeItemNotification
+                      object: self
+                    userInfo: @{@"NSMenuItemIndex" : @(index)}];
 }
 
 - (BOOL) performKeyEquivalent: (NSEvent *) event {

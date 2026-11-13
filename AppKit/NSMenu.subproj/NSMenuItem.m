@@ -329,6 +329,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
     title = [title copy];
     [_title release];
     _title = title;
+    [_menu itemChanged: self];
 }
 
 - (void) setAttributedTitle: (NSAttributedString *) title {
@@ -365,7 +366,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 }
 
 - (void) setState: (NSControlStateValue) state {
+    BOOL changed = _state != state;
     _state = state;
+    if (changed)
+        [_menu itemChanged: self];
 }
 
 - (void) setKeyEquivalent: (NSString *) keyEquivalent {
@@ -412,7 +416,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 }
 
 - (void) setEnabled: (BOOL) flag {
+    BOOL changed = _enabled != flag;
     _enabled = flag;
+    if (changed)
+        [_menu itemChanged: self];
 }
 
 - (void) setHidden: (BOOL) flag {
