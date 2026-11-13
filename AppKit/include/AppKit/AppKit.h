@@ -22,6 +22,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSATSTypesetter.h>
 #import <AppKit/NSAccessibility.h>
 #import <AppKit/NSAccessibilityElement.h>
+#import <AppKit/NSAccessibilityCustomRotor.h>
 #import <AppKit/NSActionCell.h>
 #import <AppKit/NSAdaptiveImageGlyph.h>
 #import <AppKit/NSAffineTransform.h>
@@ -213,6 +214,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSTokenFieldCell.h>
 #import <AppKit/NSToolbar.h>
 #import <AppKit/NSToolbarItem.h>
+#import <AppKit/NSSharingServicePickerToolbarItem.h>
 #import <AppKit/NSToolbarItemGroup.h>
 #import <AppKit/NSTouchBar.h>
 #import <AppKit/NSStepperTouchBarItem.h>

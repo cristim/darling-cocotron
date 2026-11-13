@@ -368,6 +368,7 @@ set(AppKit_sources
 	NSPrivateStubClasses.m
 
 	NSToolbar.subproj/NSToolbarItemGroup.m
+	NSToolbar.subproj/NSSharingServicePickerToolbarItem.m
 	NSToolbar.subproj/NSToolbarCustomizationView.m
 	NSToolbar.subproj/NSToolbarView.m
 	NSToolbar.subproj/NSToolbar.m
@@ -419,6 +420,7 @@ set(AppKit_sources
 
 	NSStepper.m
 	NSAccessibility.m
+	NSAccessibilityCustomRotor.m
 	NSAppearance.m
 	NSAccessibilityElement.m
 	NSAccessibilityRemoteUIElement.m
