@@ -182,6 +182,14 @@ CTFontDescriptorRef CTFontDescriptorCreateWithAttributes(CFDictionaryRef attribu
     return descriptor;
 }
 
+// GUESS (rung 6): no public header or documentation gives the signature of CTFontDescriptorCreateWithAttributesAndOptions. The
+// name says it is CTFontDescriptorCreateWithAttributes plus an options word, which is what this assumes; the options are not
+// interpreted because nothing is known about them, and a caller that passes none or something else gets the same descriptor.
+CTFontDescriptorRef CTFontDescriptorCreateWithAttributesAndOptions(CFDictionaryRef attributes, CFOptionFlags options)
+{
+    return CTFontDescriptorCreateWithAttributes(attributes);
+}
+
 CTFontDescriptorRef CTFontDescriptorCreateWithNameAndSize(CFStringRef name, CGFloat size)
 {
     NSMutableDictionary *attributes = [NSMutableDictionary dictionary];
