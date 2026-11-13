@@ -1,11 +1,13 @@
 #import <QuartzCore/CAAnimation.h>
 #import <QuartzCore/CADisplayLink.h>
+#import <QuartzCore/CAEAGLLayer.h>
 #import <QuartzCore/CAFrameRateRange.h>
 #import <QuartzCore/CAConstraintLayoutManager.h>
 #import <QuartzCore/CALayer.h>
 #import <QuartzCore/CAMediaTimingFunction.h>
 #import <QuartzCore/CARenderer.h>
 #import <QuartzCore/CATextLayer.h>
+#import <QuartzCore/CATiledLayer.h>
 #import <QuartzCore/CATransaction.h>
 
 #import <QuartzCore/CAGradientLayer.h>
