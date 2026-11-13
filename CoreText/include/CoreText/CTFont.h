@@ -254,6 +254,8 @@ CORETEXT_EXPORT unsigned int CTFontGetUnitsPerEm(CTFontRef font);
 CORETEXT_EXPORT CFIndex CTFontGetGlyphCount(CTFontRef font);
 CORETEXT_EXPORT CGRect CTFontGetBoundingBox(CTFontRef self);
 CORETEXT_EXPORT CGFloat CTFontGetUnderlinePosition(CTFontRef self);
+// Not in Apple's public documentation: the prototype is GUESS, see CTFont.m.
+CORETEXT_EXPORT CGRect CTFontGetLanguageAwareOutsets(CTFontRef self);
 CORETEXT_EXPORT CGFloat CTFontGetUnderlineThickness(CTFontRef self);
 CORETEXT_EXPORT CGFloat CTFontGetSlantAngle(CTFontRef self);
 CORETEXT_EXPORT CGFloat CTFontGetCapHeight(CTFontRef self);

@@ -33,6 +33,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <ft2build.h>
 #import FT_FREETYPE_H
 #import FT_OUTLINE_H
+#include <dispatch/dispatch.h>
 #ifdef DARLING
 #undef __linux__
 #endif
@@ -472,6 +473,19 @@ CGRect CTFontGetBoundingBox(CTFontRef self) {
 
 CGFloat CTFontGetUnderlinePosition(CTFontRef self) {
     return scaled(self, faceForFont(self)->underline_position);
+}
+
+// GUESS (rung 6), NEEDS-REAL-MAC: Calendar imports the name; the public documentation
+// has no such function. "Outsets" are read here as how far a font's glyphs reach
+// beyond its ordinary box, for languages whose scripts extend further. The result is
+// four doubles of zero, which any four-double or smaller struct reads as "no
+// extension"; the arguments are ignored. Logged once.
+CGRect CTFontGetLanguageAwareOutsets(CTFontRef self) {
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        NSLog(@"CTFontGetLanguageAwareOutsets: not implemented, returning zero outsets");
+    });
+    return CGRectZero;
 }
 
 CGFloat CTFontGetUnderlineThickness(CTFontRef self) {
