@@ -250,6 +250,14 @@ NSApplication *NSApp = nil;
     return window;
 }
 
+// Private. AppKit-hosting frameworks (Mac Catalyst) ask the application which
+// window owns a rendering context. Darling has no per-window context: there is
+// one connection per process and CGS addresses a window by its window number
+// (see CGS.m), so that number is the context id of its window.
+- (NSWindow *) _findWindowUsingContextID: (uint32_t) contextID {
+    return [self windowWithWindowNumber: contextID];
+}
+
 - (NSMenu *) mainMenu {
     return _mainMenu;
 }
