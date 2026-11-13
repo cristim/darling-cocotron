@@ -42,7 +42,7 @@ int main(void)
         checkClass("NSTouch", "NSObject");
         checkClass("NSViewCornerConfiguration", "NSObject");
         checkProperty("NSTouch", "phase", "Q");
-        checkProperty("NSTouch", "resting", "c");
+        checkProperty("NSTouch", "resting", @encode(BOOL));
         checkProperty("NSTouch", "deviceSize", "{CGSize=dd}");
 
         NSTouch *touch = [[NSTouch alloc] init];

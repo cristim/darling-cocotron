@@ -45,7 +45,7 @@ int main(void)
         checkProperty("NSAccessibilityCustomRotor", "type", "q");
         checkProperty("NSWritingToolsCoordinator", "preferredBehavior", "q");
         checkProperty("NSWritingToolsCoordinator", "preferredResultOptions", "Q");
-        checkProperty("NSWritingToolsCoordinator", "includesTextListMarkers", "c");
+        checkProperty("NSWritingToolsCoordinator", "includesTextListMarkers", @encode(BOOL));
         checkProperty("NSWritingToolsCoordinator", "state", "q");
 
         NSAccessibilityCustomRotor *rotor = [[NSAccessibilityCustomRotor alloc] initWithLabel:@"Notes" itemSearchDelegate:nil];

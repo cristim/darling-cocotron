@@ -43,7 +43,7 @@ int main(void)
         checkClass("NSStepperTouchBarItem", "NSTouchBarItem");
         checkClass("NSSharingServicePickerToolbarItem", "NSToolbarItem");
         checkProperty("NSButtonTouchBarItem", "title", "@\"NSString\"");
-        checkProperty("NSButtonTouchBarItem", "enabled", "c");
+        checkProperty("NSButtonTouchBarItem", "enabled", @encode(BOOL));
         checkProperty("NSButtonTouchBarItem", "action", ":");
         checkProperty("NSStepperTouchBarItem", "maxValue", "d");
         checkProperty("NSStepperTouchBarItem", "customizationLabel", "@\"NSString\"");

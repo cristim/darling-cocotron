@@ -43,7 +43,7 @@ int main(void)
         checkClass("NSGlassEffectView", "NSView");
         checkClass("NSPICTImageRep", "NSImageRep");
         checkProperty("NSBackgroundExtensionView", "contentView", "@\"NSView\"");
-        checkProperty("NSBackgroundExtensionView", "automaticallyPlacesContentView", "c");
+        checkProperty("NSBackgroundExtensionView", "automaticallyPlacesContentView", @encode(BOOL));
         checkProperty("NSGlassEffectView", "cornerRadius", "d");
         checkProperty("NSGlassEffectView", "style", "q");
         checkProperty("NSGlassEffectView", "tintColor", "@\"NSColor\"");

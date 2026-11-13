@@ -44,11 +44,11 @@ int main(void)
         checkClass("CAEDRMetadata", "NSObject");
         checkClass("CAMetalDisplayLink", "NSObject");
         checkProperty("CAEAGLLayer", "drawableProperties", "@\"NSDictionary\"");
-        checkProperty("CAEAGLLayer", "presentsWithTransaction", "c");
+        checkProperty("CAEAGLLayer", "presentsWithTransaction", @encode(BOOL));
         checkProperty("CATiledLayer", "levelsOfDetail", "Q");
         checkProperty("CATiledLayer", "tileSize", "{CGSize=dd}");
         checkProperty("CAMetalDisplayLink", "preferredFrameLatency", "f");
-        checkProperty("CAMetalDisplayLink", "paused", "c");
+        checkProperty("CAMetalDisplayLink", "paused", @encode(BOOL));
 
         CATiledLayer *tiled = [CATiledLayer layer];
         expect(tiled.levelsOfDetail == 1 && tiled.levelsOfDetailBias == 0, @"documented level defaults");

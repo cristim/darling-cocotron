@@ -41,7 +41,7 @@ int main(void)
     {
         checkClass("NSTintConfiguration", "NSObject");
         checkClass("NSPathControlItem", "NSObject");
-        checkProperty("NSTintConfiguration", "adaptsToUserAccentColor", "c");
+        checkProperty("NSTintConfiguration", "adaptsToUserAccentColor", @encode(BOOL));
         checkProperty("NSTintConfiguration", "baseTintColor", "@\"NSColor\"");
         checkProperty("NSPathControlItem", "title", "@\"NSString\"");
         checkProperty("NSPathControlItem", "URL", "@\"NSURL\"");
