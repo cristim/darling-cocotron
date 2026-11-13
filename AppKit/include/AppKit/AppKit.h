@@ -158,6 +158,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSSegmentedControl.h>
 #import <AppKit/NSShadow.h>
 #import <AppKit/NSSharingService.h>
+#import <AppKit/NSSharingServicePickerToolbarItem.h>
 #import <AppKit/NSSlider.h>
 #import <AppKit/NSSliderCell.h>
 #import <AppKit/NSSound.h>
