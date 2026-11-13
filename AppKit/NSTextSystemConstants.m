@@ -37,6 +37,20 @@ NSAttributedStringKey NSCursorAttributeName = @"NSCursorAttributeName";
 NSFontDescriptorSystemDesign const NSFontDescriptorSystemDesignRounded = @"NSCTFontUIFontDesignRounded";
 NSFontDescriptorAttributeName NSFontFamilyAttribute = @"NSFontFamilyAttribute";
 NSFontDescriptorAttributeName NSFontNameAttribute = @"NSFontNameAttribute";
+// GUESS (no permitted source): Apple's documentation names these constants but lists no string value. Each carries its
+// own name. Code that compares them by symbol works; code that persists the raw string or exchanges it with a real Mac
+// does not.
+NSFontTextStyle const NSFontTextStyleBody = @"NSFontTextStyleBody";
+NSFontTextStyle const NSFontTextStyleCallout = @"NSFontTextStyleCallout";
+NSFontTextStyle const NSFontTextStyleCaption1 = @"NSFontTextStyleCaption1";
+NSFontTextStyle const NSFontTextStyleCaption2 = @"NSFontTextStyleCaption2";
+NSFontTextStyle const NSFontTextStyleFootnote = @"NSFontTextStyleFootnote";
+NSFontTextStyle const NSFontTextStyleHeadline = @"NSFontTextStyleHeadline";
+NSFontTextStyle const NSFontTextStyleLargeTitle = @"NSFontTextStyleLargeTitle";
+NSFontTextStyle const NSFontTextStyleSubheadline = @"NSFontTextStyleSubheadline";
+NSFontTextStyle const NSFontTextStyleTitle1 = @"NSFontTextStyleTitle1";
+NSFontTextStyle const NSFontTextStyleTitle2 = @"NSFontTextStyleTitle2";
+NSFontTextStyle const NSFontTextStyleTitle3 = @"NSFontTextStyleTitle3";
 NSFontDescriptorAttributeName NSFontTraitsAttribute = @"NSCTFontTraitsAttribute";
 const NSFontWeight NSFontWeightBlack = 0x3fe3d70a40000000;
 const NSFontWeight NSFontWeightBold = 0x3fd99999a0000000;
