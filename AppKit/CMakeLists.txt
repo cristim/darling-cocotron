@@ -244,6 +244,7 @@ set(AppKit_sources
 	NSMenu.subproj/NSCarbonMenuImpl.m
 
 	NSPathControl.m
+	NSPathControlItem.m
 	NSSound.m
 	NSFontManager.m
 	NSTokenFieldCell.m
@@ -398,6 +399,7 @@ set(AppKit_sources
 	NSDockTile.m
 	NSGraphics.m
 	NSColorWell.m
+	NSTintConfiguration.m
 	NSAlertPanel.m
 	NSPanel.m
 	NSRuleEditorButtonCell.m
