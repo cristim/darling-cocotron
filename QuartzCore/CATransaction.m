@@ -115,6 +115,15 @@ static CATransactionGroup *createImplicitTransactionGroupIfNeeded() {
     [transactionStack() removeLastObject];
 }
 
+// Private, required by Mac Catalyst frameworks and not documented. The name
+// asks for the state of the current transaction. Cocotron's transaction state
+// is its CATransactionGroup, so this answers the innermost open group, or nil
+// when no transaction is open. It never opens an implicit transaction, unlike
+// reading a transaction property.
++ (id) currentState {
+    return currentTransactionGroup();
+}
+
 + (void) flush {
 }
 
