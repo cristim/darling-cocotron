@@ -18,6 +18,7 @@
 */
 
 #import <AppKit/AppKitExport.h>
+#import <AppKit/NSText.h>
 #import <Foundation/Foundation.h>
 
 @class NSView, NSWritingToolsCoordinatorContext;
