@@ -30,6 +30,7 @@ set(QuartzCore_sources
 	CAContext.m
 	CAEmitterCell.m
 	CAEmitterLayer.m
+	CAEAGLLayer.m
 	CALayerContext.m
 	CACoding.m
 	CALayer.m
@@ -40,6 +41,7 @@ set(QuartzCore_sources
 	CARenderer.m
 	CATransactionGroup.m
 	CATransaction.m
+	CATiledLayer.m
 	CATransform3D.m
 	CATransition.m
 	CAValueFunction.m
