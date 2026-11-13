@@ -210,6 +210,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSTextTable.h>
 #import <AppKit/NSTextTableBlock.h>
 #import <AppKit/NSTextView.h>
+#import <AppKit/NSWritingToolsCoordinator.h>
 #import <AppKit/NSTitlebarAccessoryViewController.h>
 #import <AppKit/NSTokenField.h>
 #import <AppKit/NSTokenFieldCell.h>
