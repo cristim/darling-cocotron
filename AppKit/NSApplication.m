@@ -428,6 +428,11 @@ NSApplication *NSApp = nil;
         [window makeKeyAndOrderFront: nil];
 }
 
+// Private, required by Mac Catalyst frameworks and not documented. Cocotron has
+// no debug menu to add, so this does nothing; the main menu is never modified.
+- (void) _addDebugMenuIfNeeded {
+}
+
 - (void) preventWindowOrdering {
     NSUnimplementedMethod();
 }

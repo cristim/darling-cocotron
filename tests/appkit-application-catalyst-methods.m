@@ -15,6 +15,7 @@ static void expect(BOOL condition, NSString *message)
 - (NSWindow *)_findWindowUsingContextID:(uint32_t)contextID;
 - (BOOL)_restoreMiniaturizedWindow;
 - (void)_cycleWindowsReversed:(BOOL)reversed;
+- (void)_addDebugMenuIfNeeded;
 @end
 
 int main(void)
@@ -43,6 +44,15 @@ int main(void)
                @"NSApplication answers -_cycleWindowsReversed:");
         [app _cycleWindowsReversed:NO];
         [app _cycleWindowsReversed:YES];
+
+        expect([app respondsToSelector:@selector(_addDebugMenuIfNeeded)],
+               @"NSApplication answers -_addDebugMenuIfNeeded");
+        NSMenu *menu = [[NSMenu alloc] initWithTitle:@"main"];
+        [app setMainMenu:menu];
+        [app _addDebugMenuIfNeeded];
+        expect([app mainMenu] == menu && [menu numberOfItems] == 0, @"no debug menu is added");
+        [app setMainMenu:nil];
+        [menu release];
 
         NSLog(@"PASS: NSApplication catalyst methods");
     }
