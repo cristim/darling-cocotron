@@ -413,6 +413,7 @@ set(AppKit_sources
 	NSAppearance.m
 	NSAccessibilityElement.m
 	NSAccessibilityRemoteUIElement.m
+	NSCalendarPrivateNames.m
 	NSKeyValueBinding.m
 	NSCandidateListTouchBarItem.m
 	NSCollectionViewFlowLayout.m
