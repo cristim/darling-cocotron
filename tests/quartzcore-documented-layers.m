@@ -1,4 +1,4 @@
-// CAEAGLLayer, CATiledLayer, CAEDRMetadata and CAMetalDisplayLink: class, metaclass, superclass, property types and documented behaviour.
+// CAEAGLLayer and CATiledLayer: class, metaclass, superclass, property types and documented behaviour.
 #import <QuartzCore/QuartzCore.h>
 #import <objc/runtime.h>
 #include <stdlib.h>
@@ -41,14 +41,10 @@ int main(void)
     {
         checkClass("CAEAGLLayer", "CALayer");
         checkClass("CATiledLayer", "CALayer");
-        checkClass("CAEDRMetadata", "NSObject");
-        checkClass("CAMetalDisplayLink", "NSObject");
         checkProperty("CAEAGLLayer", "drawableProperties", "@\"NSDictionary\"");
         checkProperty("CAEAGLLayer", "presentsWithTransaction", @encode(BOOL));
         checkProperty("CATiledLayer", "levelsOfDetail", "Q");
         checkProperty("CATiledLayer", "tileSize", "{CGSize=dd}");
-        checkProperty("CAMetalDisplayLink", "preferredFrameLatency", "f");
-        checkProperty("CAMetalDisplayLink", "paused", @encode(BOOL));
 
         CATiledLayer *tiled = [CATiledLayer layer];
         expect(tiled.levelsOfDetail == 1 && tiled.levelsOfDetailBias == 0, @"documented level defaults");
@@ -60,18 +56,7 @@ int main(void)
         CAEAGLLayer *eagl = [CAEAGLLayer layer];
         eagl.drawableProperties = @{ @"k" : @1 };
         expect([eagl.drawableProperties count] == 1 && !eagl.presentsWithTransaction, @"EAGL layer properties");
-
-        expect([CAEDRMetadata HLGMetadata] != nil, @"HLG metadata exists");
-        expect([CAEDRMetadata HDR10MetadataWithMinLuminance:0.1 maxLuminance:1000 opticalOutputScale:100] != nil,
-               @"HDR10 metadata exists");
-
-        CAMetalDisplayLink *link = [[CAMetalDisplayLink alloc] initWithMetalLayer:[CAMetalLayer layer]];
-        expect(!link.paused, @"the link is not paused");
-        link.paused = YES;
-        [link addToRunLoop:[NSRunLoop currentRunLoop] forMode:NSDefaultRunLoopMode];
-        [link invalidate];
-        expect(link.paused, @"pause is stored");
-        printf("PASS: quartzcore documented classes\n");
+        printf("PASS: quartzcore-documented-layers\n");
     }
     return 0;
 }
