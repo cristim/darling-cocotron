@@ -270,6 +270,7 @@ set(AppKit_sources
 	NSTextView.subproj/NSUndoTextOperation.m
 	NSTextView.subproj/NSAttributeRun.m
 	UIFAppKit.m
+	NSAttributedStringKeys.m
 	NSTextView.subproj/NSSecureTextView.m
 	NSTextView.subproj/NSTextTab.m
 

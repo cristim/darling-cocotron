@@ -28,35 +28,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSStringDrawer.h>
 #import <AppKit/NSTextAttachment.h>
 
-// Font, paragraph style and superscript use the key strings archived attributed strings carry, as CoreText's
-// kCTFontAttributeName and kCTParagraphStyleAttributeName do.
-NSAttributedStringKey NSFontAttributeName = @"NSFont";
-NSAttributedStringKey NSParagraphStyleAttributeName = @"NSParagraphStyle";
-NSAttributedStringKey NSForegroundColorAttributeName = @"NSForegroundColorAttributeName";
-NSAttributedStringKey NSBackgroundColorAttributeName = @"NSBackgroundColorAttributeName";
-NSAttributedStringKey NSUnderlineStyleAttributeName = @"NSUnderlineStyleAttributeName";
-NSAttributedStringKey NSUnderlineColorAttributeName = @"NSUnderlineColorAttributeName";
-NSAttributedStringKey NSAttachmentAttributeName = @"NSAttachmentAttributeName";
-NSAttributedStringKey NSKernAttributeName = @"NSKernAttributeName";
-NSAttributedStringKey NSLigatureAttributeName = @"NSLigatureAttributeName";
-NSAttributedStringKey NSStrikethroughStyleAttributeName = @"NSStrikethroughStyleAttributeName";
-NSAttributedStringKey NSStrikethroughColorAttributeName = @"NSStrikethroughColorAttributeName";
-NSAttributedStringKey NSObliquenessAttributeName = @"NSObliquenessAttributeName";
-NSAttributedStringKey NSStrokeWidthAttributeName = @"NSStrokeWidthAttributeName";
-NSAttributedStringKey NSStrokeColorAttributeName = @"NSStrokeColorAttributeName";
-NSAttributedStringKey NSBaselineOffsetAttributeName = @"NSBaselineOffsetAttributeName";
-NSAttributedStringKey NSSuperscriptAttributeName = @"NSSuperScript";
-NSAttributedStringKey NSLinkAttributeName = @"NSLinkAttributeName";
-NSAttributedStringKey NSShadowAttributeName = @"NSShadowAttributeName";
-NSAttributedStringKey NSExpansionAttributeName = @"NSExpansionAttributeName";
-NSAttributedStringKey NSCursorAttributeName = @"NSCursorAttributeName";
-NSAttributedStringKey NSMarkedClauseSegmentAttributeName = @"NSMarkedClauseSegment";
-NSAttributedStringKey NSToolTipAttributeName = @"NSToolTipAttributeName";
-NSAttributedStringKey NSGlyphInfoAttributeName = @"NSGlyphInfo";
-NSAttributedStringKey NSVerticalGlyphFormAttributeName = @"NSVerticalGlyphForm";
-NSAttributedStringKey NSTextAlternativesAttributeName = @"NSTextAlternatives";
-NSAttributedStringKey NSSpellingStateAttributeName = @"NSSpellingStateAttributeName"; // temporary attribute
-
 NSAttributedStringDocumentAttributeKey NSDocumentTypeDocumentAttribute = @"DocumentType";
 NSAttributedStringDocumentAttributeKey NSConvertedDocumentAttribute = @"Converted";
 NSAttributedStringDocumentAttributeKey NSFileTypeDocumentAttribute = @"UTI";
