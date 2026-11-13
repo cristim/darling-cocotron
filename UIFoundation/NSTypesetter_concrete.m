@@ -26,7 +26,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSLayoutManager.h>
 #import <AppKit/NSParagraphStyle.h>
 #import <AppKit/NSRaise.h>
-#import <AppKit/NSRangeArray.h>
+#import "NSRangeArray.h"
 #import <AppKit/NSTextAttachment.h>
 #import <AppKit/NSTextContainer.h>
 #import <AppKit/NSTextStorage.h>

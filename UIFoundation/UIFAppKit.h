@@ -18,9 +18,9 @@
 */
 
 // UIFoundation sits below AppKit and must not import anything from it at link
-// time (the guard in scripts/uifoundation-boundary.sh fails the build if it
-// does). The few AppKit classes and functions the text classes still reach
-// are looked up here at run time and fail loudly when AppKit is not loaded.
+// time (run check-boundary.sh on the linked images). The few AppKit classes and
+// functions the text classes still reach are looked up here at run time and
+// fail loudly when AppKit is not loaded.
 
 #import <Foundation/Foundation.h>
 #import <objc/runtime.h>
@@ -28,8 +28,12 @@
 
 @class NSColor, NSFont;
 
-FOUNDATION_EXPORT Class UIFRequireAppKitClass(const char *name);
-FOUNDATION_EXPORT void *UIFRequireAppKitSymbol(const char *name);
+// Hidden, like everything below: AppKit re-exports UIFoundation and must not hand its clients UIFoundation's
+// private helpers.
+#define UIF_PRIVATE __attribute__((visibility("hidden")))
+
+UIF_PRIVATE Class UIFRequireAppKitClass(const char *name);
+UIF_PRIVATE void *UIFRequireAppKitSymbol(const char *name);
 
 // Class object of an AppKit class, looked up once per use site.
 #define UIFAppKitClass(name) \
@@ -53,8 +57,8 @@ FOUNDATION_EXPORT void *UIFRequireAppKitSymbol(const char *name);
 
 // The font and foreground colour of an attribute dictionary, with the defaults
 // AppKit's attribute helpers use (Arial 12, black).
-FOUNDATION_EXPORT NSFont *UIFFontAttributeInDictionary(NSDictionary *attributes);
-FOUNDATION_EXPORT NSColor *UIFForegroundColorAttributeInDictionary(NSDictionary *attributes);
+UIF_PRIVATE NSFont *UIFFontAttributeInDictionary(NSDictionary *attributes);
+UIF_PRIVATE NSColor *UIFForegroundColorAttributeInDictionary(NSDictionary *attributes);
 
 // NSViewFrameDidChangeNotification of AppKit.
 #define UIFViewFrameDidChangeNotification \
