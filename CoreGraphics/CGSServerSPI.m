@@ -18,6 +18,7 @@
 #import <CoreGraphics/CoreGraphicsPrivate.h>
 #import <CoreGraphics/CGWindowPrivate.h>
 #include <math.h>
+#include <dispatch/dispatch.h>
 #include <pthread.h>
 
 static pthread_mutex_t mainConnectionLock = PTHREAD_MUTEX_INITIALIZER;
@@ -73,5 +74,39 @@ CGError CGSSetWindowAlpha(CGSConnectionID connection, CGSWindowID windowID,
 
     // GUESS: clamp to the NSWindow.alphaValue range (NaN becomes 0).
     [window setAlphaValue: fmin(fmax(alpha, 0.0), 1.0)];
+    return kCGErrorSuccess;
+}
+
+// GUESS (rung 6), NEEDS-REAL-MAC: Calendar imports these three names and nothing
+// else is known about them, so the prototypes are placeholders. A function that
+// ignores its arguments is call-compatible with any arm64 prototype, and success
+// is the only result a caller can act on. Each logs once; the effect (suspending
+// window updates, transforming a window) is not implemented.
+static void logNotImplementedOnce(dispatch_once_t *once, const char *name)
+{
+    dispatch_once(once, ^{
+        NSLog(@"%s: not implemented, ignored", name);
+    });
+}
+
+CGError CGSDisableUpdateToken(CGSConnectionID connection)
+{
+    static dispatch_once_t once;
+    logNotImplementedOnce(&once, "CGSDisableUpdateToken");
+    return kCGErrorSuccess;
+}
+
+CGError CGSReenableUpdateToken(CGSConnectionID connection)
+{
+    static dispatch_once_t once;
+    logNotImplementedOnce(&once, "CGSReenableUpdateToken");
+    return kCGErrorSuccess;
+}
+
+CGError CGSSetWindowTransform(CGSConnectionID connection, CGSWindowID windowID,
+                              CGAffineTransform transform)
+{
+    static dispatch_once_t once;
+    logNotImplementedOnce(&once, "CGSSetWindowTransform");
     return kCGErrorSuccess;
 }

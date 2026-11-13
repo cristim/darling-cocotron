@@ -142,14 +142,36 @@ void CGRectDivide(CGRect rect, CGRect *slice, CGRect *remainder, CGFloat amount,
     if (remainder) *remainder = r;
 }
 
+// A style is only a handle here: CGStyleCreateShadow drops its parameters and
+// CGContextSetStyle ignores the style. The handle is reference counted so that
+// CGStyleRetain and CGStyleRelease balance.
+typedef struct {
+    int32_t retainCount;
+} CGStyleStub;
+
 void *CGStyleCreateShadow(void *parameters, void *unused) {
-    return calloc(1, 8);
+    CGStyleStub *style = calloc(1, 8);
+    if (style != NULL)
+        style->retainCount = 1;
+    return style;
 }
 
 void CGContextSetStyle(void *context, void *style) {
 }
 
-void CGStyleRelease(void *style) {
+void *CGStyleRetain(void *style) {
     if (style != NULL)
+        __atomic_add_fetch(&((CGStyleStub *)style)->retainCount, 1, __ATOMIC_RELAXED);
+    return style;
+}
+
+// GUESS: styles compare by identity, because the handle holds no content to compare.
+bool CGStyleEqualToStyle(void *style1, void *style2) {
+    return style1 == style2;
+}
+
+void CGStyleRelease(void *style) {
+    if (style != NULL &&
+        __atomic_sub_fetch(&((CGStyleStub *)style)->retainCount, 1, __ATOMIC_ACQ_REL) == 0)
         free(style);
 }

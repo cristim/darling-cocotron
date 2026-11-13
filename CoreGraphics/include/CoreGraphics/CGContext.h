@@ -287,6 +287,12 @@ COREGRAPHICS_EXPORT void CGContextSetLineDash(CGContextRef context,
                                               CGFloat phase,
                                               const CGFloat *lengths,
                                               unsigned count);
+// Not in Apple's public documentation: signatures are GUESS, see CGContext.m.
+COREGRAPHICS_EXPORT size_t CGContextGetLineDashCount(CGContextRef context);
+COREGRAPHICS_EXPORT void CGContextGetLineDashPattern(CGContextRef context,
+                                                     CGFloat *lengths);
+COREGRAPHICS_EXPORT void
+CGContextSetFontSmoothingBackgroundColor(CGContextRef context, CGColorRef color);
 
 COREGRAPHICS_EXPORT void
 CGContextSetRenderingIntent(CGContextRef context,

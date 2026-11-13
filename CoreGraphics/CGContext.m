@@ -27,7 +27,9 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <CoreGraphics/CGShading.h>
 #import <CoreGraphics/CoreGraphicsPrivate.h>
 #import <Onyx2D/O2Context.h>
+#import <Onyx2D/O2GraphicsState.h>
 #import <Onyx2D/O2MutablePath.h>
+#include <dispatch/dispatch.h>
 #include <stdint.h>
 #include <stdlib.h>
 
@@ -401,6 +403,32 @@ void CGContextSetLineDash(CGContextRef context, CGFloat phase,
                           const CGFloat *lengths, unsigned count)
 {
     O2ContextSetLineDash((O2ContextRef)context, phase, lengths, count);
+}
+
+// GUESS (rung 6), NEEDS-REAL-MAC: Calendar imports both names; the public
+// documentation lists only CGContextSetLineDash. The count is the number of
+// lengths last set (0 for a solid line); the pattern getter copies that many
+// lengths into the caller's array, which must hold at least the count.
+size_t CGContextGetLineDashCount(CGContextRef context) {
+    O2GState *state = O2ContextCurrentGState((O2ContextRef)context);
+    return state != nil ? state->_dashLengthsCount : 0;
+}
+
+void CGContextGetLineDashPattern(CGContextRef context, CGFloat *lengths) {
+    O2GState *state = O2ContextCurrentGState((O2ContextRef)context);
+    if (state == nil || lengths == NULL)
+        return;
+    for (size_t i = 0; i < state->_dashLengthsCount; i++)
+        lengths[i] = state->_dashLengths[i];
+}
+
+// GUESS (rung 6), NEEDS-REAL-MAC: the name only (imported by Calendar). Onyx2D has no
+// font smoothing background, so the colour is not kept; the call is logged once.
+void CGContextSetFontSmoothingBackgroundColor(CGContextRef context, CGColorRef color) {
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        NSLog(@"CGContextSetFontSmoothingBackgroundColor: not implemented, ignored");
+    });
 }
 
 void CGContextSetRenderingIntent(CGContextRef context,
