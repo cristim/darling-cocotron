@@ -366,6 +366,7 @@ set(AppKit_sources
 	NSToolbar.subproj/NSToolbar.m
 	NSToolbar.subproj/NSToolbarItem.m
 	NSToolbar.subproj/NSSearchToolbarItem.m
+	NSToolbar.subproj/NSSharingServicePickerToolbarItem.m
 	NSToolbar.subproj/NSToolbarCustomizationPalette.m
 	NSToolbar.subproj/NSToolbarItemView.m
 
