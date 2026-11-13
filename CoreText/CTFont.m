@@ -926,3 +926,6 @@ bool CTFontHasTable(CTFontRef font, CTFontTableTag tag)
     CFRelease(table);
     return true;
 }
+
+// No font of this CoreText is vertical: its layout is horizontal only. Signature a GUESS from the name.
+bool CTFontIsVertical(CTFontRef font) { return false; }
