@@ -54,6 +54,18 @@ int main(void)
         [app setMainMenu:nil];
         [menu release];
 
+        expect([app respondsToSelector:@selector(supplementalTargetForAction:sender:)],
+               @"NSApplication answers -supplementalTargetForAction:sender:");
+        expect([app supplementalTargetForAction:@selector(copy:) sender:nil] == nil,
+               @"the end of the responder chain has no supplemental target");
+        NSResponder *first = [[NSResponder alloc] init];
+        NSResponder *second = [[NSResponder alloc] init];
+        [first setNextResponder:second];
+        expect([first supplementalTargetForAction:@selector(copy:) sender:nil] == nil,
+               @"a chain of plain responders has no supplemental target");
+        [first release];
+        [second release];
+
         NSLog(@"PASS: NSApplication catalyst methods");
     }
     return 0;
