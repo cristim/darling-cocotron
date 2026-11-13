@@ -29,6 +29,8 @@ APPKIT_EXPORT const NSNotificationName NSMenuWillSendActionNotification;
 APPKIT_EXPORT const NSNotificationName NSMenuDidSendActionNotification;
 APPKIT_EXPORT const NSNotificationName NSMenuDidBeginTrackingNotification;
 APPKIT_EXPORT const NSNotificationName NSMenuDidEndTrackingNotification;
+APPKIT_EXPORT const NSNotificationName NSMenuDidAddItemNotification;
+APPKIT_EXPORT const NSNotificationName NSMenuDidChangeItemNotification;
 
 APPKIT_EXPORT NSString *const NSFontMenuName;
 APPKIT_EXPORT NSString *const NSHelpMenuName;
