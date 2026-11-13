@@ -75,6 +75,7 @@ NSString *const NSAllRomanInputSourcesLocaleIdentifier =
 @end
 
 @interface NSTextView ()
+- (NSSize) _textContainerSizeForViewSize: (NSSize) size;
 - (void) _updateTypingAttributes;
 - (void) _replaceCharactersInRange: (NSRange) range
                         withString: (id) string
@@ -4678,3 +4679,25 @@ static NSTextView *s_targetTextView = nil;
 }
 
 @end
+
+// The container follows its text view's frame (NSTextContainer observes the frame
+// change and calls this). Kept in AppKit, with the view, and written against the
+// container's public accessors, so it also works on a container that is not
+// Cocotron's.
+@implementation NSTextContainer (NSTextContainer_textViewTracking)
+
+- (void) _resizeToTextView {
+    NSTextView *textView = [self textView];
+    NSSize newSize = [self containerSize];
+    NSSize tracked =
+            [textView _textContainerSizeForViewSize: [textView frame].size];
+
+    if ([self widthTracksTextView])
+        newSize.width = tracked.width;
+    if ([self heightTracksTextView])
+        newSize.height = tracked.height;
+    [self setContainerSize: newSize];
+}
+
+@end
+

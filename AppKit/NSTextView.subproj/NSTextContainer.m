@@ -27,8 +27,9 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 static const CGFloat NSTextContainerDefaultLineFragmentPadding = 5.0;
 
-@interface NSTextView (NSTextView_textContainerTracking)
-- (NSSize) _textContainerSizeForViewSize: (NSSize) size;
+// Implemented by AppKit (NSTextView.m), next to the text view it tracks.
+@interface NSTextContainer (NSTextContainer_textViewTracking)
+- (void) _resizeToTextView;
 @end
 
 @implementation NSTextContainer
@@ -144,19 +145,6 @@ static const CGFloat NSTextContainerDefaultLineFragmentPadding = 5.0;
     if ([notification object] == _textView) {
         [self _resizeToTextView];
     }
-}
-
-- (void) _resizeToTextView {
-    NSSize newSize = _size;
-    NSSize tracked =
-            [_textView _textContainerSizeForViewSize: [_textView frame].size];
-    if (_widthTracksTextView) {
-        newSize.width = tracked.width;
-    }
-    if (_heightTracksTextView) {
-        newSize.height = tracked.height;
-    }
-    [self setContainerSize: newSize];
 }
 
 - (void) setWidthTracksTextView: (BOOL) flag {
