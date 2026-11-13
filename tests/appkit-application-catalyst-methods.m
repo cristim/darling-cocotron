@@ -72,6 +72,22 @@ static NSString *cycle(NSApplication *app, BOOL reversed, int steps)
     return seq;
 }
 
+@interface Helper : NSObject
+- (void)copy:(id)sender;
+@end
+@implementation Helper
+- (void)copy:(id)sender {}
+@end
+
+@interface SupplementalResponder : NSResponder
+@property (retain) id helper;
+@end
+@implementation SupplementalResponder
+- (id)supplementalTargetForAction:(SEL)action sender:(id)sender
+{
+    return action == @selector(copy:) ? _helper : [super supplementalTargetForAction:action sender:sender];
+}
+@end
 
 
 int main(void)
@@ -151,6 +167,28 @@ int main(void)
         [app setMainMenu:nil];
         [menu release];
 
+        // -supplementalTargetForAction:sender: is nil from NSResponder; an override answers for itself only.
+        expect([app respondsToSelector:@selector(supplementalTargetForAction:sender:)],
+               @"NSApplication answers -supplementalTargetForAction:sender:");
+        expect([app supplementalTargetForAction:@selector(copy:) sender:nil] == nil,
+               @"NSApplication has no supplemental target");
+        NSResponder *first = [[NSResponder alloc] init];
+        NSResponder *middle = [[NSResponder alloc] init];
+        SupplementalResponder *last = [[SupplementalResponder alloc] init];
+        last.helper = [[[Helper alloc] init] autorelease];
+        [first setNextResponder:middle];
+        [middle setNextResponder:last];
+        expect([first supplementalTargetForAction:@selector(copy:) sender:nil] == nil,
+               @"NSResponder returns nil, whatever follows it in the chain");
+        expect([middle supplementalTargetForAction:@selector(copy:) sender:nil] == nil,
+               @"NSResponder returns nil for a responder before an override");
+        expect([last supplementalTargetForAction:@selector(copy:) sender:nil] == last.helper,
+               @"the override answers for itself");
+        expect([last supplementalTargetForAction:@selector(paste:) sender:nil] == nil,
+               @"the override falls back to nil for other actions");
+        [first release];
+        [middle release];
+        [last release];
 
 
 
