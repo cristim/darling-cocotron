@@ -398,6 +398,36 @@ NSApplication *NSApp = nil;
     return result;
 }
 
+// Private, required by Mac Catalyst frameworks and not documented. The
+// window-cycling command (Cmd-` and Shift-Cmd-`): make the next window behind
+// the key window key and frontmost, or with reversed YES the window in front of
+// it, wrapping around. Only visible, not miniaturized windows that can become
+// key take part; panels are left out because -orderedWindows leaves them out.
+- (void) _cycleWindowsReversed: (BOOL) reversed {
+    NSMutableArray *candidates = [NSMutableArray array];
+
+    for (NSWindow *window in [self orderedWindows]) {
+        if ([window isVisible] && ![window isMiniaturized] &&
+            [window canBecomeKeyWindow])
+            [candidates addObject: window];
+    }
+
+    NSUInteger count = [candidates count];
+    if (count == 0)
+        return;
+
+    NSUInteger index = [candidates indexOfObjectIdenticalTo: [self keyWindow]];
+    NSUInteger target;
+    if (index == NSNotFound)
+        target = reversed ? count - 1 : 0;
+    else
+        target = reversed ? (index + count - 1) % count : (index + 1) % count;
+
+    NSWindow *window = [candidates objectAtIndex: target];
+    if (window != [self keyWindow])
+        [window makeKeyAndOrderFront: nil];
+}
+
 - (void) preventWindowOrdering {
     NSUnimplementedMethod();
 }

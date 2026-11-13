@@ -14,6 +14,7 @@ static void expect(BOOL condition, NSString *message)
 @interface NSApplication (CatalystPrivate)
 - (NSWindow *)_findWindowUsingContextID:(uint32_t)contextID;
 - (BOOL)_restoreMiniaturizedWindow;
+- (void)_cycleWindowsReversed:(BOOL)reversed;
 @end
 
 int main(void)
@@ -37,6 +38,11 @@ int main(void)
         expect([app respondsToSelector:@selector(_restoreMiniaturizedWindow)],
                @"NSApplication answers -_restoreMiniaturizedWindow");
         expect(![app _restoreMiniaturizedWindow], @"with no miniaturized window nothing is restored");
+
+        expect([app respondsToSelector:@selector(_cycleWindowsReversed:)],
+               @"NSApplication answers -_cycleWindowsReversed:");
+        [app _cycleWindowsReversed:NO];
+        [app _cycleWindowsReversed:YES];
 
         NSLog(@"PASS: NSApplication catalyst methods");
     }
