@@ -81,6 +81,9 @@ int main(void)
         [(id)picker setDelegate:delegate];
         expect([(id)picker delegate] == delegate, @"the picker item keeps its delegate");
         [picker validate];
+        expect(class_getInstanceMethod(pickerClass, @selector(share:)) != NULL,
+               @"NSSharingServicePickerToolbarItem resolves -share:");
+        [(id)picker share:nil];
         [picker release];
         [delegate release];
 
