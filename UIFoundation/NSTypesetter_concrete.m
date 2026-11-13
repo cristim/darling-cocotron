@@ -18,6 +18,7 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 // Original - Christopher Lloyd <cjwl@objc.net>
+#import "UIFAppKit.h"
 #import "NSTypesetter_concrete.h"
 #import <AppKit/NSAttributedString.h>
 #import <AppKit/NSColor.h>
@@ -25,7 +26,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSLayoutManager.h>
 #import <AppKit/NSParagraphStyle.h>
 #import <AppKit/NSRaise.h>
-#import <AppKit/NSRangeArray.h>
+#import "NSRangeArray.h"
 #import <AppKit/NSTextAttachment.h>
 #import <AppKit/NSTextContainer.h>
 #import <AppKit/NSTextStorage.h>
@@ -938,7 +939,7 @@ static void loadGlyphAndCharacterCacheForLocation(NSTypesetter_concrete *self,
     }
     _attributesGlyphRange = _attributesRange; // FIX
 
-    nextFont = NSFontAttributeInDictionary(_attributes);
+    nextFont = UIFFontAttributeInDictionary(_attributes);
     if (_font != nextFont) {
 #if DEBUG_FETCHATTRIBUTES
         NSLog(@"switching font to %@", nextFont);
@@ -1052,7 +1053,7 @@ static void loadGlyphAndCharacterCacheForLocation(NSTypesetter_concrete *self,
     }
 
     if (_font == nil) {
-        _font = NSFontAttributeInDictionary(nil);
+        _font = UIFFontAttributeInDictionary(nil);
 
 #if DEBUGLAYOUTGLYPHSINLAYOUTMANAGER
         NSLog(@"_font is nil - defaulting to font: %@", _font);

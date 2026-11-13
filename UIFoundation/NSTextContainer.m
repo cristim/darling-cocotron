@@ -17,6 +17,7 @@ COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
+#import "UIFAppKit.h"
 #import <AppKit/NSLayoutManager.h>
 #import <AppKit/NSRaise.h>
 #import <AppKit/NSTextContainer.h>
@@ -121,7 +122,7 @@ static const CGFloat NSTextContainerDefaultLineFragmentPadding = 5.0;
         if (_textView) {
             [[NSNotificationCenter defaultCenter]
                     removeObserver: self
-                              name: NSViewFrameDidChangeNotification
+                              name: UIFViewFrameDidChangeNotification
                             object: _textView];
         }
     }
@@ -133,7 +134,7 @@ static const CGFloat NSTextContainerDefaultLineFragmentPadding = 5.0;
             [[NSNotificationCenter defaultCenter]
                     addObserver: self
                        selector: @selector(_textViewFrameDidChange:)
-                           name: NSViewFrameDidChangeNotification
+                           name: UIFViewFrameDidChangeNotification
                          object: _textView];
         }
     }
@@ -169,14 +170,14 @@ static const CGFloat NSTextContainerDefaultLineFragmentPadding = 5.0;
                     [[NSNotificationCenter defaultCenter]
                             addObserver: self
                                selector: @selector(_textViewFrameDidChange:)
-                                   name: NSViewFrameDidChangeNotification
+                                   name: UIFViewFrameDidChangeNotification
                                  object: _textView];
                 }
             } else {
                 if (_heightTracksTextView == NO) {
                     [[NSNotificationCenter defaultCenter]
                             removeObserver: self
-                                      name: NSViewFrameDidChangeNotification
+                                      name: UIFViewFrameDidChangeNotification
                                     object: _textView];
                 }
             }
@@ -195,14 +196,14 @@ static const CGFloat NSTextContainerDefaultLineFragmentPadding = 5.0;
                     [[NSNotificationCenter defaultCenter]
                             addObserver: self
                                selector: @selector(_textViewFrameDidChange:)
-                                   name: NSViewFrameDidChangeNotification
+                                   name: UIFViewFrameDidChangeNotification
                                  object: _textView];
                 }
             } else {
                 if (_widthTracksTextView == NO) {
                     [[NSNotificationCenter defaultCenter]
                             removeObserver: self
-                                      name: NSViewFrameDidChangeNotification
+                                      name: UIFViewFrameDidChangeNotification
                                     object: _textView];
                 }
             }

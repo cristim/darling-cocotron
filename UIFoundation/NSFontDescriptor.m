@@ -17,6 +17,7 @@ COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
+#import "UIFAppKit.h"
 #import <AppKit/NSDisplay.h>
 #import <AppKit/NSFont.h>
 #import <AppKit/NSFontDescriptor.h>
@@ -225,7 +226,7 @@ static NSString *const NSFontUIFontDesignTrait = @"NSCTFontUIFontDesignTrait";
 
     NSString *family = systemFamily;
     if (generic != nil) {
-        family = [[NSDisplay currentDisplay] fontFamilyNameForGenericFamily: generic];
+        family = [[UIFAppKitClass(NSDisplay) currentDisplay] fontFamilyNameForGenericFamily: generic];
         if (family == nil) {
             return nil;
         }
