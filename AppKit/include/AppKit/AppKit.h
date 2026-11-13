@@ -215,6 +215,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSMenuToolbarItem.h>
 #import <AppKit/NSTouchBar.h>
 #import <AppKit/NSTouchBarItem.h>
+#import <AppKit/NSTouch.h>
 #import <AppKit/NSTrackingArea.h>
 #import <AppKit/NSTrackingSeparatorToolbarItem.h>
 #import <AppKit/NSTreeController.h>
@@ -224,6 +225,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSUserInterfaceItemSearching.h>
 #import <AppKit/NSView.h>
 #import <AppKit/NSViewController.h>
+#import <AppKit/NSViewCornerConfiguration.h>
 #import <AppKit/NSVisualEffectView.h>
 #import <AppKit/NSWindow.h>
 #import <AppKit/NSWindowController.h>
