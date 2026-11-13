@@ -268,6 +268,7 @@ set(AppKit_sources
 	NSTextView.subproj/NSTextContainer.m
 	NSTextView.subproj/NSSecureLayoutManager.m
 	NSTextView.subproj/NSUndoTextOperation.m
+	NSTextView.subproj/NSAttributeRun.m
 	NSTextView.subproj/NSSecureTextView.m
 	NSTextView.subproj/NSTextTab.m
 
