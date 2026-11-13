@@ -78,6 +78,10 @@ typedef NS_ENUM(NSInteger, NSTableViewRowSizeStyle) {
     NSTableViewRowSizeStyleLarge = 3,
 };
 
+// Not in Apple's public headers: exported because applications import it. The
+// signature and result are placeholders, NEEDS-REAL-MAC.
+APPKIT_EXPORT NSTableViewRowSizeStyle NSTableViewCurrentRowSizeStyle(void);
+
 typedef NS_ENUM(NSInteger, NSTableViewStyle) {
     NSTableViewStyleAutomatic = 0,
     NSTableViewStyleFullWidth = 1,

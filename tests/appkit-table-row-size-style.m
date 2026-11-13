@@ -60,6 +60,9 @@ int main(void)
         [outline setRowSizeStyle:NSTableViewRowSizeStyleLarge];
         expect([outline rowSizeStyle] == NSTableViewRowSizeStyleLarge, @"outline view keeps Large");
 
+        expect(NSTableViewCurrentRowSizeStyle() == NSTableViewRowSizeStyleMedium,
+               @"the system row size style is the Medium placeholder (NEEDS-REAL-MAC)");
+
         [outline release];
         [table release];
         [rows release];
