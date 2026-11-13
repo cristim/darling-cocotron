@@ -31,6 +31,11 @@ NSString *const NSTableViewSelectionIsChangingNotification =
         @"NSTableViewSelectionIsChangingNotification";
 NSString *const NSTableViewSelectionDidChangeNotification =
         @"NSTableViewSelectionDidChangeNotification";
+// Placeholder value (Medium), NEEDS-REAL-MAC: the public header documents only the enumerator.
+NSTableViewRowSizeStyle NSTableViewCurrentRowSizeStyle(void) {
+    return NSTableViewRowSizeStyleMedium;
+}
+
 NSString *const NSTableViewColumnDidMoveNotification =
         @"NSTableViewColumnDidMoveNotification";
 NSString *const NSTableViewColumnDidResizeNotification =
@@ -379,10 +384,10 @@ const CGFloat NSTableViewDefaultRowHeight = 16.0f;
     return _rowSizeStyle;
 }
 
-// Darling has no sidebar size setting; Medium is macOS's out-of-the-box choice.
+// Darling has no sidebar size setting; the system style is a placeholder, NEEDS-REAL-MAC.
 - (NSTableViewRowSizeStyle) effectiveRowSizeStyle {
     if (_rowSizeStyle == NSTableViewRowSizeStyleDefault)
-        return NSTableViewRowSizeStyleMedium;
+        return NSTableViewCurrentRowSizeStyle();
     return _rowSizeStyle;
 }
 
