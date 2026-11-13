@@ -21,6 +21,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSAttributedString.h>
 #import <AppKit/NSSecureLayoutManager.h>
 #import <AppKit/NSTextStorage.h>
+#import <CoreText/CoreText.h>
 
 @implementation NSSecureLayoutManager
 
@@ -32,17 +33,21 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
     NSRange characterRange = [self characterRangeForGlyphRange: glyphRange
                                               actualGlyphRange: NULL];
     NSDictionary *attributes =
-            [_textStorage attributesAtIndex: characterRange.location
-                             effectiveRange: NULL];
+            [[self textStorage] attributesAtIndex: characterRange.location
+                                   effectiveRange: NULL];
     NSFont *font = NSFontAttributeInDictionary(attributes);
     unichar buffer[characterRange.length];
+    CGGlyph cgGlyphs[characterRange.length];
 
     for (NSUInteger i = 0; i < characterRange.length; i++)
         buffer[i] = _echosBullets ? 0x2022 : ' '; // unicode bullet
 
-    return [font getGlyphs: glyphs
-             forCharacters: buffer
-                    length: characterRange.length];
+    CTFontGetGlyphsForCharacters((CTFontRef) font, buffer, cgGlyphs,
+                                 characterRange.length);
+    for (NSUInteger i = 0; i < characterRange.length; i++)
+        glyphs[i] = cgGlyphs[i];
+
+    return characterRange.length;
 }
 
 @end
