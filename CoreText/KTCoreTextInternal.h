@@ -8,6 +8,13 @@ CFTypeRef KTCoreTextCreateObject(CFTypeID type, CFDictionaryRef storage);
 CFTypeID KTCoreTextRunGetTypeID(void);
 CFDictionaryRef KTCoreTextObjectDictionary(CFTypeRef object);
 
+// The attributes of a font descriptor, borrowed from it (valid while the descriptor lives). Every reader of a
+// descriptor goes through this. A descriptor made by another CoreText cannot be read here: it reads as having no
+// attributes, and its class is reported once.
+CFDictionaryRef KTCoreTextDescriptorAttributes(CTFontDescriptorRef descriptor);
+// True for anything that can stand for a descriptor in a cascade list or collection.
+bool KTCoreTextIsDescriptor(CFTypeRef object);
+
 extern const CFStringRef kCTFontAttributeName;
 
 extern const CFStringRef KTLineAttributedStringKey;

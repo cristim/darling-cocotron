@@ -1,7 +1,12 @@
 #import <CoreText/CTFontCollection.h>
 #import <CoreText/CTFontDescriptor.h>
 #import <Foundation/Foundation.h>
+#import "KTCoreTextInternal.h"
 #include <stdio.h>
+
+static NSDictionary *attributesOf(id descriptor) {
+    return (NSDictionary *)KTCoreTextDescriptorAttributes((CTFontDescriptorRef)descriptor);
+}
 
 const CFStringRef kCTFontCollectionRemoveDuplicatesOption = CFSTR("CTFontCollectionRemoveDuplicatesOption");
 const CFStringRef kCTFontCollectionIncludeDisabledFontsOption = CFSTR("CTFontCollectionIncludeDisabledFontsOption");
@@ -48,7 +53,9 @@ static NSArray *defaultAvailableFontDescriptors(void) {
             attrs[(id)kCTFontDisplayNameAttribute] = postscript;
             attrs[(id)kCTFontPostScriptNameAttribute] = postscript;
             attrs[(id)kCTFontSizeAttribute] = [NSNumber numberWithDouble:12.0];
-            [list addObject:attrs];
+            CTFontDescriptorRef descriptor = CTFontDescriptorCreateWithAttributes((CFDictionaryRef)attrs);
+            [list addObject:(id)descriptor];
+            CFRelease(descriptor);
         }
         s_defaultDescriptors = [list copy];
     });
@@ -113,36 +120,32 @@ static NSArray *defaultAvailableFontDescriptors(void) {
         // Check exclusions:
         // TODO: Full CoreText fuzzy attribute matching. For now, match against all attributes present in exclusion descriptor.
         BOOL excluded = NO;
-        if (_exclusionDescriptors.count > 0 && [item isKindOfClass:[NSDictionary class]]) {
-            NSDictionary *itemDict = (NSDictionary *)item;
+        if (_exclusionDescriptors.count > 0) {
+            NSDictionary *itemDict = attributesOf(item);
             for (id excl in _exclusionDescriptors) {
-                if ([excl isKindOfClass:[NSDictionary class]]) {
-                    NSDictionary *exclDict = (NSDictionary *)excl;
-                    if (exclDict.count == 0) continue;
-                    BOOL allMatched = YES;
-                    for (id key in exclDict) {
-                        id expected = exclDict[key];
-                        id actual = itemDict[key];
-                        if (!actual || ![actual isEqual:expected]) {
-                            allMatched = NO;
-                            break;
-                        }
-                    }
-                    if (allMatched) {
-                        excluded = YES;
+                NSDictionary *exclDict = attributesOf(excl);
+                if (exclDict.count == 0) continue;
+                BOOL allMatched = YES;
+                for (id key in exclDict) {
+                    id expected = exclDict[key];
+                    id actual = itemDict[key];
+                    if (!actual || ![actual isEqual:expected]) {
+                        allMatched = NO;
                         break;
                     }
+                }
+                if (allMatched) {
+                    excluded = YES;
+                    break;
                 }
             }
         }
         if (excluded) continue;
 
-        NSString *name = nil;
-        if ([item isKindOfClass:[NSDictionary class]]) {
-            name = [item objectForKey:(id)kCTFontNameAttribute]
-                ?: [item objectForKey:(id)kCTFontPostScriptNameAttribute]
-                ?: [item objectForKey:(id)kCTFontFamilyNameAttribute];
-        }
+        NSDictionary *itemAttributes = attributesOf(item);
+        NSString *name = [itemAttributes objectForKey:(id)kCTFontNameAttribute]
+            ?: [itemAttributes objectForKey:(id)kCTFontPostScriptNameAttribute]
+            ?: [itemAttributes objectForKey:(id)kCTFontFamilyNameAttribute];
 
         if (seenNames && name) {
             if ([seenNames containsObject:name]) continue;
@@ -236,11 +239,9 @@ CFArrayRef CTFontCollectionCreateMatchingFontDescriptorsForFamily(
     NSArray *descriptors = (NSArray *)tmp;
     NSMutableArray *filtered = [NSMutableArray array];
     for (id desc in descriptors) {
-        if ([desc isKindOfClass:[NSDictionary class]]) {
-            NSString *fam = [desc objectForKey:(id)kCTFontFamilyNameAttribute];
-            if ([fam isEqualToString:(NSString *)familyName]) {
-                [filtered addObject:desc];
-            }
+        NSString *fam = [attributesOf(desc) objectForKey:(id)kCTFontFamilyNameAttribute];
+        if ([fam isEqualToString:(NSString *)familyName]) {
+            [filtered addObject:desc];
         }
     }
     CFArrayRef result = (CFArrayRef)[filtered copy];
@@ -291,15 +292,13 @@ CFArrayRef CTFontCollectionCopyFontAttribute(CTFontCollectionRef collection, CFS
     NSMutableArray *result = [NSMutableArray array];
     NSMutableSet *seen = (options & kCTFontCollectionCopyUnique) ? [NSMutableSet set] : nil;
     for (id desc in descriptors) {
-        if ([desc isKindOfClass:[NSDictionary class]]) {
-            id val = [desc objectForKey:(id)attributeName];
-            if (val) {
-                if (seen) {
-                    if ([seen containsObject:val]) continue;
-                    [seen addObject:val];
-                }
-                [result addObject:val];
+        id val = [attributesOf(desc) objectForKey:(id)attributeName];
+        if (val) {
+            if (seen) {
+                if ([seen containsObject:val]) continue;
+                [seen addObject:val];
             }
+            [result addObject:val];
         }
     }
     if ((options & kCTFontCollectionCopyStandardSort) && result.count > 1) {
@@ -324,23 +323,22 @@ CFArrayRef CTFontCollectionCopyFontAttributes(CTFontCollectionRef collection, CF
     NSMutableArray *result = [NSMutableArray array];
     NSMutableSet *seen = (options & kCTFontCollectionCopyUnique) ? [NSMutableSet set] : nil;
     for (id desc in descriptors) {
-        if ([desc isKindOfClass:[NSDictionary class]]) {
-            NSMutableDictionary *subDict = [NSMutableDictionary dictionary];
-            for (id key in (NSSet *)attributeNames) {
-                id val = [desc objectForKey:key];
-                if (val) subDict[key] = val;
+        NSDictionary *descAttributes = attributesOf(desc);
+        NSMutableDictionary *subDict = [NSMutableDictionary dictionary];
+        for (id key in (NSSet *)attributeNames) {
+            id val = [descAttributes objectForKey:key];
+            if (val) subDict[key] = val;
+        }
+        if (subDict.count > 0) {
+            if (seen) {
+                // TODO: Apple deduplicates by font identity (PostScript name), not full dictionary equality.
+                id identityKey = [descAttributes objectForKey:(id)kCTFontNameAttribute]
+                    ?: [descAttributes objectForKey:(id)kCTFontPostScriptNameAttribute]
+                    ?: subDict;
+                if ([seen containsObject:identityKey]) continue;
+                [seen addObject:identityKey];
             }
-            if (subDict.count > 0) {
-                if (seen) {
-                    // TODO: Apple deduplicates by font identity (PostScript name), not full dictionary equality.
-                    id identityKey = [desc objectForKey:(id)kCTFontNameAttribute]
-                        ?: [desc objectForKey:(id)kCTFontPostScriptNameAttribute]
-                        ?: subDict;
-                    if ([seen containsObject:identityKey]) continue;
-                    [seen addObject:identityKey];
-                }
-                [result addObject:subDict];
-            }
+            [result addObject:subDict];
         }
     }
     if ((options & kCTFontCollectionCopyStandardSort) && result.count > 1) {
