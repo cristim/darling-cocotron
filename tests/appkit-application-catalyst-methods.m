@@ -16,6 +16,7 @@ static void expect(BOOL condition, NSString *message)
 - (BOOL)_restoreMiniaturizedWindow;
 - (void)_cycleWindowsReversed:(BOOL)reversed;
 - (void)_addDebugMenuIfNeeded;
+- (BOOL)_isActiveApp;
 @end
 
 int main(void)
@@ -65,6 +66,9 @@ int main(void)
                @"a chain of plain responders has no supplemental target");
         [first release];
         [second release];
+
+        expect([app respondsToSelector:@selector(_isActiveApp)], @"NSApplication answers -_isActiveApp");
+        expect([app _isActiveApp] == [app isActive], @"-_isActiveApp agrees with -isActive");
 
         NSLog(@"PASS: NSApplication catalyst methods");
     }
