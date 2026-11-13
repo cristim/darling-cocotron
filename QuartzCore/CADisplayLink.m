@@ -50,7 +50,6 @@ static id willFireHandler;
     @synchronized([CADisplayLink class]) {
         id previous = willFireHandler;
         willFireHandler = [handler copy];
-        [previous release];
     }
 }
 
