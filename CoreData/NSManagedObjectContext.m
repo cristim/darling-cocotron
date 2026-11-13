@@ -35,6 +35,12 @@ NSString *const NSManagedObjectContextWillSaveNotification =
         @"NSManagedObjectContextWillSaveNotification";
 NSString *const NSManagedObjectContextDidSaveNotification =
         @"NSManagedObjectContextDidSaveNotification";
+NSString *const NSManagedObjectContextObjectsDidChangeNotification =
+        @"NSManagedObjectContextObjectsDidChangeNotification";
+NSString *const NSManagedObjectContextDidSaveObjectIDsNotification =
+        @"NSManagedObjectContextDidSaveObjectIDsNotification";
+NSString *const NSManagedObjectContextDidMergeChangesObjectIDsNotification =
+        @"NSManagedObjectContextDidMergeChangesObjectIDsNotification";
 
 NSString *const NSInsertedObjectsKey = @"NSInsertedObjectsKey";
 NSString *const NSUpdatedObjectsKey = @"NSUpdatedObjectsKey";
@@ -42,6 +48,8 @@ NSString *const NSDeletedObjectsKey = @"NSDeletedObjectsKey";
 NSString *const NSRefreshedObjectsKey = @"NSRefreshedObjectsKey";
 NSString *const NSInvalidatedObjectsKey = @"NSInvalidatedObjectsKey";
 NSString *const NSInvalidatedAllObjectsKey = @"NSInvalidatedAllObjectsKey";
+
+NSString *const NSUpdatedObjectIDsKey = @"NSUpdatedObjectIDsKey";
 NSString *const NSAffectedObjectsErrorKey = @"NSAffectedObjectsErrorKey";
 
 @interface NSAtomicStore (private)
