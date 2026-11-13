@@ -60,6 +60,15 @@ static void checkAttributes(CTFontDescriptorRef descriptor)
     expect(copiedName != NULL && CFEqual(copiedName, CFSTR("TestFont")), @"copy keeps the name");
     CFRelease(copiedName);
     CFRelease(bold);
+
+    CFStringRef language = (CFStringRef)descriptor;
+    CFTypeRef localized = CTFontDescriptorCopyLocalizedAttribute(descriptor, kCTFontNameAttribute, &language);
+    expect(localized != NULL && CFEqual(localized, CFSTR("TestFont")) && language == NULL, @"localized attribute");
+    CFRelease(localized);
+    CFArrayRef matches = CTFontDescriptorCreateMatchingFontDescriptorsWithOptions(descriptor, NULL, NULL);
+    expect(matches != NULL && CFArrayGetCount(matches) == 1 && CFEqual(CFArrayGetValueAtIndex(matches, 0), descriptor),
+           @"matching with options returns the descriptor");
+    CFRelease(matches);
 }
 
 int main(int argc, char **argv)

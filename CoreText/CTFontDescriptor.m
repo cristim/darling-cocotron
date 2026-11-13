@@ -173,6 +173,20 @@ CFTypeRef CTFontDescriptorCopyAttribute(CTFontDescriptorRef descriptor, CFString
     return (CFTypeRef)[val retain];
 }
 
+// Only this CoreText's own fonts exist, in no localization but the one the attribute holds, so the language is
+// reported as unknown (documented as NULL when the attribute is not localized).
+CFTypeRef CTFontDescriptorCopyLocalizedAttribute(CTFontDescriptorRef descriptor, CFStringRef attribute, CFStringRef *language)
+{
+    if (language != NULL)
+        *language = NULL;
+    return CTFontDescriptorCopyAttribute(descriptor, attribute);
+}
+
+CFArrayRef CTFontDescriptorCreateMatchingFontDescriptorsWithOptions(CTFontDescriptorRef descriptor, CFSetRef mandatoryAttributes, CFDictionaryRef options)
+{
+    return CTFontDescriptorCreateMatchingFontDescriptors(descriptor, mandatoryAttributes);
+}
+
 CFArrayRef CTFontDescriptorCreateMatchingFontDescriptors(CTFontDescriptorRef descriptor, CFSetRef mandatoryAttributes)
 {
     if (!descriptor) return CFArrayCreate(kCFAllocatorDefault, NULL, 0, &kCFTypeArrayCallBacks);
