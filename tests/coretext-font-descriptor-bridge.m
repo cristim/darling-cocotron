@@ -31,6 +31,11 @@ static Class registerBridge(void)
     return bridge;
 }
 
+extern bool CTFontDescriptorIsSystemUIFont(CTFontDescriptorRef descriptor);
+extern bool CTFontDescriptorIsAppleFont(CTFontDescriptorRef descriptor);
+extern bool CTFontDescriptorHasPostScriptNameAlias(CTFontDescriptorRef descriptor);
+extern bool CTFontDescriptorIsValid(CTFontDescriptorRef descriptor);
+
 static CTFontDescriptorRef makeDescriptor(void)
 {
     const void *keys[] = {kCTFontNameAttribute, kCTFontSizeAttribute};
@@ -61,6 +66,8 @@ static void checkAttributes(CTFontDescriptorRef descriptor)
     CFRelease(copiedName);
     CFRelease(bold);
 
+    expect(!CTFontDescriptorIsSystemUIFont(descriptor) && !CTFontDescriptorIsAppleFont(descriptor) && !CTFontDescriptorHasPostScriptNameAlias(descriptor), @"an ordinary descriptor is none of the special kinds");
+    expect(CTFontDescriptorIsValid(descriptor), @"it is valid");
     CFStringRef language = (CFStringRef)descriptor;
     CFTypeRef localized = CTFontDescriptorCopyLocalizedAttribute(descriptor, kCTFontNameAttribute, &language);
     expect(localized != NULL && CFEqual(localized, CFSTR("TestFont")) && language == NULL, @"localized attribute");

@@ -312,3 +312,11 @@ CTFontDescriptorRef CTFontDescriptorCreateCopyWithVariation(CTFontDescriptorRef 
     [variations release];
     return result;
 }
+
+// Questions that the cache's NSCTFont asks of the descriptor of a font. A descriptor made here describes no system UI
+// font, no Apple font and no PostScript name alias, and is valid when it is a descriptor of this CoreText; the answers
+// follow the font predicates in CTFont.m. Signatures are a GUESS from the names (a descriptor in, a boolean out).
+bool CTFontDescriptorIsSystemUIFont(CTFontDescriptorRef descriptor) { return false; }
+bool CTFontDescriptorIsAppleFont(CTFontDescriptorRef descriptor) { return false; }
+bool CTFontDescriptorHasPostScriptNameAlias(CTFontDescriptorRef descriptor) { return false; }
+bool CTFontDescriptorIsValid(CTFontDescriptorRef descriptor) { return KTCoreTextIsDescriptor(descriptor); }
