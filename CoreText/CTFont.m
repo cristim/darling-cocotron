@@ -25,6 +25,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <Foundation/NSArray.h>
 #import <Foundation/NSDictionary.h>
 #import <objc/runtime.h>
+#include <CoreFoundation/CFRuntime.h>
 #import <Onyx2D/O2Font_freetype.h>
 #include <pthread.h>
 
@@ -80,14 +81,101 @@ static BOOL fontCreated;
 static pthread_mutex_t fontClassLock = PTHREAD_MUTEX_INITIALIZER;
 static char fontCascadeKey;
 
+// A font that CoreText makes where a class named NSCTFont describes CTFont (the shared cache's UIFoundation has one,
+// toll-free bridged) is a CF object holding its state itself, so that class's methods, which call the CTFont
+// functions with self, find it. Any other font is an object of the registered class (AppKit's NSFont) or of KTFont,
+// and is asked for its state with -cgFont and -pointSize.
+struct __CTFont {
+    CFRuntimeBase base;
+    CGFontRef cgFont;
+    CGFloat size;
+    CFArrayRef cascade;
+};
+
+static void finalizeFont(CFTypeRef value) {
+    struct __CTFont *font = (struct __CTFont *)value;
+    CGFontRelease(font->cgFont);
+    if (font->cascade != NULL)
+        CFRelease(font->cascade);
+}
+
+// Two fonts are equal when they are the same face at the same size; Cocotron makes a new CGFont for every request,
+// so the faces are compared by PostScript name.
+static Boolean equalFonts(CFTypeRef a, CFTypeRef b) {
+    const struct __CTFont *x = a, *y = b;
+    if (x->size != y->size)
+        return false;
+    CFStringRef nameX = CGFontCopyPostScriptName(x->cgFont), nameY = CGFontCopyPostScriptName(y->cgFont);
+    Boolean equal = nameX != NULL && nameY != NULL && CFEqual(nameX, nameY);
+    if (nameX != NULL) CFRelease(nameX);
+    if (nameY != NULL) CFRelease(nameY);
+    return equal;
+}
+
+static CFHashCode hashFont(CFTypeRef value) {
+    const struct __CTFont *font = value;
+    CFStringRef name = CGFontCopyPostScriptName(font->cgFont);
+    CFHashCode hash = (name != NULL ? CFHash(name) : 0) ^ (CFHashCode)font->size;
+    if (name != NULL) CFRelease(name);
+    return hash;
+}
+
+static const CFRuntimeClass fontCFClass = {
+    0, "CTFont", NULL, NULL, finalizeFont, equalFonts, hashFont, NULL, NULL,
+};
+static CFTypeID fontType;
+static Class bridgeClass;
+static pthread_once_t fontTypeOnce = PTHREAD_ONCE_INIT;
+
+// Decided once, at the first font or CTFontGetTypeID. The class is defined by UIFoundation, which every AppKit process
+// has loaded before any font is made, and a process that dlopens UIFoundation later would get fonts of two classes
+// if the choice were repeated: the fonts made before keep KTFont (or the registered class), which is the safe side.
+static void registerFontType(void) {
+    fontType = _CFRuntimeRegisterClass(&fontCFClass);
+    // A registered concrete class (plain Darling: NSFont, from the UIFoundation stand-in or AppKit) decides the class
+    // of every font, so there is nothing to bridge; the cache's UIFoundation registers none.
+    pthread_mutex_lock(&fontClassLock);
+    BOOL registered = fontClass != Nil;
+    pthread_mutex_unlock(&fontClassLock);
+    if (!registered && KTCoreTextBridgeType(fontType, "NSCTFont"))
+        bridgeClass = objc_getClass("NSCTFont");
+}
+
+static BOOL isStateFont(CTFontRef font) {
+    pthread_once(&fontTypeOnce, registerFontType);
+    return bridgeClass != Nil && object_getClass((id)font) == bridgeClass;
+}
+
+// An instance of the bridge class that this CoreText did not make was made by another CoreText and keeps its state
+// in its own layout. Reading it as ours would read garbage.
+static const struct __CTFont *stateOf(CTFontRef font) {
+    if (CFGetTypeID(font) != fontType) {
+        NSLog(@"CoreText: a font of class %s was not created by this CoreText", object_getClassName((id)font));
+        abort();
+    }
+    return (const struct __CTFont *)font;
+}
+
 static NSArray *fontCascade(CTFontRef font) {
+    if (isStateFont(font)) {
+        const struct __CTFont *state = stateOf(font);
+        return state->cascade != NULL ? (NSArray *)state->cascade : nil;
+    }
     return objc_getAssociatedObject((id)font, &fontCascadeKey);
 }
 
 static void setFontCascade(CTFontRef font, NSArray *cascade) {
-    if (font != NULL && [cascade isKindOfClass:[NSArray class]])
-        objc_setAssociatedObject((id)font, &fontCascadeKey, cascade,
-                                 OBJC_ASSOCIATION_COPY);
+    if (font == NULL || ![cascade isKindOfClass:[NSArray class]])
+        return;
+    if (isStateFont(font)) {
+        struct __CTFont *state = (struct __CTFont *)stateOf(font);
+        CFArrayRef copy = (CFArrayRef)[cascade copy];
+        if (state->cascade != NULL)
+            CFRelease(state->cascade);
+        state->cascade = copy;
+        return;
+    }
+    objc_setAssociatedObject((id)font, &fontCascadeKey, cascade, OBJC_ASSOCIATION_COPY);
 }
 
 void _CTFontSetConcreteClass(Class newClass) {
@@ -102,23 +190,34 @@ void _CTFontSetConcreteClass(Class newClass) {
                             newClass, fontClass ?: [KTFont class]];
 }
 
-// Every CTFontCreate* function ends here, so all fonts share one class.
+// Every CTFontCreate* function ends here, so all fonts share one class: the registered one, else the bridge class
+// where there is one, else KTFont.
 static CTFontRef createFont(CGFontRef cgFont, CGFloat size) {
     if (cgFont == NULL)
         return NULL;
     pthread_mutex_lock(&fontClassLock);
     fontCreated = YES;
-    Class cls = fontClass ?: [KTFont class];
+    Class cls = fontClass;
     pthread_mutex_unlock(&fontClassLock);
-    return (CTFontRef)[[cls alloc] initWithFont: cgFont size: size];
+    pthread_once(&fontTypeOnce, registerFontType);
+    if (cls == Nil && bridgeClass != Nil) {
+        struct __CTFont *font = (struct __CTFont *)_CFRuntimeCreateInstance(
+                kCFAllocatorDefault, fontType, sizeof(*font) - sizeof(CFRuntimeBase), NULL);
+        if (font == NULL)
+            return NULL;
+        font->cgFont = CGFontRetain(cgFont);
+        font->size = size;
+        return (CTFontRef)font;
+    }
+    return (CTFontRef)[[(cls ?: [KTFont class]) alloc] initWithFont: cgFont size: size];
 }
 
 static CGFontRef graphicsFont(CTFontRef font) {
-    return [(id) font cgFont];
+    return isStateFont(font) ? stateOf(font)->cgFont : [(id) font cgFont];
 }
 
 static CGFloat fontSize(CTFontRef font) {
-    return [(id) font pointSize];
+    return isStateFont(font) ? stateOf(font)->size : [(id) font pointSize];
 }
 
 // Converts a length in font units to points at the font's size.
@@ -774,7 +873,8 @@ CFDataRef CTFontCopyTable(CTFontRef font, CTFontTableTag table, CTFontTableOptio
 
 CFTypeID CTFontGetTypeID(void)
 {
-    return (CFTypeID)[KTFont self];
+    pthread_once(&fontTypeOnce, registerFontType);
+    return bridgeClass != Nil ? fontType : (CFTypeID)[KTFont self];
 }
 
 uint32_t CTGetCoreTextVersion(void)
