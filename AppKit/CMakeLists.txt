@@ -179,6 +179,7 @@ set(AppKit_sources
 	NSInterfaceStyle.m
 	NSFontTypeface.m
 	NSBox.m
+	NSMenuItemBadge.m
 	NSPopUpButton.m
 	NSDatePickerCell.m
 	NSForm.m
@@ -474,6 +475,7 @@ set(AppKit_sources
 	NSTextFinder.m
 	NSScrubber.m
 	NSScrubberItemView.m
+	NSScrubberLayoutAttributes.m
 	NSUserInterfaceItemIdentification.m
 )
 
