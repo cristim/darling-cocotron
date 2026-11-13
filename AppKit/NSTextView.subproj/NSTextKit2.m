@@ -575,22 +575,3 @@ NSAttributedStringDocumentReadingOptionKey const
 }
 
 @end
-
-#pragma mark - NSTextView
-
-@implementation NSTextView (NSTextKit2)
-
-+ (instancetype) textViewUsingTextLayoutManager: (BOOL) usingTextLayoutManager {
-    // Only TextKit 1 text views exist here.
-    return [[[self alloc] initWithFrame: NSZeroRect] autorelease];
-}
-
-- (NSTextLayoutManager *) textLayoutManager {
-    return nil;
-}
-
-- (NSTextContentStorage *) textContentStorage {
-    return nil;
-}
-
-@end
