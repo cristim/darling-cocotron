@@ -180,6 +180,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
     copy->_actionImage = [_actionImage retain];
     copy->_toolTip = [_toolTip copyWithZone: zone];
     copy->_view = [_view retain];
+    // NSCopyObject copied the owner pointer without retaining it: a copy belongs to no menu.
+    copy->_menu = nil;
     return copy;
 }
 
@@ -329,6 +331,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
     title = [title copy];
     [_title release];
     _title = title;
+    [_menu itemChanged: self];
 }
 
 - (void) setAttributedTitle: (NSAttributedString *) title {
@@ -365,13 +368,17 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 }
 
 - (void) setState: (NSControlStateValue) state {
+    BOOL changed = _state != state;
     _state = state;
+    if (changed)
+        [_menu itemChanged: self];
 }
 
 - (void) setKeyEquivalent: (NSString *) keyEquivalent {
     keyEquivalent = [keyEquivalent copy];
     [_keyEquivalent release];
     _keyEquivalent = keyEquivalent;
+    [_menu itemChanged: self];
 }
 
 - (void) setKeyEquivalentModifierMask: (unsigned) mask {
@@ -382,6 +389,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
     image = [image retain];
     [_image release];
     _image = image;
+    [_menu itemChanged: self];
 }
 
 - (void) setOnStateImage: (NSImage *) image {
@@ -412,11 +420,17 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 }
 
 - (void) setEnabled: (BOOL) flag {
+    BOOL changed = _enabled != flag;
     _enabled = flag;
+    if (changed)
+        [_menu itemChanged: self];
 }
 
 - (void) setHidden: (BOOL) flag {
+    BOOL changed = _hidden != flag;
     _hidden = flag;
+    if (changed)
+        [_menu itemChanged: self];
 }
 
 + (NSDictionary *) keyNames {
