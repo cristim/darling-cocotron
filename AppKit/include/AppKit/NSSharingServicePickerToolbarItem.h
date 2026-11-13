@@ -1,8 +1,9 @@
+#import <AppKit/NSSharingService.h>
 #import <AppKit/NSToolbarItem.h>
 
 @class NSSharingServicePickerToolbarItem;
 
-@protocol NSSharingServicePickerToolbarItemDelegate <NSObject>
+@protocol NSSharingServicePickerToolbarItemDelegate <NSSharingServicePickerDelegate>
 - (NSArray *) itemsForSharingServicePickerToolbarItem: (NSSharingServicePickerToolbarItem *) pickerToolbarItem;
 @end
 
@@ -11,8 +12,13 @@
 // toolbar item that keeps its delegate.
 @interface NSSharingServicePickerToolbarItem : NSToolbarItem {
     id _delegate;
+    id _activityItemsConfiguration;
 }
 
 @property (assign) id<NSSharingServicePickerToolbarItemDelegate> delegate;
+
+// Cocotron has no NSUIActivityItemsConfigurationReading, so the configuration is
+// kept as an object and not used.
+@property (retain) id activityItemsConfiguration;
 
 @end

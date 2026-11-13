@@ -251,11 +251,13 @@ NSApplication *NSApp = nil;
 }
 
 // Private. AppKit-hosting frameworks (Mac Catalyst) ask the application which
-// window owns a rendering context. Darling has no per-window context: there is
-// one connection per process and CGS addresses a window by its window number
-// (see CGS.m), so that number is the context id of its window.
+// window owns a rendering context id. Cocotron has no per-window context ids:
+// -contextID is the process's one CGS connection id, a counter apart from window
+// numbers, so no id can be mapped to a window honestly. Answering with the window
+// of the same number would return a wrong window for a caller's context id, so
+// no window is ever found.
 - (NSWindow *) _findWindowUsingContextID: (uint32_t) contextID {
-    return [self windowWithWindowNumber: contextID];
+    return nil;
 }
 
 - (NSMenu *) mainMenu {
@@ -405,10 +407,14 @@ NSApplication *NSApp = nil;
 }
 
 // Private, required by Mac Catalyst frameworks and not documented. The
-// window-cycling command (Cmd-` and Shift-Cmd-`): make the next window behind
-// the key window key and frontmost, or with reversed YES the window in front of
-// it, wrapping around. Only visible, not miniaturized windows that can become
+// window-cycling command (Cmd-` and Shift-Cmd-`). -orderedWindows is front to
+// back and activating a window moves it to the front, so cycling by position
+// next to the key window would only alternate between two windows. Forward
+// makes the backmost window key and frontmost, which visits every window in
+// turn; reversed sends the key window to the back and makes the window that is
+// then frontmost key. Only visible, not miniaturized windows that can become
 // key take part; panels are left out because -orderedWindows leaves them out.
+// With no candidate nothing happens.
 - (void) _cycleWindowsReversed: (BOOL) reversed {
     NSMutableArray *candidates = [NSMutableArray array];
 
@@ -418,20 +424,24 @@ NSApplication *NSApp = nil;
             [candidates addObject: window];
     }
 
-    NSUInteger count = [candidates count];
-    if (count == 0)
-        return;
+    NSWindow *key = [self keyWindow];
+    NSWindow *target = nil;
 
-    NSUInteger index = [candidates indexOfObjectIdenticalTo: [self keyWindow]];
-    NSUInteger target;
-    if (index == NSNotFound)
-        target = reversed ? count - 1 : 0;
-    else
-        target = reversed ? (index + count - 1) % count : (index + 1) % count;
+    if (!reversed) {
+        target = [candidates lastObject];
+    } else {
+        for (NSWindow *window in candidates) {
+            if (window != key) {
+                target = window;
+                break;
+            }
+        }
+        if (target != nil && [candidates indexOfObjectIdenticalTo: key] != NSNotFound)
+            [key orderBack: nil];
+    }
 
-    NSWindow *window = [candidates objectAtIndex: target];
-    if (window != [self keyWindow])
-        [window makeKeyAndOrderFront: nil];
+    if (target != nil && target != key)
+        [target makeKeyAndOrderFront: nil];
 }
 
 // Private, required by Mac Catalyst frameworks and not documented. Cocotron has
