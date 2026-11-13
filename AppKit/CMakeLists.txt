@@ -374,6 +374,7 @@ set(AppKit_sources
 	NSToolbar.subproj/NSToolbarItem.m
 	NSToolbar.subproj/NSSearchToolbarItem.m
 	NSToolbar.subproj/NSToolbarCustomizationPalette.m
+	NSToolbar.subproj/NSSharingServicePickerToolbarItem.m
 	NSToolbar.subproj/NSSeparatorToolbarItem.m
 	NSToolbar.subproj/NSToolbarItemView.m
 
@@ -419,6 +420,7 @@ set(AppKit_sources
 
 	NSStepper.m
 	NSAccessibility.m
+	NSAccessibilityCustomRotor.m
 	NSAppearance.m
 	NSAccessibilityElement.m
 	NSAccessibilityRemoteUIElement.m
