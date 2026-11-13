@@ -83,19 +83,26 @@ CFTypeID CTFontDescriptorGetTypeID(void)
 
 static pthread_once_t bridgeOnce = PTHREAD_ONCE_INIT;
 
-// Tells CF that descriptors are instances of the class named NSCTFontDescriptor, as CF does for its own bridged types:
-// CF then gives every descriptor that class as its isa and keeps handling retain, release, equality and hash itself.
-// Nothing is bridged when the class or CF's registration function is missing, and that is reported.
-static void bridgeDescriptorClass(void)
+// Tells CF that objects of a CF type are instances of the class of that name, as CF does for its own bridged types:
+// CF then gives every new object of the type that class as its isa and keeps handling retain, release, equality and
+// hash itself. Returns false, and reports it, when CoreFoundation has no registration function; false, quietly, when
+// no class has that name.
+bool KTCoreTextBridgeType(CFTypeID type, const char *className)
 {
-    if (objc_getClass("NSCTFontDescriptor") == Nil)
-        return;
+    if (objc_getClass(className) == Nil)
+        return false;
     void (*registerClass)(CFTypeID, const char *) = (void (*)(CFTypeID, const char *))dlsym(RTLD_DEFAULT, "_CFRuntimeBridgeClasses");
     if (registerClass == NULL) {
-        NSLog(@"CoreText: class NSCTFontDescriptor exists but CoreFoundation cannot bridge a type to it; descriptors stay plain CF objects");
-        return;
+        NSLog(@"CoreText: class %s exists but CoreFoundation cannot bridge a type to it; those objects stay plain CF objects", className);
+        return false;
     }
-    registerClass(CTFontDescriptorGetTypeID(), "NSCTFontDescriptor");
+    registerClass(type, className);
+    return true;
+}
+
+static void bridgeDescriptorClass(void)
+{
+    KTCoreTextBridgeType(CTFontDescriptorGetTypeID(), "NSCTFontDescriptor");
 }
 
 bool KTCoreTextIsDescriptor(CFTypeRef object)

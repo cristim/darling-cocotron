@@ -12,6 +12,8 @@ CFDictionaryRef KTCoreTextObjectDictionary(CFTypeRef object);
 // descriptor goes through this. A descriptor made by another CoreText cannot be read here: it reads as having no
 // attributes, and its class is reported once.
 CFDictionaryRef KTCoreTextDescriptorAttributes(CTFontDescriptorRef descriptor);
+// Makes CF treat objects of a CF type as instances of the named class (see CTFontDescriptor.m).
+bool KTCoreTextBridgeType(CFTypeID type, const char *className);
 // True for anything that can stand for a descriptor in a cascade list or collection.
 bool KTCoreTextIsDescriptor(CFTypeRef object);
 
