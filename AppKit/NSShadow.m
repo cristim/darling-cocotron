@@ -17,6 +17,7 @@ COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
+#import "UIFAppKit.h"
 #import <AppKit/NSColor.h>
 #import <AppKit/NSGraphicsContext.h>
 #import <AppKit/NSRaise.h>
@@ -31,7 +32,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 - init {
     _offset = NSMakeSize(0, 0); // what is the default?
-    _color = [[NSColor colorWithCalibratedWhite: 0 alpha: 1.0 / 3.0] retain];
+    _color = [[UIFAppKitClass(NSColor) colorWithCalibratedWhite: 0 alpha: 1.0 / 3.0] retain];
     _blurRadius = 0;
     return self;
 }
@@ -85,7 +86,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 }
 
 - (void) set {
-    CGContextRef context = [[NSGraphicsContext currentContext] graphicsPort];
+    CGContextRef context = [[UIFAppKitClass(NSGraphicsContext) currentContext] graphicsPort];
     CGColorRef color = [_color CGColorRef];
 
     CGContextSetShadowWithColor(context, _offset, _blurRadius, color);
