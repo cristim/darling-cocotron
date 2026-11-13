@@ -20,6 +20,7 @@ static void expect(BOOL condition, NSString *message)
 - (NSWindow *)_findWindowUsingContextID:(uint32_t)contextID;
 - (BOOL)_restoreMiniaturizedWindow;
 - (void)_cycleWindowsReversed:(BOOL)reversed;
+- (void)_addDebugMenuIfNeeded;
 @end
 
 static NSMutableArray *gOrder;
@@ -140,6 +141,15 @@ int main(void)
         [app _cycleWindowsReversed:NO];
         expect(gKey == a && [gOrder count] == 1, @"a single window stays key");
 
+        gKey = nil; // -_addDebugMenuIfNeeded leaves the main menu alone.
+        expect([app respondsToSelector:@selector(_addDebugMenuIfNeeded)],
+               @"NSApplication answers -_addDebugMenuIfNeeded");
+        NSMenu *menu = [[NSMenu alloc] initWithTitle:@"main"];
+        [app setMainMenu:menu];
+        [app _addDebugMenuIfNeeded];
+        expect([app mainMenu] == menu && [menu numberOfItems] == 0, @"no debug menu is added");
+        [app setMainMenu:nil];
+        [menu release];
 
 
 
