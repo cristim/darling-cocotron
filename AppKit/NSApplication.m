@@ -330,6 +330,12 @@ NSApplication *NSApp = nil;
     return [self isActiveExcludingWindow: nil];
 }
 
+// Private, required by Mac Catalyst frameworks and not documented. The name
+// asks the same question as the public -isActive.
+- (BOOL) _isActiveApp {
+    return [self isActive];
+}
+
 - (BOOL) isHidden {
     return _isHidden;
 }
