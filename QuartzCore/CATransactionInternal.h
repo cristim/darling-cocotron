@@ -26,4 +26,6 @@
 // property also opens an implicit group, which is committed on a later run loop
 // pass and would otherwise make every property change look animated.
 + (BOOL) hasOpenTransaction;
+// Private. The state of the innermost open transaction, nil when none is open.
++ (id) currentState;
 @end
