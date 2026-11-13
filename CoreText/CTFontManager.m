@@ -6,6 +6,15 @@
 
 const CFStringRef kCTFontManagerRegisteredFontsChangedNotification = CFSTR("CTFontManagerFontChangedNotification");
 
+// Behaviour unknown (NEEDS-REAL-MAC); does nothing.
+void CTFontManagerEnableSystemVisibleFonts(void)
+{
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        NSLog(@"Stub called: CTFontManagerEnableSystemVisibleFonts (further calls are not logged)");
+    });
+}
+
 bool CTFontManagerRegisterGraphicsFont(CGFontRef font, CFErrorRef* error)
 {
     printf("STUB %s\n", __PRETTY_FUNCTION__);

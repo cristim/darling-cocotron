@@ -24,4 +24,8 @@ CORETEXT_EXPORT CFArrayRef CTFontManagerCreateFontDescriptorsFromURL(CFURLRef fo
 
 CORETEXT_EXPORT bool CTFontManagerRegisterFontsForURL(CFURLRef fontURL, CTFontManagerScope scope, CFErrorRef * error);
 
+// Not in Apple's public headers: exported because applications import it.
+// The signature is a guess.
+CORETEXT_EXPORT void CTFontManagerEnableSystemVisibleFonts(void);
+
 CF_IMPLICIT_BRIDGING_DISABLED
