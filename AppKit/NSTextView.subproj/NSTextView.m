@@ -67,7 +67,7 @@ NSString *const NSAllRomanInputSourcesLocaleIdentifier =
 @end
 
 @interface NSTextContainer (NSTextContainer_textViewTracking)
-- (void) _resizeToTextView;
+- (void) _darlingResizeToTextView;
 @end
 
 @interface NSTextView (NSTextView_textCompletion)
@@ -619,7 +619,7 @@ static NSTextView *s_targetTextView = nil;
 
 - (void) setTextContainerInset: (NSSize) size {
     _textContainerInset = size;
-    [_textContainer _resizeToTextView];
+    [_textContainer _darlingResizeToTextView];
     [self sizeToFit];
     [self setNeedsDisplay: YES];
 }
@@ -4686,7 +4686,7 @@ static NSTextView *s_targetTextView = nil;
 // Cocotron's.
 @implementation NSTextContainer (NSTextContainer_textViewTracking)
 
-- (void) _resizeToTextView {
+- (void) _darlingResizeToTextView {
     NSTextView *textView = [self textView];
     NSSize newSize = [self containerSize];
     NSSize tracked =
@@ -4701,3 +4701,44 @@ static NSTextView *s_targetTextView = nil;
 
 @end
 
+// The glyphs of the soft (wrapped) line that holds a character, for the visual
+// keyboard movement commands. It lives in AppKit, with them, and uses the layout
+// manager's public API only, so it also works on a layout manager that is not
+// Cocotron's. A glyph has no layout when its line fragment rect is empty.
+@implementation NSLayoutManager (NSLayoutManager_visualKeyboardMovement)
+
+static BOOL glyphHasLayout(NSLayoutManager *manager, NSUInteger glyphIndex) {
+    return !NSEqualRects([manager lineFragmentRectForGlyphAtIndex: glyphIndex
+                                                   effectiveRange: NULL],
+                         NSZeroRect);
+}
+
+- (NSRange) _softLineRangeForCharacterAtIndex: (NSUInteger) location {
+    NSUInteger length = [[[self textStorage] string] length];
+    if (length == 0)
+        return NSMakeRange(0, 0);
+    if (location >= length)
+        location = length - 1;
+
+    // The insertion point at EOF belongs to the last glyph's line.
+    NSRange result = [self glyphRangeForCharacterRange: NSMakeRange(location, 0)
+                                  actualCharacterRange: NULL];
+    if (!glyphHasLayout(self, result.location))
+        return result;
+
+    CGFloat origin = [self locationForGlyphAtIndex: result.location].y;
+    NSUInteger i = result.location, j = result.location;
+
+    while (i > 0 && glyphHasLayout(self, i - 1) &&
+           [self locationForGlyphAtIndex: i - 1].y == origin)
+        i--;
+    while (glyphHasLayout(self, j) &&
+           [self locationForGlyphAtIndex: j].y == origin)
+        j++;
+
+    result.location = i;
+    result.length = j - i;
+    return [self characterRangeForGlyphRange: result actualGlyphRange: NULL];
+}
+
+@end
