@@ -916,3 +916,13 @@ bool CTFontIsAppleColorEmoji(CTFontRef font) { return false; }
 bool CTFontIsLastResort(CTFontRef font) { return false; }
 uint32_t CTFontGetUIFontType(CTFontRef font) { return (uint32_t)kCTFontUIFontNone; }
 uint32_t CTFontGetPhysicalSymbolicTraits(CTFontRef font) { return CTFontGetSymbolicTraits(font); }
+
+// Whether the font has a table of the tag: the same lookup CTFontCopyTable makes. Signature a GUESS from the name.
+bool CTFontHasTable(CTFontRef font, CTFontTableTag tag)
+{
+    CFDataRef table = CTFontCopyTable(font, tag, kCTFontTableOptionNoOptions);
+    if (table == NULL)
+        return false;
+    CFRelease(table);
+    return true;
+}
