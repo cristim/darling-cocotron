@@ -27,6 +27,8 @@ const CFStringRef kCTStrokeWidthAttributeName = CFSTR("NSStrokeWidth");
 const CFStringRef kCTForegroundColorAttributeName = CFSTR("CTForegroundColor");
 const CFStringRef kCTParagraphStyleAttributeName = CFSTR("NSParagraphStyle");
 const CFStringRef kCTKernAttributeName = CFSTR("CTKernAttributeName");
+// GUESS: the value follows the neighbouring CT attribute names; no public source states it.
+const CFStringRef kCTTrackingAttributeName = CFSTR("CTTrackingAttributeName");
 const CFStringRef kCTLanguageAttributeName = CFSTR("CTLanguageAttributeName");
 const CFStringRef kCTTypesetterOptionForcedEmbeddingLevel = CFSTR("CTTypesetterOptionForcedEmbeddingLevel");
 const CFStringRef kCTVerticalFormsAttributeName = CFSTR("CTVerticalFormsAttributeName");

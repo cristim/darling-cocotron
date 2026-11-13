@@ -296,14 +296,83 @@ CTFontRef CTFontCreateWithFontDescriptorAndOptions(CTFontDescriptorRef descripto
     return CTFontCreateWithFontDescriptor(descriptor, size, matrix);
 }
 
+// Every UI font type is answered from the system font machinery here: the one system face, a bold face for
+// the emphasized and alert-header types, a fixed-pitch face for the user fixed-pitch type. A size of 0 takes
+// the default size of the type: 13 regular, 11 small, 9 mini (the control sizes of -[NSFont
+// systemFontSizeForControlSize:]), 10 for labels and tool tips, 12 for menus, fixed pitch and the rest
+// (GUESS: no public source lists the per-type defaults). The language is not used: one face serves all.
+// A type outside the enumeration has no font, so NULL.
 CTFontRef CTFontCreateUIFontForLanguage(CTFontUIFontType uiFontType,
                                         CGFloat size, CFStringRef language)
 {
-    // Only the menu fonts have a known face here.
-    if (uiFontType != kCTFontMenuTitleFontType && uiFontType != kCTFontMenuItemFontType)
+    CGFloat defaultSize = 12.0;
+    bool bold = false;
+    CFStringRef regular = CFSTR("San Francisco");
+    CFStringRef boldName = CFSTR("San Francisco Bold");
+
+    switch (uiFontType) {
+    case kCTFontUIFontSystem:
+    case kCTFontUIFontViews:
+    case kCTFontUIFontApplication:
+    case kCTFontUIFontMessage:
+    case kCTFontUIFontUser:
+    case kCTFontUIFontPushButton:
+    case kCTFontUIFontControlContent:
+    case kCTFontUIFontSystemDetail:
+    case kCTFontUIFontToolbar:
+        defaultSize = 13.0;
+        break;
+    case kCTFontUIFontEmphasizedSystem:
+    case kCTFontUIFontEmphasizedSystemDetail:
+    case kCTFontUIFontAlertHeader:
+        defaultSize = 13.0;
+        bold = true;
+        break;
+    case kCTFontUIFontSmallSystem:
+    case kCTFontUIFontSmallToolbar:
+        defaultSize = 11.0;
+        break;
+    case kCTFontUIFontSmallEmphasizedSystem:
+        defaultSize = 11.0;
+        bold = true;
+        break;
+    case kCTFontUIFontMiniSystem:
+        defaultSize = 9.0;
+        break;
+    case kCTFontUIFontMiniEmphasizedSystem:
+        defaultSize = 9.0;
+        bold = true;
+        break;
+    case kCTFontUIFontLabel:
+    case kCTFontUIFontToolTip:
+        defaultSize = 10.0;
+        break;
+    case kCTFontUIFontUserFixedPitch:
+        regular = boldName = CFSTR("Courier New");
+        break;
+    case kCTFontUIFontMenuTitle:
+    case kCTFontUIFontMenuItem:
+    case kCTFontUIFontMenuItemMark:
+    case kCTFontUIFontMenuItemCmdKey:
+    case kCTFontUIFontWindowTitle:
+    case kCTFontUIFontUtilityWindowTitle:
+    case kCTFontUIFontPalette:
+        break;
+    default:
         return NULL;
-    CGFontRef cgFont = CGFontCreateWithFontName(CFSTR("San Francisco"));
-    CTFontRef result = createFont(cgFont, size > 0.0 ? size : 12.0);
+    }
+
+    CGFontRef cgFont = NULL;
+    if (bold) {
+        cgFont = CGFontCreateWithFontName(boldName);   // no bold face installed: the regular face answers
+    }
+    if (cgFont == NULL) {
+        cgFont = CGFontCreateWithFontName(regular);
+    }
+    if (cgFont == NULL) {
+        return NULL;
+    }
+    CTFontRef result = createFont(cgFont, size > 0.0 ? size : defaultSize);
     CGFontRelease(cgFont);
     return result;
 }

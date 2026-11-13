@@ -340,6 +340,23 @@ CTFontDescriptorRef CTFontDescriptorCreateCopyWithVariation(CTFontDescriptorRef 
     return result;
 }
 
+// The descriptor of the UI font of a type: the font CTFontCreateUIFontForLanguage makes for it, described
+// by its PostScript name and size. NULL, like that function, for a type it has no font for.
+CTFontDescriptorRef CTFontDescriptorCreateForUIType(CTFontUIFontType uiType, CGFloat size, CFStringRef language)
+{
+    CTFontRef font = CTFontCreateUIFontForLanguage(uiType, size, language);
+    if (font == NULL) {
+        return NULL;
+    }
+    CFStringRef name = CTFontCopyPostScriptName(font);
+    CTFontDescriptorRef descriptor = CTFontDescriptorCreateWithNameAndSize(name, CTFontGetSize(font));
+    if (name != NULL) {
+        CFRelease(name);
+    }
+    CFRelease(font);
+    return descriptor;
+}
+
 // Questions that the cache's NSCTFont asks of the descriptor of a font. A descriptor made here describes no system UI
 // font, no Apple font and no PostScript name alias, and is valid when it is a descriptor of this CoreText; the answers
 // follow the font predicates in CTFont.m. Signatures are a GUESS from the names (a descriptor in, a boolean out).

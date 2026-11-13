@@ -219,6 +219,8 @@ CORETEXT_EXPORT CTFontRef CTFontCreateWithFontDescriptorAndOptions(
         const CGAffineTransform *matrix, CTFontOptions options);
 CORETEXT_EXPORT CTFontRef CTFontCreateUIFontForLanguage(
         CTFontUIFontType uiFontType, CGFloat size, CFStringRef language);
+CORETEXT_EXPORT CTFontDescriptorRef CTFontDescriptorCreateForUIType(
+        CTFontUIFontType uiType, CGFloat size, CFStringRef language);
 CORETEXT_EXPORT CTFontRef CTFontCreateCopyWithAttributes(
         CTFontRef font, CGFloat size, const CGAffineTransform *matrix,
         CTFontDescriptorRef attributes);

@@ -34,6 +34,7 @@ set(CoreText_sources
 	constants.c
 	CTNotImplemented.c
 	stubs.c
+	CTUnimplemented.c
 )
 
 set_source_files_properties(${CoreText_sources} LANGUAGE C)

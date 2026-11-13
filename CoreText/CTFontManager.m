@@ -6,6 +6,10 @@
 
 const CFStringRef kCTFontManagerRegisteredFontsChangedNotification = CFSTR("CTFontManagerFontChangedNotification");
 
+// GUESS: the error domain and the user-info key values are not public; the names are.
+const CFStringRef kCTFontManagerErrorDomain = CFSTR("com.apple.CoreText.CTFontManagerErrorDomain");
+const CFStringRef kCTFontManagerErrorFontURLsKey = CFSTR("CTFontManagerErrorFontURLsKey");
+
 bool CTFontManagerRegisterGraphicsFont(CGFontRef font, CFErrorRef* error)
 {
     printf("STUB %s\n", __PRETTY_FUNCTION__);
@@ -68,5 +72,22 @@ CFArrayRef CTFontManagerCreateFontDescriptorsFromURL(CFURLRef fontURL)
 bool CTFontManagerRegisterFontsForURL(CFURLRef fontURL, CTFontManagerScope scope, CFErrorRef * error)
 {
     printf("STUB %s\n", __PRETTY_FUNCTION__);
+    return false;
+}
+
+// CTFontManagerRegisterFontsForURL registers nothing here, so no font URL is ever registered and
+// unregistering one fails with the documented "not registered" error carrying the URL.
+bool CTFontManagerUnregisterFontsForURL(CFURLRef fontURL, CTFontManagerScope scope, CFErrorRef * error)
+{
+    if (error != NULL) {
+        const void *urlValues[] = {fontURL};
+        CFArrayRef urls = CFArrayCreate(NULL, urlValues, fontURL != NULL ? 1 : 0, &kCFTypeArrayCallBacks);
+        const void *keys[] = {kCTFontManagerErrorFontURLsKey};
+        const void *values[] = {urls};
+        CFDictionaryRef info = CFDictionaryCreate(NULL, keys, values, 1, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+        *error = CFErrorCreate(NULL, kCTFontManagerErrorDomain, kCTFontManagerErrorNotRegistered, info);
+        CFRelease(info);
+        CFRelease(urls);
+    }
     return false;
 }
