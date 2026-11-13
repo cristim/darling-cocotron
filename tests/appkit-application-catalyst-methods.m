@@ -21,10 +21,12 @@ static void expect(BOOL condition, NSString *message)
 - (BOOL)_restoreMiniaturizedWindow;
 - (void)_cycleWindowsReversed:(BOOL)reversed;
 - (void)_addDebugMenuIfNeeded;
+- (BOOL)_isActiveApp;
 @end
 
 static NSMutableArray *gOrder;
 static id gKey;
+static BOOL gActive;
 
 @interface FakeWindow : NSObject
 {
@@ -114,6 +116,8 @@ int main(void)
                                  imp_implementationWithBlock(^NSArray *(id s) { return [[gOrder copy] autorelease]; }));
         method_setImplementation(class_getInstanceMethod([NSApplication class], @selector(keyWindow)),
                                  imp_implementationWithBlock(^id(id s) { return gKey; }));
+        method_setImplementation(class_getInstanceMethod([NSApplication class], @selector(isActive)),
+                                 imp_implementationWithBlock(^BOOL(id s) { return gActive; }));
 
         // -_restoreMiniaturizedWindow restores the frontmost miniaturized window only.
         expect([app respondsToSelector:@selector(_restoreMiniaturizedWindow)],
@@ -190,6 +194,12 @@ int main(void)
         [middle release];
         [last release];
 
+        // -_isActiveApp follows -isActive.
+        expect([app respondsToSelector:@selector(_isActiveApp)], @"NSApplication answers -_isActiveApp");
+        gActive = YES;
+        expect([app _isActiveApp], @"-_isActiveApp is YES while -isActive is");
+        gActive = NO;
+        expect(![app _isActiveApp], @"-_isActiveApp is NO while -isActive is");
 
 
 
