@@ -57,6 +57,26 @@ enum
 };
 
 #if LIBPNG_PRESENT
+#ifdef DARLING
+#include <elfcalls.h>
+#endif
+// libpng is a host (ELF) library and branches to the callbacks it is given
+// without authenticating them, so under arm64e they must be passed as plain
+// addresses. ELFCALLS_STRIP comes from elfcalls.h (darling#1469, not on this
+// base yet; see darling-cocotron#528). Until then this fallback, spelled as
+// in O2TIFFImageDirectory.m, is to be shared or removed (VibeDarling/darling
+// #1490 tracks its removal after #1469).
+#ifndef ELFCALLS_STRIP
+#if defined(__has_feature)
+#if __has_feature(ptrauth_calls)
+# define ELFCALLS_STRIP(fn) \
+	((__typeof__(&*(fn)))__builtin_ptrauth_strip((void*)(fn), 0))
+#endif
+#endif
+#endif
+#ifndef ELFCALLS_STRIP
+#define ELFCALLS_STRIP(fn) (fn)
+#endif
 #include <png.h>
 
 typedef struct png_data_t {
@@ -96,7 +116,7 @@ bool load_png_image(const unsigned char *buffer, int length, int *outWidth, int 
      * was compiled with a compatible version
      * of the library.  REQUIRED
      */
-    png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, O2ImageSource_PNGError, NULL);
+    png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, ELFCALLS_STRIP(O2ImageSource_PNGError), NULL);
 
     if (png_ptr == NULL) {
         return false;
@@ -117,7 +137,7 @@ bool load_png_image(const unsigned char *buffer, int length, int *outWidth, int 
 		.data = buffer,
 		.len = length
 	};
-	png_set_read_fn(png_ptr, (png_voidp) &data, png_read_data);
+	png_set_read_fn(png_ptr, (png_voidp) &data, ELFCALLS_STRIP(png_read_data));
 
         /* If we have already
          * read some of the signature */
