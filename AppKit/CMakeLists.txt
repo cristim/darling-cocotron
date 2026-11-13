@@ -309,7 +309,6 @@ set(AppKit_sources
 	NSHelpManager.m
 	NSWritingToolsCoordinator.m
 	NSProgressIndicator.m
-	NSFontCollection.m
 	NSFontDescriptor.m
 	NSDisplay.m
 
