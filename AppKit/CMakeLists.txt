@@ -253,6 +253,7 @@ set(AppKit_sources
 	NSControl.m
 	NSControlAuxiliary.m
 	NSViewController.m
+	NSViewCornerConfiguration.m
 
 	NSTextView.subproj/NSTextView.m
 	NSTextView.subproj/NSBidiHelper.m
