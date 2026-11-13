@@ -905,3 +905,14 @@ void CTFontSetClientObject(CTFontRef font, void *object)
 {
     clientFont(font, "CTFontSetClientObject")->client = object;
 }
+
+// Questions that the cache's NSCTFont asks of every font. None of this CoreText's fonts is marked as a system UI
+// font, a text-style font, the emoji font or the last-resort font, so the answer is no until the UI font model
+// records which fonts it made for those. Signatures are a GUESS from the names (a font in, a boolean or a 32-bit
+// value out); the physical traits are the font's traits, as there is no synthesized style here.
+bool CTFontIsSystemUIFont(CTFontRef font) { return false; }
+bool CTFontIsTextStyleFont(CTFontRef font) { return false; }
+bool CTFontIsAppleColorEmoji(CTFontRef font) { return false; }
+bool CTFontIsLastResort(CTFontRef font) { return false; }
+uint32_t CTFontGetUIFontType(CTFontRef font) { return (uint32_t)kCTFontUIFontNone; }
+uint32_t CTFontGetPhysicalSymbolicTraits(CTFontRef font) { return CTFontGetSymbolicTraits(font); }

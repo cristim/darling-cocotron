@@ -18,6 +18,13 @@
 extern void *CTFontGetClientObject(CTFontRef font);
 extern void CTFontSetClientObject(CTFontRef font, void *object);
 
+extern bool CTFontIsSystemUIFont(CTFontRef font);
+extern bool CTFontIsTextStyleFont(CTFontRef font);
+extern bool CTFontIsAppleColorEmoji(CTFontRef font);
+extern bool CTFontIsLastResort(CTFontRef font);
+extern uint32_t CTFontGetUIFontType(CTFontRef font);
+extern uint32_t CTFontGetPhysicalSymbolicTraits(CTFontRef font);
+
 static void expect(BOOL condition, NSString *message)
 {
     if (!condition)
@@ -41,6 +48,9 @@ static Class registerBridge(void)
 
 static void checkFont(CTFontRef font)
 {
+    expect(!CTFontIsSystemUIFont(font) && !CTFontIsTextStyleFont(font) && !CTFontIsAppleColorEmoji(font) && !CTFontIsLastResort(font), @"an ordinary font is none of the special kinds");
+    expect(CTFontGetUIFontType(font) == (uint32_t)kCTFontUIFontNone, @"no UI font type");
+    expect(CTFontGetPhysicalSymbolicTraits(font) == CTFontGetSymbolicTraits(font), @"physical traits are the traits");
     expect(CTFontGetSize(font) == 20, @"size");
     expect(CTFontGetAscent(font) > 0 && CTFontGetDescent(font) > 0 && CTFontGetAscent(font) < 40, @"metrics");
     UniChar characters[2] = {'A', 'i'};
