@@ -41,6 +41,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSButton.h>
 #import <AppKit/NSButtonCell.h>
 #import <AppKit/NSCIImageRep.h>
+#import <AppKit/NSPICTImageRep.h>
 #import <AppKit/NSCachedImageRep.h>
 #import <AppKit/NSCandidateListTouchBarItem.h>
 #import <AppKit/NSCell.h>
@@ -150,6 +151,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSScrollView.h>
 #import <AppKit/NSScrollEdgeEffectStyle.h>
 #import <AppKit/NSScroller.h>
+#import <AppKit/NSGlassEffectView.h>
 #import <AppKit/NSScrubber.h>
 #import <AppKit/NSScrubberItemView.h>
 #import <AppKit/NSScrubberLayoutAttributes.h>
@@ -227,6 +229,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSViewController.h>
 #import <AppKit/NSViewCornerConfiguration.h>
 #import <AppKit/NSVisualEffectView.h>
+#import <AppKit/NSBackgroundExtensionView.h>
 #import <AppKit/NSWindow.h>
 #import <AppKit/NSWindowController.h>
 #import <AppKit/NSWindowRestoration.h>
