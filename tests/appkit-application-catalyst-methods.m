@@ -91,6 +91,32 @@ static NSString *cycle(NSApplication *app, BOOL reversed, int steps)
 }
 @end
 
+@interface PickerDelegate : NSObject
+{
+@public
+    id askedBy;
+    int asked;
+}
+@end
+@implementation PickerDelegate
+- (NSArray *)itemsForSharingServicePickerToolbarItem:(id)item
+{
+    askedBy = item;
+    asked++;
+    return @[@"item"];
+}
+@end
+
+#if __has_include(<AppKit/NSSharingServicePickerToolbarItem.h>)
+#import <AppKit/NSSharingServicePickerToolbarItem.h>
+static BOOL pickerProtocolInheritsPickerDelegate(void)
+{
+    return protocol_conformsToProtocol(@protocol(NSSharingServicePickerToolbarItemDelegate),
+                                       @protocol(NSSharingServicePickerDelegate));
+}
+#else
+static BOOL pickerProtocolInheritsPickerDelegate(void) { return NO; }
+#endif
 
 int main(void)
 {
@@ -201,7 +227,28 @@ int main(void)
         gActive = NO;
         expect(![app _isActiveApp], @"-_isActiveApp is NO while -isActive is");
 
+        // NSSharingServicePickerToolbarItem
+        Class pickerClass = NSClassFromString(@"NSSharingServicePickerToolbarItem");
+        expect(pickerClass != Nil && [pickerClass isSubclassOfClass:[NSToolbarItem class]],
+               @"NSSharingServicePickerToolbarItem is an NSToolbarItem subclass");
+        expect(class_getInstanceMethod(pickerClass, @selector(validate)) != NULL,
+               @"NSSharingServicePickerToolbarItem resolves -validate");
+        expect(pickerProtocolInheritsPickerDelegate(),
+               @"the toolbar item delegate protocol inherits NSSharingServicePickerDelegate");
+        NSToolbarItem *picker = [[pickerClass alloc] initWithItemIdentifier:@"share"];
+        PickerDelegate *delegate = [[PickerDelegate alloc] init];
+        [(id)picker setDelegate:delegate];
+        expect([(id)picker delegate] == delegate, @"the picker item keeps its delegate");
+        [picker validate];
 
+        id configuration = [[NSObject alloc] init];
+        [(id)picker setActivityItemsConfiguration:configuration];
+        NSToolbarItem *copy = [picker copy];
+        [picker release];
+        expect([(id)copy activityItemsConfiguration] == configuration, @"a copy keeps the activity items configuration");
+        [copy release];
+        [configuration release];
+        [delegate release];
 
         if (failures == 0)
             NSLog(@"PASS: NSApplication catalyst methods");
