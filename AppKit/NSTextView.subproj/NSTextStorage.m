@@ -38,6 +38,7 @@ NSString *const NSTextStorageDidProcessEditingNotification =
 }
 
 - initWithCoder: (NSCoder *) coder {
+    NSLog(@"TEDIAG enter - init");
     _layoutManagers = [NSMutableArray new];
     return self;
 }
@@ -46,6 +47,7 @@ NSString *const NSTextStorageDidProcessEditingNotification =
 }
 
 - initWithString: (NSString *) string {
+    NSLog(@"TEDIAG enter - init");
     _layoutManagers = [NSMutableArray new];
     return self;
 }

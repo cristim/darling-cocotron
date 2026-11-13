@@ -168,6 +168,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 }
 
 - (void) loadWindow {
+    NSLog(@"TEDIAG enter - (void) loadWindow");
     if (_loadingWindowNib)
         return;
     _loadingWindowNib = YES;
@@ -213,10 +214,12 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 }
 
 - (void) windowDidLoad {
+    NSLog(@"TEDIAG enter - (void) windowDidLoad");
     // do nothing
 }
 
 - (void) showWindow: sender {
+    NSLog(@"TEDIAG enter - (void) showWindow");
     [[self window] makeKeyAndOrderFront: sender];
 }
 

@@ -1995,10 +1995,12 @@ static BOOL _allowsAutomaticWindowTabbing;
 }
 
 - (void) makeMainWindow {
+    NSLog(@"TEDIAG enter - (void) makeMainWindow");
     [self becomeMainWindow];
 }
 
 - (void) becomeKeyWindow {
+    NSLog(@"TEDIAG enter - (void) becomeKeyWindow");
     // If we don't return early we may resign ourselves.
     if ([self isKeyWindow]) {
         return;
@@ -2507,6 +2509,7 @@ static BOOL _allowsAutomaticWindowTabbing;
 }
 
 - (void) orderFrontRegardless {
+    NSLog(@"TEDIAG enter - (void) orderFront");
     // XXX: this should maybe do something extra?
     [self orderFront: nil];
 }
@@ -2913,6 +2916,7 @@ static BOOL _allowsAutomaticWindowTabbing;
 }
 
 - (void) makeKeyAndOrderFront: (id) sender {
+    NSLog(@"TEDIAG enter - (void) makeKeyAndOrderFront");
     if ([self isMiniaturized]) {
         [_platformWindow deminiaturize];
     }
@@ -2942,6 +2946,7 @@ static BOOL _allowsAutomaticWindowTabbing;
 }
 
 - (void) orderFront: (id) sender {
+    NSLog(@"TEDIAG enter - (void) orderFront");
     [self orderWindow: NSWindowAbove relativeTo: 0];
 }
 

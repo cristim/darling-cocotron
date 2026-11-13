@@ -115,6 +115,42 @@ NSApplication *NSApp = nil;
 - initWithOwner: owner;
 @end
 
+
+@interface TEDIAGRecorder : NSObject { @public int count; }
+@end
+@implementation TEDIAGRecorder
+- (void) observeValueForKeyPath: (NSString *) keyPath ofObject: (id) object change: (NSDictionary *) change context: (void *) context { count++; }
+@end
+
+static void TEDIAGKVOProbe(NSApplication *app) {
+    NSString *kp = @"mainWindow.windowController.document";
+    NSWindow *window = [[[NSWindow alloc] initWithContentRect: NSMakeRect(0, 0, 100, 100) styleMask: NSWindowStyleMaskTitled backing: NSBackingStoreBuffered defer: YES] autorelease];
+    NSWindowController *wc = [[[NSWindowController alloc] initWithWindow: window] autorelease];
+    NSDocument *doc = [[NSDocument new] autorelease];
+    TEDIAGRecorder *rec = [[TEDIAGRecorder new] autorelease];
+    @try {
+        [app addObserver: rec forKeyPath: kp options: 0 context: NULL];
+        NSLog(@"TEDIAG kvo: added");
+        int b = rec->count; [app _setMainWindow: window];
+        NSLog(@"TEDIAG kvo: makeMainWindow %d -> %d (mainWindow==window %d)", b, rec->count, [app mainWindow] == window);
+        b = rec->count; [wc setDocument: doc];
+        NSLog(@"TEDIAG kvo: setDocument %d -> %d", b, rec->count);
+        NSWindowController *other = [[[NSWindowController alloc] init] autorelease];
+        b = rec->count; [window setWindowController: other];
+        NSLog(@"TEDIAG kvo: setWindowController %d -> %d", b, rec->count);
+        [app removeObserver: rec forKeyPath: kp];
+        NSLog(@"TEDIAG kvo: removed without exception");
+        b = rec->count; [other setDocument: doc];
+        NSLog(@"TEDIAG kvo: after remove setDocument %d -> %d", b, rec->count);
+        // never-registered removal, as TextEdit's duplicate panel did
+        @try { [app removeObserver: rec forKeyPath: kp]; NSLog(@"TEDIAG kvo: unregistered removal did NOT raise"); }
+        @catch (NSException *e) { NSLog(@"TEDIAG kvo: unregistered removal raised %@", [e name]); }
+    } @catch (NSException *e) {
+        NSLog(@"TEDIAG kvo: probe raised %@: %@", [e name], [e reason]);
+    }
+}
+
+
 @implementation NSApplication
 
 - (NSUserInterfaceLayoutDirection) userInterfaceLayoutDirection {
@@ -180,6 +216,7 @@ NSApplication *NSApp = nil;
 }
 
 - (void) _closeSplashImage {
+    NSLog(@"TEDIAG enter - (void) _closeSplashImage");
     for (NSWindow *window in _windows) {
         NSView *contentView = [window contentView];
 
@@ -842,6 +879,7 @@ static void _hookXcodeDevTools(void)
 }
 
 - (BOOL) openFiles {
+    NSLog(@"TEDIAG enter - (BOOL) openFiles");
     BOOL opened = NO;
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
 
@@ -930,7 +968,10 @@ static void _hookXcodeDevTools(void)
     return NO;
 }
 
+
 - (void) finishLaunching {
+    TEDIAGKVOProbe(self);
+    NSLog(@"TEDIAG enter - (void) finishLaunching");
     _hookXcodeDevTools();
     NSAutoreleasePool *pool = [NSAutoreleasePool new];
     BOOL needsUntitled = YES;
@@ -959,6 +1000,7 @@ static void _hookXcodeDevTools(void)
                                    userInfo: nil
                                     repeats: NO];
 
+    NSLog(@"TEDIAG fl: after willFinish post");
     [self _closeSplashImage];
 
     NSDocumentController *controller = nil;
@@ -983,6 +1025,7 @@ static void _hookXcodeDevTools(void)
         needsUntitled = ![_delegate applicationOpenUntitledFile: self];
     }
 
+    NSLog(@"TEDIAG fl: needsUntitled=%d controller=%@", needsUntitled, controller);
     if (controller) {
         [controller _updateRecentDocumentsMenu];
     }
@@ -990,9 +1033,12 @@ static void _hookXcodeDevTools(void)
     if (needsUntitled && controller &&
         [controller defaultType] != nil &&
         [controller documentClassForType: [controller defaultType]] != Nil) {
+        NSLog(@"TEDIAG fl: calling newDocument");
         [controller newDocument: self];
+        NSLog(@"TEDIAG fl: newDocument returned");
     }
 
+    NSLog(@"TEDIAG fl: before didFinish post");
     NS_DURING [[NSNotificationCenter defaultCenter]
             postNotificationName: NSApplicationDidFinishLaunchingNotification
                           object: self];
@@ -1090,6 +1136,7 @@ static void _hookXcodeDevTools(void)
 }
 
 - (void) run {
+    NSLog(@"TEDIAG enter - (void) run {");
     static BOOL didlaunch = NO;
     NSAutoreleasePool *pool;
 
@@ -1144,6 +1191,7 @@ static void _hookXcodeDevTools(void)
 }
 
 - (void) sendEvent: (NSEvent *) event {
+    NSLog(@"TEDIAG enter - (void) sendEvent");
     event = [NSEvent _filterEventWithLocalMonitors: event];
     if (event == nil)
         return;
@@ -1378,6 +1426,7 @@ static void _hookXcodeDevTools(void)
 // means making a window key again, which asks the platform for input focus: the
 // key window, else the main window, else the frontmost window that can become key.
 - (void) activateIgnoringOtherApps: (BOOL) flag {
+    NSLog(@"TEDIAG enter - (void) activateIgnoringOtherApps");
     NSWindow *window = _keyWindow;
 
     if (![window isVisible])

@@ -42,6 +42,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 static int untitled_document_number = 0;
 
 + (NSArray *) readableTypes {
+    NSLog(@"TEDIAG enter +readableTypes");
     NSArray *knownDocTypes =
             [[NSBundle mainBundle] infoDictionary][@"CFBundleDocumentTypes"];
     NSMutableArray *readableTypes = [NSMutableArray array];
@@ -62,6 +63,7 @@ static int untitled_document_number = 0;
 }
 
 + (NSArray *) writableTypes {
+    NSLog(@"TEDIAG enter +writableTypes");
     NSArray *knownDocTypes =
             [[NSBundle mainBundle] infoDictionary][@"CFBundleDocumentTypes"];
     NSMutableArray *writableTypes = [NSMutableArray array];
@@ -81,6 +83,7 @@ static int untitled_document_number = 0;
 }
 
 + (BOOL) isNativeType: (NSString *) type {
+    NSLog(@"TEDIAG enter +isNativeType");
     BOOL result = NO;
     NSArray *knownDocTypes =
             [[NSBundle mainBundle] infoDictionary][@"CFBundleDocumentTypes"];
@@ -99,6 +102,7 @@ static int untitled_document_number = 0;
 }
 
 - (BOOL) _isSelectorOverridden: (SEL) selector {
+    NSLog(@"TEDIAG enter -_isSelectorOverridden");
     IMP mine = [NSDocument instanceMethodForSelector: selector];
     IMP theirs = [self methodForSelector: selector];
 
@@ -106,6 +110,7 @@ static int untitled_document_number = 0;
 }
 
 - (instancetype) init {
+    NSLog(@"TEDIAG enter -init");
     self = [super init];
     if (self) {
         _windowControllers = [NSMutableArray new];
@@ -117,12 +122,14 @@ static int untitled_document_number = 0;
 }
 
 - (instancetype) initWithType: (NSString *) type error: (NSError **) error {
+    NSLog(@"TEDIAG enter -initWithType");
     [self init];
     [self setFileType: type];
     return self;
 }
 
 - (void) _updateFileModificationDate {
+    NSLog(@"TEDIAG enter -_updateFileModificationDate");
     NSFileManager *fileManager = [NSFileManager defaultManager];
     NSString *path = [_fileURL path];
     if (path != nil) {
@@ -136,6 +143,7 @@ static int untitled_document_number = 0;
                                 ofType: (NSString *) type
                                  error: (NSError **) error
 {
+    NSLog(@"TEDIAG enter -initWithContentsOfURL");
     if ([self _isSelectorOverridden: @selector(initWithContentsOfFile:
                                                                ofType:)]) {
         if ([self initWithContentsOfFile: [url path] ofType: type] == nil)
@@ -158,6 +166,7 @@ static int untitled_document_number = 0;
                      ofType: (NSString *) type
                       error: (NSError **) error
 {
+    NSLog(@"TEDIAG enter -initForURL");
     [self init];
     [self setFileURL: url];
     [self setFileType: type];
@@ -172,6 +181,7 @@ static int untitled_document_number = 0;
 }
 
 - (void) dealloc {
+    NSLog(@"TEDIAG enter -dealloc");
     [[NSNotificationCenter defaultCenter] removeObserver: self];
 
     [_windowControllers release];
@@ -188,22 +198,27 @@ static int untitled_document_number = 0;
 }
 
 - (NSURL *) autosavedContentsFileURL {
+    NSLog(@"TEDIAG enter -autosavedContentsFileURL");
     return _autosavedContentsFileURL;
 }
 
 - (NSDate *) fileModificationDate {
+    NSLog(@"TEDIAG enter -fileModificationDate");
     return _fileModificationDate;
 }
 
 - (NSURL *) fileURL {
+    NSLog(@"TEDIAG enter -fileURL");
     return _fileURL;
 }
 
 - (NSPrintInfo *) printInfo {
+    NSLog(@"TEDIAG enter -printInfo");
     return _printInfo ? _printInfo : [NSPrintInfo sharedPrintInfo];
 }
 
 - (NSString *) fileType {
+    NSLog(@"TEDIAG enter -fileType");
     NSString *result = _fileType;
 
     if (result == nil) {
@@ -218,10 +233,12 @@ static int untitled_document_number = 0;
 }
 
 - (BOOL) hasUndoManager {
+    NSLog(@"TEDIAG enter -hasUndoManager");
     return _hasUndoManager;
 }
 
 - (NSUndoManager *) undoManager {
+    NSLog(@"TEDIAG enter -undoManager");
     if (_undoManager == nil && _hasUndoManager == YES) {
         [self setUndoManager: [NSUndoManager new]];
         [_undoManager beginUndoGrouping];
@@ -231,18 +248,21 @@ static int untitled_document_number = 0;
 }
 
 - (void) setAutosavedContentsFileURL: (NSURL *) url {
+    NSLog(@"TEDIAG enter -setAutosavedContentsFileURL");
     url = [url copy];
     [_autosavedContentsFileURL release];
     _autosavedContentsFileURL = url;
 }
 
 - (void) setFileModificationDate: (NSDate *) value {
+    NSLog(@"TEDIAG enter -setFileModificationDate");
     value = [value copy];
     [_fileModificationDate release];
     _fileModificationDate = value;
 }
 
 - (void) setFileURL: (NSURL *) url {
+    NSLog(@"TEDIAG enter -setFileURL");
     url = [url copy];
     [_fileURL release];
     _fileURL = url;
@@ -251,18 +271,21 @@ static int untitled_document_number = 0;
 }
 
 - (void) setPrintInfo: (NSPrintInfo *) value {
+    NSLog(@"TEDIAG enter -setPrintInfo");
     value = [value copy];
     [_printInfo release];
     _printInfo = value;
 }
 
 - (void) setFileType: (NSString *) type {
+    NSLog(@"TEDIAG enter -setFileType");
     type = [type copy];
     [_fileType release];
     _fileType = type;
 }
 
 - (void) setHasUndoManager: (BOOL) flag {
+    NSLog(@"TEDIAG enter -setHasUndoManager");
     _hasUndoManager = flag;
     if (flag == YES && _undoManager == nil)
         [self undoManager];
@@ -271,6 +294,7 @@ static int untitled_document_number = 0;
 }
 
 - (void) setUndoManager: (NSUndoManager *) undoManager {
+    NSLog(@"TEDIAG enter -setUndoManager");
     if (_undoManager != nil) {
         [[NSNotificationCenter defaultCenter]
                 removeObserver: self
@@ -310,6 +334,7 @@ static int untitled_document_number = 0;
 }
 
 - (NSUndoManager *) windowWillReturnUndoManager: (NSWindow *) window {
+    NSLog(@"TEDIAG enter -windowWillReturnUndoManager");
     if (_hasUndoManager)
         return [self undoManager];
 
@@ -318,41 +343,50 @@ static int untitled_document_number = 0;
 
 // There's no separate autosave state: unsaved edits are unautosaved.
 - (BOOL) hasUnautosavedChanges {
+    NSLog(@"TEDIAG enter -hasUnautosavedChanges");
     return [self isDocumentEdited];
 }
 
 - (NSString *) autosavingFileType {
+    NSLog(@"TEDIAG enter -autosavingFileType");
     return [self fileType];
 }
 
 - (void) setLastComponentOfFileName: (NSString *) name {
+    NSLog(@"TEDIAG enter -setLastComponentOfFileName");
     name = [name copy];
     [_lastComponentOfFileName release];
     _lastComponentOfFileName = name;
 }
 
 - (NSString *) windowNibName {
+    NSLog(@"TEDIAG enter -windowNibName");
     return nil;
 }
 
 - (void) setWindow: (NSWindow *) window {
+    NSLog(@"TEDIAG enter -setWindow");
     [[_windowControllers objectAtIndex: 0] setWindow: window];
 }
 
 - (void) windowControllerDidLoadNib: (NSWindowController *) controller {
+    NSLog(@"TEDIAG enter -windowControllerDidLoadNib");
     // do nothing
 }
 
 - (void) windowControllerWillLoadNib: (NSWindowController *) controller {
+    NSLog(@"TEDIAG enter -windowControllerWillLoadNib");
     // do nothing
 }
 
 - (void) showWindows {
+    NSLog(@"TEDIAG enter -showWindows");
     [_windowControllers makeObjectsPerformSelector: @selector(showWindow:)
                                         withObject: self];
 }
 
 - (void) makeWindowControllers {
+    NSLog(@"TEDIAG enter -makeWindowControllers");
     NSString *nibName = [self windowNibName];
 
     if (nibName != nil) {
@@ -365,21 +399,25 @@ static int untitled_document_number = 0;
 }
 
 - (NSArray *) windowControllers {
+    NSLog(@"TEDIAG enter -windowControllers");
     return _windowControllers;
 }
 
 - (void) addWindowController: (NSWindowController *) controller {
+    NSLog(@"TEDIAG enter -addWindowController");
     [_windowControllers addObject: controller];
     if ([controller document] == nil)
         [controller setDocument: self];
 }
 
 - (void) removeWindowController: (NSWindowController *) controller {
+    NSLog(@"TEDIAG enter -removeWindowController");
     [controller setDocument: nil];
     [_windowControllers removeObjectIdenticalTo: controller];
 }
 
 - (NSString *) displayName {
+    NSLog(@"TEDIAG enter -displayName");
     if (_fileURL == nil) {
         NSString *untitledName = NSLocalizedStringFromTableInBundle(
                 @"Untitled", nil, [NSBundle bundleForClass: [NSDocument class]],
@@ -396,6 +434,7 @@ static int untitled_document_number = 0;
 }
 
 - (NSWindow *) windowForSheet {
+    NSLog(@"TEDIAG enter -windowForSheet");
     if ([_windowControllers count] > 0) {
         NSWindow *check = [[_windowControllers objectAtIndex: 0] window];
 
@@ -407,18 +446,22 @@ static int untitled_document_number = 0;
 }
 
 - (BOOL) isDocumentEdited {
+    NSLog(@"TEDIAG enter -isDocumentEdited");
     return _changeCount != 0 || [_activeEditors count] > 0;
 }
 
 - (BOOL) isDraft {
+    NSLog(@"TEDIAG enter -isDraft");
     return _draft;
 }
 
 - (void) setDraft: (BOOL) value {
+    NSLog(@"TEDIAG enter -setDraft");
     _draft = value;
 }
 
 - (void) updateChangeCount: (NSDocumentChangeType) changeType {
+    NSLog(@"TEDIAG enter -updateChangeCount");
     int count = [_windowControllers count];
 
     switch (changeType) {
@@ -459,6 +502,7 @@ static int untitled_document_number = 0;
 }
 
 - (void) _autosaveAfterDelay {
+    NSLog(@"TEDIAG enter -_autosaveAfterDelay");
     _autosaveScheduled = NO;
     [self autosaveWithImplicitCancellability: YES
                            completionHandler: ^(NSError *error) {
@@ -471,6 +515,7 @@ static int untitled_document_number = 0;
                ofType: (NSString *) type
                 error: (NSError **) error
 {
+    NSLog(@"TEDIAG enter -readFromData");
     if ([self _isSelectorOverridden: @selector(loadDataRepresentation:ofType:)])
         return [self loadDataRepresentation: data ofType: type];
     else {
@@ -484,6 +529,7 @@ static int untitled_document_number = 0;
                       ofType: (NSString *) type
                        error: (NSError **) error
 {
+    NSLog(@"TEDIAG enter -readFromFileWrapper");
     if ([self _isSelectorOverridden: @selector(loadFileWrapperRepresentation:
                                                                       ofType:)])
         return [self loadFileWrapperRepresentation: fileWrapper ofType: type];
@@ -497,6 +543,7 @@ static int untitled_document_number = 0;
               ofType: (NSString *) type
                error: (NSError **) error
 {
+    NSLog(@"TEDIAG enter -readFromURL");
     if ([url isFileURL]) {
         if ([self _isSelectorOverridden: @selector(readFromFile:ofType:)]) {
             return [self readFromFile: [url path] ofType: type];
@@ -518,6 +565,7 @@ static int untitled_document_number = 0;
                         ofType: (NSString *) type
                          error: (NSError **) error
 {
+    NSLog(@"TEDIAG enter -revertToContentsOfURL");
     if (![self readFromURL: url ofType: type error: error])
         return NO;
 
@@ -526,6 +574,7 @@ static int untitled_document_number = 0;
 }
 
 - (NSData *) dataOfType: (NSString *) type error: (NSError **) error {
+    NSLog(@"TEDIAG enter -dataOfType");
     if ([self _isSelectorOverridden: @selector(dataRepresentationOfType:)])
         return [self dataRepresentationOfType: type];
 
@@ -537,6 +586,7 @@ static int untitled_document_number = 0;
 - (NSFileWrapper *) fileWrapperOfType: (NSString *) type
                                 error: (NSError **) error
 {
+    NSLog(@"TEDIAG enter -fileWrapperOfType");
     if ([self _isSelectorOverridden: @selector
                 (fileWrapperRepresentationOfType:)])
         return [self fileWrapperRepresentationOfType: type];
@@ -555,6 +605,7 @@ static int untitled_document_number = 0;
              ofType: (NSString *) type
               error: (NSError **) error
 {
+    NSLog(@"TEDIAG enter -writeToURL");
     if ([self _isSelectorOverridden: @selector(writeToFile:ofType:)]) {
         return [self writeToFile: [url path] ofType: type];
     } else {
@@ -578,6 +629,7 @@ static int untitled_document_number = 0;
         originalContentsURL: (NSURL *) contentsURL
                       error: (NSError **) error
 {
+    NSLog(@"TEDIAG enter -writeToURL");
     BOOL status = NO;
     if ([self _isSelectorOverridden: @selector
                 (writeToFile:ofType:originalFile:saveOperation:)]) {
@@ -602,6 +654,7 @@ static int untitled_document_number = 0;
          forSaveOperation: (NSSaveOperationType) operation
                     error: (NSError **) error
 {
+    NSLog(@"TEDIAG enter -writeSafelyToURL");
     if (![self writeToURL: url
                              ofType: type
                    forSaveOperation: operation
@@ -628,12 +681,14 @@ static int untitled_document_number = 0;
                           originalContentsURL: (NSURL *) contentsURL
                                         error: (NSError **) error
 {
+    NSLog(@"TEDIAG enter -fileAttributesToWriteToURL");
     NSMutableDictionary *result = [NSMutableDictionary dictionary];
 
     return result;
 }
 
 - (BOOL) keepBackupFile {
+    NSLog(@"TEDIAG enter -keepBackupFile");
     return NO;
 }
 
@@ -641,6 +696,7 @@ static int untitled_document_number = 0;
                   didAutosaveSelector: (SEL) selector
                           contextInfo: (void *) info
 {
+    NSLog(@"TEDIAG enter -autosaveDocumentWithDelegate");
     NSError *error;
 
     if (![self writeToURL: [self autosavedContentsFileURL]
@@ -654,11 +710,13 @@ static int untitled_document_number = 0;
 }
 
 - (NSError *) willPresentError: (NSError *) error {
+    NSLog(@"TEDIAG enter -willPresentError");
     // do nothing
     return error;
 }
 
 - (BOOL) presentError: (NSError *) error {
+    NSLog(@"TEDIAG enter -presentError");
     return [[NSDocumentController sharedDocumentController]
             presentError: [self willPresentError: error]];
 }
@@ -669,6 +727,7 @@ static int untitled_document_number = 0;
         didPresentSelector: (SEL) selector
                contextInfo: (void *) info
 {
+    NSLog(@"TEDIAG enter -presentError");
     [[NSDocumentController sharedDocumentController]
                   presentError: [self willPresentError: error]
                 modalForWindow: window
@@ -678,6 +737,7 @@ static int untitled_document_number = 0;
 }
 
 - (NSArray *) writableTypesForSaveOperation: (NSSaveOperationType) operation {
+    NSLog(@"TEDIAG enter -writableTypesForSaveOperation");
     NSArray *result = [[self class] writableTypes];
 
     if (operation == NSSaveToOperation) {
@@ -697,19 +757,23 @@ static int untitled_document_number = 0;
 }
 
 - (BOOL) shouldRunSavePanelWithAccessoryView {
+    NSLog(@"TEDIAG enter -shouldRunSavePanelWithAccessoryView");
     return YES;
 }
 
 - (BOOL) prepareSavePanel: (NSSavePanel *) savePanel {
+    NSLog(@"TEDIAG enter -prepareSavePanel");
     return YES;
 }
 
 - (BOOL) fileNameExtensionWasHiddenInLastRunSavePanel {
+    NSLog(@"TEDIAG enter -fileNameExtensionWasHiddenInLastRunSavePanel");
     NSUnimplementedMethod();
     return 0;
 }
 
 - (NSString *) fileTypeFromLastRunSavePanel {
+    NSLog(@"TEDIAG enter -fileTypeFromLastRunSavePanel");
     NSUnimplementedMethod();
     return nil;
 }
@@ -719,6 +783,7 @@ static int untitled_document_number = 0;
                            didSaveSelector: (SEL) selector
                                contextInfo: (void *) context
 {
+    NSLog(@"TEDIAG enter -runModalSavePanelForSaveOperation");
     NSString *path = [_fileURL path];
     NSString *extension = [path pathExtension];
     if ([extension length] == 0) {
@@ -799,6 +864,7 @@ static int untitled_document_number = 0;
                   didSaveSelector: (SEL) selector
                       contextInfo: (void *) info
 {
+    NSLog(@"TEDIAG enter -saveDocumentWithDelegate");
     // First make sure there are no uncommitted changes
     for (id editor in [[_activeEditors copy] autorelease]) {
         [editor commitEditing];
@@ -875,6 +941,7 @@ static int untitled_document_number = 0;
         forSaveOperation: (NSSaveOperationType) operation
                    error: (NSError **) error
 {
+    NSLog(@"TEDIAG enter -saveToURL");
     if (url == nil) {
         return NO;
     } else {
@@ -902,6 +969,7 @@ static int untitled_document_number = 0;
          didSaveSelector: (SEL) selector
              contextInfo: (void *) info
 {
+    NSLog(@"TEDIAG enter -saveToURL");
     // Like macOS, go through the completion handler variant, which subclasses override.
     [self saveToURL: url
                        ofType: type
@@ -923,11 +991,13 @@ static int untitled_document_number = 0;
 }
 
 - (BOOL) preparePageLayout: (NSPageLayout *) pageLayout {
+    NSLog(@"TEDIAG enter -preparePageLayout");
     // do nothing
     return YES;
 }
 
 - (BOOL) shouldChangePrintInfo: (NSPrintInfo *) printInfo {
+    NSLog(@"TEDIAG enter -shouldChangePrintInfo");
     // do nothing
     return YES;
 }
@@ -937,6 +1007,7 @@ static int untitled_document_number = 0;
                           didRunSelector: (SEL) selector
                              contextInfo: (void *) info
 {
+    NSLog(@"TEDIAG enter -runModalPageLayoutWithPrintInfo");
     int button = [[NSPageLayout pageLayout] runModalWithPrintInfo: printInfo];
     if ([delegate respondsToSelector: selector]) {
         // Tell delegate if the print info was updated.
@@ -953,6 +1024,7 @@ static int untitled_document_number = 0;
                  didRunSelector: (SEL) selector
                     contextInfo: (void *) info
 {
+    NSLog(@"TEDIAG enter -runModalPrintOperation");
     NSWindow *docWindow = [self windowForSheet];
     [printOperation runOperationModalForWindow: docWindow
                                       delegate: delegate
@@ -963,6 +1035,7 @@ static int untitled_document_number = 0;
 - (NSPrintOperation *) printOperationWithSettings: (NSDictionary *) settings
                                             error: (NSError **) error
 {
+    NSLog(@"TEDIAG enter -printOperationWithSettings");
     NSLog(@"Implement %s in your subclass %@ of NSDocument to enable printing",
           sel_getName(_cmd), [self class]);
     return nil;
@@ -974,6 +1047,7 @@ static int untitled_document_number = 0;
                   didPrintSelector: (SEL) selector
                        contextInfo: (void *) contextInfo
 {
+    NSLog(@"TEDIAG enter -printDocumentWithSettings");
     if ([self _isSelectorOverridden: @selector(printShowingPrintPanel:)]) {
         [self printShowingPrintPanel: showPrintPanel];
         if (delegate != nil && selector != NULL) {
@@ -1014,6 +1088,7 @@ static int untitled_document_number = 0;
 }
 
 - (void) close {
+    NSLog(@"TEDIAG enter -close");
     if (_autosaveScheduled) {
         _autosaveScheduled = NO;
         [NSObject cancelPreviousPerformRequestsWithTarget: self selector: @selector(_autosaveAfterDelay) object: nil];
@@ -1038,6 +1113,7 @@ static int untitled_document_number = 0;
                   shouldCloseSelector: (SEL) selector
                           contextInfo: (void *) info
 {
+    NSLog(@"TEDIAG enter -canCloseDocumentWithDelegate");
     BOOL OKToClose;
     if ([self isDocumentEdited]) {
         NSString *fileName = [self fileName];
@@ -1090,6 +1166,7 @@ static int untitled_document_number = 0;
                  shouldCloseSelector: (SEL) selector
                          contextInfo: (void *) info
 {
+    NSLog(@"TEDIAG enter -shouldCloseWindowController");
     if ([controller shouldCloseDocument] || [_windowControllers count] <= 1) {
         [self canCloseDocumentWithDelegate: delegate
                        shouldCloseSelector: selector
@@ -1104,6 +1181,7 @@ static int untitled_document_number = 0;
 }
 
 - (void) revertDocumentToSaved: sender {
+    NSLog(@"TEDIAG enter -revertDocumentToSaved");
     int result = NSRunAlertPanel(
             nil,
             NSLocalizedStringFromTableInBundle(
@@ -1126,12 +1204,14 @@ static int untitled_document_number = 0;
 }
 
 - (void) saveDocument: sender {
+    NSLog(@"TEDIAG enter -saveDocument");
     [self saveDocumentWithDelegate: nil
                    didSaveSelector: NULL
                        contextInfo: NULL];
 }
 
 - (void) saveDocumentAs: sender {
+    NSLog(@"TEDIAG enter -saveDocumentAs");
     [self runModalSavePanelForSaveOperation: NSSaveAsOperation
                                    delegate: nil
                             didSaveSelector: NULL
@@ -1139,6 +1219,7 @@ static int untitled_document_number = 0;
 }
 
 - (void) saveDocumentTo: sender {
+    NSLog(@"TEDIAG enter -saveDocumentTo");
     [self runModalSavePanelForSaveOperation: NSSaveToOperation
                                    delegate: nil
                             didSaveSelector: NULL
@@ -1146,6 +1227,7 @@ static int untitled_document_number = 0;
 }
 
 - (void) printDocument: sender {
+    NSLog(@"TEDIAG enter -printDocument");
     [self printDocumentWithSettings: nil
                      showPrintPanel: YES
                            delegate: nil
@@ -1154,10 +1236,12 @@ static int untitled_document_number = 0;
 }
 
 - (void) runPageLayout: sender {
+    NSLog(@"TEDIAG enter -runPageLayout");
     [[NSPageLayout pageLayout] runModal];
 }
 
 - (BOOL) validateUserInterfaceItem: (id<NSValidatedUserInterfaceItem>) item {
+    NSLog(@"TEDIAG enter -validateUserInterfaceItem");
     if (sel_isEqual([item action], @selector(revertDocumentToSaved:)))
         return (_fileURL != nil) ? YES : NO;
     if (sel_isEqual([item action], @selector(saveDocument:)))
@@ -1169,6 +1253,7 @@ static int untitled_document_number = 0;
 }
 
 - (void) objectDidBeginEditing: editor {
+    NSLog(@"TEDIAG enter -objectDidBeginEditing");
     [_activeEditors addObject: editor];
 
     BOOL edited = [self isDocumentEdited];
@@ -1177,6 +1262,7 @@ static int untitled_document_number = 0;
 }
 
 - (void) objectDidEndEditing: editor {
+    NSLog(@"TEDIAG enter -objectDidEndEditing");
     [_activeEditors removeObject: editor];
 
     BOOL edited = [self isDocumentEdited];
@@ -1185,6 +1271,7 @@ static int untitled_document_number = 0;
 }
 
 - (BOOL) validateMenuItem: (NSMenuItem *) item {
+    NSLog(@"TEDIAG enter -validateMenuItem");
     if (sel_isEqual([item action], @selector(revertDocumentToSaved:)))
         return (_fileURL != nil) ? YES : NO;
     if (sel_isEqual([item action], @selector(saveDocument:)))
@@ -1196,10 +1283,12 @@ static int untitled_document_number = 0;
 }
 
 - (BOOL) canCloseDocument {
+    NSLog(@"TEDIAG enter -canCloseDocument");
     return YES;
 }
 
 - (NSData *) dataRepresentationOfType: (NSString *) type {
+    NSLog(@"TEDIAG enter -dataRepresentationOfType");
     [NSException raise: NSInternalInconsistencyException
                 format: @"-[%@ %s]", [self class], sel_getName(_cmd)];
     return nil;
@@ -1209,21 +1298,25 @@ static int untitled_document_number = 0;
                                         ofType: (NSString *) type
                                  saveOperation: (NSSaveOperationType) operation
 {
+    NSLog(@"TEDIAG enter -fileAttributesToWriteToFile");
     return [NSDictionary dictionary];
 }
 
 - (NSString *) fileName {
+    NSLog(@"TEDIAG enter -fileName");
     return [_fileURL path];
 }
 
 - (NSString *) fileNameFromRunningSavePanelForSaveOperation:
         (NSSaveOperationType) operation
 {
+    NSLog(@"TEDIAG enter -fileNameFromRunningSavePanelForSaveOperation");
     NSUnimplementedMethod();
     return nil;
 }
 
 - (NSFileWrapper *) fileWrapperRepresentationOfType: (NSString *) type {
+    NSLog(@"TEDIAG enter -fileWrapperRepresentationOfType");
     NSData *data = [self dataRepresentationOfType: type];
 
     if (data == nil)
@@ -1234,6 +1327,7 @@ static int untitled_document_number = 0;
 }
 
 - initWithContentsOfFile: (NSString *) path ofType: (NSString *) type {
+    NSLog(@"TEDIAG enter -initWithContentsOfFile");
     NSURL *url = [NSURL fileURLWithPath: path];
     NSError *error;
 
@@ -1262,6 +1356,7 @@ static int untitled_document_number = 0;
 }
 
 - (id) initWithContentsOfURL: (NSURL *) url ofType: (NSString *) type {
+    NSLog(@"TEDIAG enter -initWithContentsOfURL");
     NSError *error;
     [self init];
 
@@ -1288,6 +1383,7 @@ static int untitled_document_number = 0;
 
 
 - (BOOL) loadDataRepresentation: (NSData *) data ofType: (NSString *) type {
+    NSLog(@"TEDIAG enter -loadDataRepresentation");
     [NSException raise: NSInternalInconsistencyException
                 format: @"-[%@ %s]", [self class], sel_getName(_cmd)];
     return NO;
@@ -1296,6 +1392,7 @@ static int untitled_document_number = 0;
 - (BOOL) loadFileWrapperRepresentation: (NSFileWrapper *) fileWrapper
                                 ofType: (NSString *) type
 {
+    NSLog(@"TEDIAG enter -loadFileWrapperRepresentation");
 
     if ([fileWrapper isRegularFile])
         return [self loadDataRepresentation: [fileWrapper regularFileContents]
@@ -1305,10 +1402,12 @@ static int untitled_document_number = 0;
 }
 
 - (void) printShowingPrintPanel: (BOOL) flag {
+    NSLog(@"TEDIAG enter -printShowingPrintPanel");
     // do nothing
 }
 
 - (BOOL) readFromFile: (NSString *) path ofType: (NSString *) type {
+    NSLog(@"TEDIAG enter -readFromFile");
     NSData *data = [[NSData alloc] initWithContentsOfFile: path];
 
     if (data == nil)
@@ -1324,10 +1423,12 @@ static int untitled_document_number = 0;
 }
 
 - (BOOL) readFromURL: (NSURL *) url ofType: (NSString *) type {
+    NSLog(@"TEDIAG enter -readFromURL");
     return [self readFromFile: [url path] ofType: type];
 }
 
 - (BOOL) revertToSavedFromFile: (NSString *) path ofType: (NSString *) type {
+    NSLog(@"TEDIAG enter -revertToSavedFromFile");
     if ([self readFromFile: path ofType: type]) {
         [self updateChangeCount: NSChangeCleared];
         return YES;
@@ -1337,6 +1438,7 @@ static int untitled_document_number = 0;
 }
 
 - (BOOL) revertToSavedFromURL: (NSURL *) url ofType: (NSString *) type {
+    NSLog(@"TEDIAG enter -revertToSavedFromURL");
     if ([self readFromURL: url ofType: type]) {
         [self updateChangeCount: NSChangeCleared];
         return YES;
@@ -1348,15 +1450,18 @@ static int untitled_document_number = 0;
 - (int) runModalSavePanel: (NSSavePanel *) savePanel
         withAccessoryView: (NSView *) accessoryView
 {
+    NSLog(@"TEDIAG enter -runModalSavePanel");
     NSUnimplementedMethod();
     return 0;
 }
 
 - (int) runModalPageLayoutWithPrintInfo: (NSPrintInfo *) printInfo {
+    NSLog(@"TEDIAG enter -runModalPageLayoutWithPrintInfo");
     return [[NSPageLayout pageLayout] runModalWithPrintInfo: printInfo];
 }
 
 - (void) setFileName: (NSString *) path {
+    NSLog(@"TEDIAG enter -setFileName");
     if (path != nil)
         [self setFileURL: [NSURL fileURLWithPath: path]];
     else
@@ -1369,6 +1474,7 @@ static int untitled_document_number = 0;
         didSaveSelector: (SEL) selector
             contextInfo: (void *) context
 {
+    NSLog(@"TEDIAG enter -saveToFile");
     if (path != nil) {
         BOOL success = [self writeWithBackupToFile: path
                                             ofType: _fileType
@@ -1391,6 +1497,7 @@ static int untitled_document_number = 0;
 }
 
 - (BOOL) shouldCloseWindowController: (NSWindowController *) controller {
+    NSLog(@"TEDIAG enter -shouldCloseWindowController");
     if (![controller shouldCloseDocument])
         return NO;
 
@@ -1401,6 +1508,7 @@ static int untitled_document_number = 0;
 }
 
 - (BOOL) writeToFile: (NSString *) path ofType: (NSString *) type {
+    NSLog(@"TEDIAG enter -writeToFile");
     NSData *data;
 
     if ([self _isSelectorOverridden: @selector(dataRepresentationOfType:)])
@@ -1416,11 +1524,13 @@ static int untitled_document_number = 0;
          originalFile: (NSString *) original
         saveOperation: (NSSaveOperationType) operation
 {
+    NSLog(@"TEDIAG enter -writeToFile");
     NSUnimplementedMethod();
     return 0;
 }
 
 - (BOOL) writeToURL: (NSURL *) url ofType: (NSString *) type {
+    NSLog(@"TEDIAG enter -writeToURL");
     NSUnimplementedMethod();
     return 0;
 }
@@ -1429,6 +1539,7 @@ static int untitled_document_number = 0;
                         ofType: (NSString *) type
                  saveOperation: (NSSaveOperationType) operation
 {
+    NSLog(@"TEDIAG enter -writeWithBackupToFile");
     // move original to backup
 
     if (![self writeToFile: path ofType: type])
@@ -1441,24 +1552,29 @@ static int untitled_document_number = 0;
 }
 
 - (void) _setUntitledNumber: (int) number {
+    NSLog(@"TEDIAG enter -_setUntitledNumber");
     _untitledNumber = number;
 }
 
 - (void) _undoManagerDidUndoChange: (NSNotification *) note {
+    NSLog(@"TEDIAG enter -_undoManagerDidUndoChange");
     [self updateChangeCount: NSChangeUndone];
 }
 
 - (void) _undoManagerDidRedoChange: (NSNotification *) note {
+    NSLog(@"TEDIAG enter -_undoManagerDidRedoChange");
     [self updateChangeCount: NSChangeDone];
 }
 
 - (void) _undoManagerDidCloseGroup: (NSNotification *) note {
+    NSLog(@"TEDIAG enter -_undoManagerDidCloseGroup");
     // FIXME: the following would mark just opened and otherwise pristine
     // documents as changed
     //  [self updateChangeCount:NSChangeDone];
 }
 
 - (BOOL) windowShouldClose: sender {
+    NSLog(@"TEDIAG enter -windowShouldClose");
     if ([[NSUserDefaults standardUserDefaults] boolForKey: @"useSheets"]) {
         NSBeginAlertSheet(
                 nil,
@@ -1525,6 +1641,7 @@ static int untitled_document_number = 0;
                      returnCode: (int) returnCode
                     contextInfo: (void *) contextInfo
 {
+    NSLog(@"TEDIAG enter -didEndShouldCloseSheet");
     NSWindow *window = (NSWindow *) contextInfo;
 
     switch (returnCode) {
@@ -1545,6 +1662,7 @@ static int untitled_document_number = 0;
 
 #if 0
 -(void)windowWillClose:(NSNotification *)note {
+    NSLog(@"TEDIAG enter -windowWillClose");
    NSWindow *window=[note object];
    int       count=[_windowControllers count];
 
@@ -1563,10 +1681,12 @@ static int untitled_document_number = 0;
 #endif
 
 - (void) textDidChange: (NSNotification *) aNotification {
+    NSLog(@"TEDIAG enter -textDidChange");
     [self updateChangeCount: NSChangeDone];
 }
 
 - (void) performSynchronousFileAccessUsingBlock: (void (^)(void)) block {
+    NSLog(@"TEDIAG enter -performSynchronousFileAccessUsingBlock");
     // FIXME: this is just a stub for now that performs no synchronization
     block();
 }
@@ -1576,6 +1696,7 @@ static int untitled_document_number = 0;
   forSaveOperation: (NSSaveOperationType) saveOperation
  completionHandler: (void (^)(NSError *errorOrNil)) completionHandler
  {
+    NSLog(@"TEDIAG enter -saveToURL");
     // Saves synchronously, then calls the handler.
     NSError *error = nil;
     BOOL saved = [self saveToURL: url
@@ -1591,6 +1712,7 @@ static int untitled_document_number = 0;
 - (void) autosaveWithImplicitCancellability: (BOOL) autosavingIsImplicitlyCancellable
                           completionHandler: (void (^)(NSError *errorOrNil)) completionHandler
 {
+    NSLog(@"TEDIAG enter -autosaveWithImplicitCancellability");
     // Documents that autosave in place are saved to their file; otherwise, and
     // with nothing to save, there is no autosave location and nothing is written.
     if ([self hasUnautosavedChanges] && [self fileURL] != nil &&
@@ -1607,16 +1729,19 @@ static int untitled_document_number = 0;
 }
 
 - (void) continueActivityUsingBlock: (void (^)(void)) block {
+    NSLog(@"TEDIAG enter -continueActivityUsingBlock");
     if (block)
         block();
 }
 
 - (void) unblockUserInteraction {
+    NSLog(@"TEDIAG enter -unblockUserInteraction");
     // Saving is synchronous here: no asynchronous writer is holding the main
     // thread while a subclass creates its document snapshot.
 }
 
 - (void) continueAsynchronousWorkOnMainThreadUsingBlock: (void (^)(void)) block {
+    NSLog(@"TEDIAG enter -continueAsynchronousWorkOnMainThreadUsingBlock");
     if (block)
         dispatch_async(dispatch_get_main_queue(), block);
 }
@@ -1624,41 +1749,50 @@ static int untitled_document_number = 0;
 - (void) performActivityWithSynchronousWaiting: (BOOL) waitSynchronously
                                     usingBlock: (void (^)(void (^activityCompletionHandler)(void))) block
 {
+    NSLog(@"TEDIAG enter -performActivityWithSynchronousWaiting");
     if (block)
         block(^{
         });
 }
 
 - (void) performAsynchronousFileAccessUsingBlock: (void (^)(void (^fileAccessCompletionHandler)(void))) block {
+    NSLog(@"TEDIAG enter -performAsynchronousFileAccessUsingBlock");
     if (block)
         block(^{
         });
 }
 
 - (void) browseDocumentVersions: (id) sender {
+    NSLog(@"TEDIAG enter -browseDocumentVersions");
 }
 
 - (void) invalidateRestorableState {
+    NSLog(@"TEDIAG enter -invalidateRestorableState");
 }
 
 + (NSArray *) restorableStateKeyPaths {
+    NSLog(@"TEDIAG enter +restorableStateKeyPaths");
     return [NSArray array];
 }
 
 - (void) encodeRestorableStateWithCoder: (NSCoder *) coder {
+    NSLog(@"TEDIAG enter -encodeRestorableStateWithCoder");
 }
 
 - (void) encodeRestorableStateWithCoder: (NSCoder *) coder backgroundQueue: (NSOperationQueue *) queue {
+    NSLog(@"TEDIAG enter -encodeRestorableStateWithCoder");
     [self encodeRestorableStateWithCoder: coder];
 }
 
 - (void) restoreStateWithCoder: (NSCoder *) coder {
+    NSLog(@"TEDIAG enter -restoreStateWithCoder");
 }
 
 - (void) restoreDocumentWindowWithIdentifier: (NSString *) identifier
                                        state: (NSCoder *) state
                            completionHandler: (void (^)(NSWindow *window, NSError *error)) completionHandler
 {
+    NSLog(@"TEDIAG enter -restoreDocumentWindowWithIdentifier");
     if ([[self windowControllers] count] == 0) {
         [self makeWindowControllers];
     }
@@ -1677,10 +1811,12 @@ static int untitled_document_number = 0;
 @implementation NSDocument (NSDocumentViewingAndSaveType)
 
 - (BOOL) isInViewingMode {
+    NSLog(@"TEDIAG enter -isInViewingMode");
     return NO;
 }
 
 - (void) changeSaveType: (id) sender {
+    NSLog(@"TEDIAG enter -changeSaveType");
 }
 
 @end

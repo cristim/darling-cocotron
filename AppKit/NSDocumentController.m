@@ -53,6 +53,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 @implementation _NSUnsupportedDocument
 
 - (instancetype) initWithType: (NSString *) type error: (NSError **) error {
+    NSLog(@"TEDIAG enter -initWithContentsOfURL");
     *error = [NSError errorWithDomain: NSCocoaErrorDomain
                                  code: NSFeatureUnsupportedError
                              userInfo: nil];
@@ -64,6 +65,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
                                 ofType: (NSString *) typeName
                                  error: (NSError *_Nullable *) outError
 {
+    NSLog(@"TEDIAG enter -initWithContentsOfURL");
 
     if (outError) {
         *outError = [NSError errorWithDomain: NSCocoaErrorDomain
@@ -76,6 +78,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 }
 
 - (id) initWithContentsOfURL: (NSURL *) url ofType: (NSString *) typeName {
+    NSLog(@"TEDIAG enter -initWithContentsOfURL");
     [self release];
     return nil;
 }
@@ -83,6 +86,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 - (id) initWithContentsOfFile: (NSString *) absolutePath
                        ofType: (NSString *) typeName
 {
+    NSLog(@"TEDIAG enter -initWithContentsOfFile");
     [self release];
     return nil;
 }
@@ -106,6 +110,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 static NSDocumentController *s_sharedDocumentController = nil;
 
 + (id) sharedDocumentController {
+    NSLog(@"TEDIAG enter +sharedDocumentController");
     @synchronized([NSDocumentController class]) {
         if (s_sharedDocumentController == nil) {
             s_sharedDocumentController = [[self alloc] init];
@@ -116,6 +121,7 @@ static NSDocumentController *s_sharedDocumentController = nil;
 }
 
 - init {
+    NSLog(@"TEDIAG enter -init");
     self = [super init];
     if (self) {
         if (s_sharedDocumentController == nil)
@@ -129,6 +135,7 @@ static NSDocumentController *s_sharedDocumentController = nil;
 }
 
 - (void) dealloc {
+    NSLog(@"TEDIAG enter -dealloc");
     @synchronized([NSDocumentController class]) {
         if (s_sharedDocumentController == self)
             s_sharedDocumentController = nil;
@@ -139,15 +146,18 @@ static NSDocumentController *s_sharedDocumentController = nil;
 }
 
 - initWithCoder: (NSCoder *) coder {
+    NSLog(@"TEDIAG enter -initWithCoder");
     NSUnimplementedMethod();
     return nil;
 }
 
 - (void) encodeWithCoder: (NSCoder *) coder {
+    NSLog(@"TEDIAG enter -encodeWithCoder");
     NSUnimplementedMethod();
 }
 
 - (NSString *) defaultType {
+    NSLog(@"TEDIAG enter -defaultType");
     if ([_fileTypes count] == 0)
         return nil;
 
@@ -156,6 +166,7 @@ static NSDocumentController *s_sharedDocumentController = nil;
 }
 
 - (NSArray *) documentClassNames {
+    NSLog(@"TEDIAG enter -documentClassNames");
     NSMutableSet *result = [NSMutableSet set];
     int i, count = [_fileTypes count];
 
@@ -167,12 +178,14 @@ static NSDocumentController *s_sharedDocumentController = nil;
 }
 
 - (NSTimeInterval) autosavingDelay {
+    NSLog(@"TEDIAG enter -autosavingDelay");
     return _autosavingDelay;
 }
 
 // The CFBundleDocumentTypes entry for a type: its CFBundleTypeName, or one of its
 // LSItemContentTypes (the uniform type identifiers modern apps use as type names).
 - (NSDictionary *) _infoForType: (NSString *) type {
+    NSLog(@"TEDIAG enter -_infoForType");
     if (type == nil)
         return nil;
     for (NSDictionary *check in _fileTypes) {
@@ -187,6 +200,7 @@ static NSDocumentController *s_sharedDocumentController = nil;
 }
 
 - (NSString *) displayNameForType: (NSString *) type {
+    NSLog(@"TEDIAG enter -displayNameForType");
     NSDictionary *info = [self _infoForType: type];
     NSString *result = [info objectForKey: @"CFBundleTypeName"];
 
@@ -194,12 +208,14 @@ static NSDocumentController *s_sharedDocumentController = nil;
 }
 
 - (Class) documentClassForType: (NSString *) type {
+    NSLog(@"TEDIAG enter -documentClassForType");
     NSString *result = [[self _infoForType: type] objectForKey: @"NSDocumentClass"];
 
     return (result == nil) ? nil : NSClassFromString(result);
 }
 
 - (NSArray *) fileExtensionsFromType: (NSString *) type {
+    NSLog(@"TEDIAG enter -fileExtensionsFromType");
     NSDictionary *info = [self _infoForType: type];
     NSArray *extensions = [info objectForKey: @"CFBundleTypeExtensions"];
     if ([extensions count] > 0)
@@ -221,6 +237,7 @@ static NSDocumentController *s_sharedDocumentController = nil;
 }
 
 - (NSArray *) _allFileExtensions {
+    NSLog(@"TEDIAG enter -_allFileExtensions");
     NSMutableSet *set = [NSMutableSet set];
     int i, count = [_fileTypes count];
 
@@ -246,6 +263,7 @@ static NSDocumentController *s_sharedDocumentController = nil;
 }
 
 - (NSString *) typeFromFileExtension: (NSString *) extension {
+    NSLog(@"TEDIAG enter -typeFromFileExtension");
     extension = [extension lowercaseString];
     for (NSDictionary *fileType in _fileTypes)
         for (NSString *name in
@@ -291,6 +309,7 @@ static NSDocumentController *s_sharedDocumentController = nil;
 }
 
 - (BOOL) type: (NSString *) type conformsToType: (NSString *) conformsToType {
+    NSLog(@"TEDIAG enter -type");
     if (type == nil || conformsToType == nil)
         return NO;
     if ([type isEqualToString: conformsToType])
@@ -322,22 +341,27 @@ static NSDocumentController *s_sharedDocumentController = nil;
 
 // Stored only: Cocotron doesn't autosave documents.
 - (void) setAutosavingDelay: (NSTimeInterval) value {
+    NSLog(@"TEDIAG enter -setAutosavingDelay");
     _autosavingDelay = value;
 }
 
 - (NSArray *) documents {
+    NSLog(@"TEDIAG enter -documents");
     return _documents;
 }
 
 - (void) addDocument: (NSDocument *) document {
+    NSLog(@"TEDIAG enter -addDocument");
     [_documents addObject: document];
 }
 
 - (void) removeDocument: (NSDocument *) document {
+    NSLog(@"TEDIAG enter -removeDocument");
     [_documents removeObjectIdenticalTo: document];
 }
 
 - documentForURL: (NSURL *) url {
+    NSLog(@"TEDIAG enter -documentForURL");
     int i, count = [_documents count];
 
     for (i = 0; i < count; i++) {
@@ -352,15 +376,18 @@ static NSDocumentController *s_sharedDocumentController = nil;
 }
 
 - (id) documentForFileName: (NSString *) fileName {
+    NSLog(@"TEDIAG enter -documentForFileName");
     if (fileName == nil) return nil;
     return [self documentForURL: [NSURL fileURLWithPath: fileName]];
 }
 
 - currentDocument {
+    NSLog(@"TEDIAG enter -currentDocument");
     return [[[NSApp mainWindow] windowController] document];
 }
 
 - (NSString *) currentDirectory {
+    NSLog(@"TEDIAG enter -currentDirectory");
     NSDocument *current = [self currentDocument];
     NSURL *url = [current fileURL];
 
@@ -383,6 +410,7 @@ static NSDocumentController *s_sharedDocumentController = nil;
 }
 
 - (BOOL) hasEditedDocuments {
+    NSLog(@"TEDIAG enter -hasEditedDocuments");
     int count = [_documents count];
 
     while (--count)
@@ -393,10 +421,12 @@ static NSDocumentController *s_sharedDocumentController = nil;
 }
 
 - documentForWindow: (NSWindow *) window {
+    NSLog(@"TEDIAG enter -documentForWindow");
     return [[window windowController] document];
 }
 
 - (NSString *) typeForContentsOfURL: (NSURL *) url error: (NSError **) error {
+    NSLog(@"TEDIAG enter -typeForContentsOfURL");
     if (![url isFileURL])
         return nil;
 
@@ -427,6 +457,7 @@ static NSDocumentController *s_sharedDocumentController = nil;
 }
 
 - makeDocumentWithContentsOfFile: (NSString *) path ofType: (NSString *) type {
+    NSLog(@"TEDIAG enter -makeDocumentWithContentsOfFile");
     id result;
     Class class = [self documentClassForType: type];
 
@@ -440,6 +471,7 @@ static NSDocumentController *s_sharedDocumentController = nil;
                          ofType: (NSString *) type
                           error: (NSError **) error
 {
+    NSLog(@"TEDIAG enter -makeDocumentWithContentsOfURL");
     id result;
     Class class = [self documentClassForType: type];
 
@@ -453,6 +485,7 @@ static NSDocumentController *s_sharedDocumentController = nil;
                    ofType: (NSString *) type
                     error: (NSError **) error
 {
+    NSLog(@"TEDIAG enter -makeDocumentForURL");
     id result = nil;
     Class class = [self documentClassForType: type];
 
@@ -465,6 +498,7 @@ static NSDocumentController *s_sharedDocumentController = nil;
 }
 
 - (id) makeUntitledDocumentOfType: (NSString *) type {
+    NSLog(@"TEDIAG enter -makeUntitledDocumentOfType");
     static int nextUntitledNumber = 1;
     id result = nil;
     Class class = [self documentClassForType: type];
@@ -495,12 +529,14 @@ static NSDocumentController *s_sharedDocumentController = nil;
  * window, which is what the missing action was preventing.
  */
 + (void) newDocument: (id) sender {
+    NSLog(@"TEDIAG enter +newDocument");
     [[self sharedDocumentController] openUntitledDocumentAndDisplay: YES error: NULL];
 }
 
 - (id) makeUntitledDocumentOfType: (NSString *) type
                             error: (NSError **) outError
 {
+    NSLog(@"TEDIAG enter -makeUntitledDocumentOfType");
     /* Cocoa documentation says:
          "For backward binary compatibility with Mac OS X v10.3 and earlier,
           the default implementation of this method instead invokes
@@ -534,6 +570,7 @@ static NSDocumentController *s_sharedDocumentController = nil;
 }
 
 - openUntitledDocumentOfType: (NSString *) type display: (BOOL) display {
+    NSLog(@"TEDIAG enter -openUntitledDocumentOfType");
     NSDocument *result = [self makeUntitledDocumentOfType: type error: NULL];
 
     if (result != nil)
@@ -548,6 +585,7 @@ static NSDocumentController *s_sharedDocumentController = nil;
 }
 
 - openUntitledDocumentAndDisplay: (BOOL) display error: (NSError **) error {
+    NSLog(@"TEDIAG enter -openUntitledDocumentAndDisplay");
     NSString *type = [self defaultType];
     /* Cocoa documentation says:
          "For backward binary compatibility with Mac OS X v10.3 and earlier,
@@ -577,6 +615,7 @@ static NSDocumentController *s_sharedDocumentController = nil;
 }
 
 - openDocumentWithContentsOfFile: (NSString *) path display: (BOOL) display {
+    NSLog(@"TEDIAG enter -openDocumentWithContentsOfFile");
     NSString *extension = [path pathExtension];
     NSString *type = [self typeFromFileExtension: extension];
     NSDocument *result = [self makeDocumentWithContentsOfFile: path
@@ -599,6 +638,7 @@ static NSDocumentController *s_sharedDocumentController = nil;
                         display: (BOOL) display
                           error: (NSError **) error
 {
+    NSLog(@"TEDIAG enter -openDocumentWithContentsOfURL");
     IMP mine = [NSDocumentController instanceMethodForSelector: @selector
                                      (openDocumentWithContentsOfFile:display:)];
     IMP theirs = [self methodForSelector: @selector
@@ -642,6 +682,7 @@ static NSDocumentController *s_sharedDocumentController = nil;
                                display: (BOOL) display
                      completionHandler: (void (^)(NSDocument *document, BOOL documentWasAlreadyOpen, NSError *error)) completionHandler
 {
+    NSLog(@"TEDIAG enter -openDocumentWithContentsOfURL");
     BOOL wasAlreadyOpen = url != nil && [self documentForURL: url] != nil;
     NSError *error = nil;
     NSDocument *document = [self openDocumentWithContentsOfURL: url
@@ -660,6 +701,7 @@ static NSDocumentController *s_sharedDocumentController = nil;
             withContentsOfURL: (NSURL *) contentsUL
                         error: (NSError **) error
 {
+    NSLog(@"TEDIAG enter -reopenDocumentForURL");
     NSUnimplementedMethod();
     return 0;
 }
@@ -668,6 +710,7 @@ static NSDocumentController *s_sharedDocumentController = nil;
                          shouldClose: (BOOL) shouldClose
                      closeAllContext: (NSDictionary *) context
 {
+    NSLog(@"TEDIAG enter -_closeDocumentsStartingWith");
     // This is a recursive callback method. Start it by passing in a document of
     // nil.
     void (*delegateMethod)(id, SEL, id, BOOL, void *);
@@ -704,6 +747,7 @@ static NSDocumentController *s_sharedDocumentController = nil;
                    didCloseAllSelector: (SEL) selector
                            contextInfo: (void *) info
 {
+    NSLog(@"TEDIAG enter -closeAllDocumentsWithDelegate");
     NSDictionary *closeAllContext = [[NSDictionary alloc]
             initWithObjectsAndKeys: delegate, @"delegate",
                                     NSStringFromSelector(selector), @"selector",
@@ -720,15 +764,18 @@ static NSDocumentController *s_sharedDocumentController = nil;
                          didReviewAllSelector: (SEL) selector
                                          info: (void *) info
 {
+    NSLog(@"TEDIAG enter -reviewUnsavedDocumentsWithAlertTitle");
     NSUnimplementedMethod();
 }
 
 - (NSError *) willPresentError: (NSError *) error {
+    NSLog(@"TEDIAG enter -willPresentError");
     // do nothing
     return error;
 }
 
 - (BOOL) presentError: (NSError *) error {
+    NSLog(@"TEDIAG enter -presentError");
     return [NSApp presentError: [self willPresentError: error]];
 }
 
@@ -738,6 +785,7 @@ static NSDocumentController *s_sharedDocumentController = nil;
         didPresentSelector: (SEL) selector
                contextInfo: (void *) info
 {
+    NSLog(@"TEDIAG enter -presentError");
     [NSApp presentError: [self willPresentError: error]
                 modalForWindow: window
                       delegate: delegate
@@ -748,6 +796,7 @@ static NSDocumentController *s_sharedDocumentController = nil;
 - (int) runModalOpenPanel: (NSOpenPanel *) openPanel
                  forTypes: (NSArray *) extensions
 {
+    NSLog(@"TEDIAG enter -runModalOpenPanel");
     int result = [openPanel runModalForDirectory: [self currentDirectory]
                                             file: nil
                                            types: extensions];
@@ -759,6 +808,7 @@ static NSDocumentController *s_sharedDocumentController = nil;
 }
 
 - (NSOpenPanel *) _runOpenPanel {
+    NSLog(@"TEDIAG enter -_runOpenPanel");
     NSOpenPanel *openPanel = [NSOpenPanel openPanel];
 
     [openPanel setAllowsMultipleSelection: YES];
@@ -772,14 +822,17 @@ static NSDocumentController *s_sharedDocumentController = nil;
 }
 
 - (NSArray *) fileNamesFromRunningOpenPanel {
+    NSLog(@"TEDIAG enter -fileNamesFromRunningOpenPanel");
     return [[self _runOpenPanel] filenames];
 }
 
 - (NSArray *) URLsFromRunningOpenPanel {
+    NSLog(@"TEDIAG enter -URLsFromRunningOpenPanel");
     return [[self _runOpenPanel] URLs];
 }
 
 - (NSMutableArray *) _recentDocumentPaths {
+    NSLog(@"TEDIAG enter -_recentDocumentPaths");
     NSFileManager *fileManager = [NSFileManager defaultManager];
     NSMutableArray *paths = [NSMutableArray
             arrayWithArray: [[NSUserDefaults standardUserDefaults]
@@ -799,6 +852,7 @@ static NSDocumentController *s_sharedDocumentController = nil;
 }
 
 - (void) _openRecentDocument: sender {
+    NSLog(@"TEDIAG enter -_openRecentDocument");
     NSArray *paths = [self _recentDocumentPaths];
     NSMenuItem *item = sender;
     int tag = [item tag];
@@ -828,6 +882,7 @@ static NSDocumentController *s_sharedDocumentController = nil;
 }
 
 - (void) _removeAllRecentDocumentsFromMenu: (NSMenu *) menu {
+    NSLog(@"TEDIAG enter -_removeAllRecentDocumentsFromMenu");
     int count = [[menu itemArray] count];
 
     while (--count >= 0) {
@@ -840,6 +895,7 @@ static NSDocumentController *s_sharedDocumentController = nil;
 }
 
 - (void) _updateRecentDocumentsMenu {
+    NSLog(@"TEDIAG enter -_updateRecentDocumentsMenu");
     NSMenu *mainMenu = [NSApp mainMenu];
     if (mainMenu == nil)
         return;
@@ -893,6 +949,7 @@ static NSDocumentController *s_sharedDocumentController = nil;
 }
 
 - (NSArray *) recentDocumentURLs {
+    NSLog(@"TEDIAG enter -recentDocumentURLs");
     NSArray *paths = [self _recentDocumentPaths];
     int i, count = [paths count];
     NSMutableArray *result = [NSMutableArray arrayWithCapacity: count];
@@ -904,6 +961,7 @@ static NSDocumentController *s_sharedDocumentController = nil;
 }
 
 - (NSArray *) _recentDocumentURLsForKey: (NSString *) key {
+    NSLog(@"TEDIAG enter -_recentDocumentURLsForKey");
     if (key == nil) key = @"NSRecentDocumentPaths";
 
     NSArray *paths = [[NSUserDefaults standardUserDefaults] arrayForKey: key];
@@ -921,6 +979,7 @@ static NSDocumentController *s_sharedDocumentController = nil;
 }
 
 - (unsigned) maximumRecentDocumentCount {
+    NSLog(@"TEDIAG enter -maximumRecentDocumentCount");
     NSString *value = [[NSUserDefaults standardUserDefaults]
             stringForKey: @"NSRecentDocumentMaximum"];
 
@@ -928,6 +987,7 @@ static NSDocumentController *s_sharedDocumentController = nil;
 }
 
 - (void) _noteNewRecentDocumentURL: (NSURL *) url forKey: (NSString *) key {
+    NSLog(@"TEDIAG enter -_noteNewRecentDocumentURL");
     if (url == nil) return;
     if (key == nil) key = @"NSRecentDocumentPaths";
     NSString *path = [url path];
@@ -947,10 +1007,12 @@ static NSDocumentController *s_sharedDocumentController = nil;
 }
 
 - (void) noteNewRecentDocumentURL: (NSURL *) url {
+    NSLog(@"TEDIAG enter -noteNewRecentDocumentURL");
     [self _noteNewRecentDocumentURL: url forKey: @"NSRecentDocumentPaths"];
 }
 
 - (void) noteNewRecentDocument: (NSDocument *) document {
+    NSLog(@"TEDIAG enter -noteNewRecentDocument");
     NSURL *url = [document fileURL];
 
     if (url != nil)
@@ -958,6 +1020,7 @@ static NSDocumentController *s_sharedDocumentController = nil;
 }
 
 - (void) clearRecentDocuments: sender {
+    NSLog(@"TEDIAG enter -clearRecentDocuments");
     NSArray *array = [NSArray array];
 
     [[NSUserDefaults standardUserDefaults] setObject: array
@@ -966,10 +1029,12 @@ static NSDocumentController *s_sharedDocumentController = nil;
 }
 
 - (void) newDocument: sender {
+    NSLog(@"TEDIAG enter -newDocument");
     [self openUntitledDocumentAndDisplay: YES error: NULL];
 }
 
 - (void) openDocument: sender {
+    NSLog(@"TEDIAG enter -openDocument");
     NSArray *files = [self fileNamesFromRunningOpenPanel];
     int i, count = [files count];
 
@@ -982,6 +1047,7 @@ static NSDocumentController *s_sharedDocumentController = nil;
 }
 
 - (void) saveAllDocuments: sender {
+    NSLog(@"TEDIAG enter -saveAllDocuments");
     int i, count = [_documents count];
 
     while (--count >= 0) {
@@ -1008,16 +1074,19 @@ static BOOL actionIsDocumentController(SEL selector) {
 }
 
 - (BOOL) validateMenuItem: (NSMenuItem *) item {
+    NSLog(@"TEDIAG enter -validateMenuItem");
     return (actionIsDocumentController([item action]) ||
             [self respondsToSelector: [item action]]);
 }
 
 - (BOOL) validateUserInterfaceItem: (id<NSValidatedUserInterfaceItem>) item {
+    NSLog(@"TEDIAG enter -validateUserInterfaceItem");
     return (actionIsDocumentController([item action]) ||
             [self respondsToSelector: [item action]]);
 }
 
 - (BOOL) application: sender openFile: (NSString *) path {
+    NSLog(@"TEDIAG enter -application");
     NSError *error = nil;
     NSURL *url = [NSURL fileURLWithPath: path];
     NSDocument *document = [self openDocumentWithContentsOfURL: url
@@ -1028,6 +1097,7 @@ static BOOL actionIsDocumentController(SEL selector) {
 }
 
 - (BOOL) closeAllDocuments {
+    NSLog(@"TEDIAG enter -closeAllDocuments");
     NSUnimplementedMethod();
     return NO;
 }
@@ -1035,15 +1105,18 @@ static BOOL actionIsDocumentController(SEL selector) {
 - (BOOL) reviewUnsavedDocumentsWithAlertTitle: (NSString *) title
                                   cancellable: (BOOL) cancellable
 {
+    NSLog(@"TEDIAG enter -reviewUnsavedDocumentsWithAlertTitle");
     NSUnimplementedMethod();
     return 0;
 }
 
 + (BOOL) shouldCreateUI {
+    NSLog(@"TEDIAG enter +shouldCreateUI");
     return YES;
 }
 
 - (BOOL) shouldCreateUI {
+    NSLog(@"TEDIAG enter -shouldCreateUI");
     return YES;
 }
 
@@ -1056,6 +1129,7 @@ static BOOL actionIsDocumentController(SEL selector) {
                               displayName: (NSString *) displayNameOrNil
                                     error: (NSError **) error
 {
+    NSLog(@"TEDIAG enter -duplicateDocumentWithContentsOfURL");
     NSString *type = [self typeForContentsOfURL: url error: error];
     NSDocument *document = nil;
     if (type != nil)
