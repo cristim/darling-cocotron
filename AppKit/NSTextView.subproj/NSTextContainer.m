@@ -29,7 +29,7 @@ static const CGFloat NSTextContainerDefaultLineFragmentPadding = 5.0;
 
 // Implemented by AppKit (NSTextView.m), next to the text view it tracks.
 @interface NSTextContainer (NSTextContainer_textViewTracking)
-- (void) _resizeToTextView;
+- (void) _darlingResizeToTextView;
 @end
 
 @implementation NSTextContainer
@@ -143,7 +143,7 @@ static const CGFloat NSTextContainerDefaultLineFragmentPadding = 5.0;
 
 - (void) _textViewFrameDidChange: (NSNotification *) notification {
     if ([notification object] == _textView) {
-        [self _resizeToTextView];
+        [self _darlingResizeToTextView];
     }
 }
 
