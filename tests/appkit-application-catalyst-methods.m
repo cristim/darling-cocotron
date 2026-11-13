@@ -13,6 +13,7 @@ static void expect(BOOL condition, NSString *message)
 
 @interface NSApplication (CatalystPrivate)
 - (NSWindow *)_findWindowUsingContextID:(uint32_t)contextID;
+- (BOOL)_restoreMiniaturizedWindow;
 @end
 
 int main(void)
@@ -32,6 +33,10 @@ int main(void)
         expect([app _findWindowUsingContextID:(uint32_t)[window windowNumber]] == window,
                @"the context id of a window is its window number");
         [window release];
+
+        expect([app respondsToSelector:@selector(_restoreMiniaturizedWindow)],
+               @"NSApplication answers -_restoreMiniaturizedWindow");
+        expect(![app _restoreMiniaturizedWindow], @"with no miniaturized window nothing is restored");
 
         NSLog(@"PASS: NSApplication catalyst methods");
     }
