@@ -414,6 +414,7 @@ set(AppKit_sources
 	NSCollectionViewLayout.m
 
 	NSSharingService.m
+	NSUserInterfaceCompressionOptions.m
 	MacWorkspace.m
 	NSCoder+AppKit.m
 

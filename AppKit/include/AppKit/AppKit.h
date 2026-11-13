@@ -213,6 +213,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSTreeController.h>
 #import <AppKit/NSTreeNode.h>
 #import <AppKit/NSUserDefaultsController.h>
+#import <AppKit/NSUserInterfaceCompressionOptions.h>
 #import <AppKit/NSUserInterfaceItemIdentification.h>
 #import <AppKit/NSUserInterfaceItemSearching.h>
 #import <AppKit/NSView.h>
