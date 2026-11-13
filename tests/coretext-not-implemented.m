@@ -49,6 +49,7 @@ int main(void)
         checkAborts("CTFontDescriptorCreateWithTextStyle");
         checkAborts("CTLineGetRunCount");
         checkAborts("CTFontManagerCreateFontDescriptorFromData");
+        checkAborts("CTFontManagerEnableSystemVisibleFonts");
         // implemented names are not replaced
         expect(dlsym(RTLD_DEFAULT, "CTFontDescriptorCreateWithAttributes") != (void *)dlsym(RTLD_DEFAULT, "CTLineGetRunCount"),
                @"real functions are distinct from the net");
