@@ -174,7 +174,6 @@ set(AppKit_sources
 
 	NSPopUpWindow.m
 	NSScrollView.m
-	WebWrapScrollView.m
 	NSTextAttachmentCell.m
 	NSInterfaceStyle.m
 	NSFontTypeface.m

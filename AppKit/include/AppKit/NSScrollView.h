@@ -68,6 +68,7 @@ typedef NS_ENUM(NSInteger, NSScrollElasticity) {
     NSScrollElasticity _verticalScrollElasticity;
     NSScrollerStyle _scrollerStyle;
     NSScrollerKnobStyle _scrollerKnobStyle;
+    NSInteger _allowedPocketEdges;
 }
 
 @property NSScrollerStyle scrollerStyle;
@@ -171,6 +172,13 @@ typedef NS_ENUM(NSInteger, NSScrollElasticity) {
 - (void) setMinMagnification: (CGFloat) value;
 - (void) setMaxMagnification: (CGFloat) value;
 - (void) setAllowsMagnification: (BOOL) value;
+
+// Not in Apple's public documentation (GUESS, rung 6, NEEDS-REAL-MAC): the name comes
+// from the runtime log of Dictionary.app's nib, which sends -setAllowedPocketEdges: to
+// its scroll view subclass. The type is a guess and nothing draws the edges; the value
+// is only kept so that it reads back.
+- (void) setAllowedPocketEdges: (NSInteger) allowedPocketEdges;
+- (NSInteger) allowedPocketEdges;
 
 - (void) tile;
 - (void) reflectScrolledClipView: (NSClipView *) clipView;

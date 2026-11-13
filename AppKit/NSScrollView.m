@@ -560,6 +560,14 @@ static Class _rulerViewClass = nil;
     return self;
 }
 
+- (void) setAllowedPocketEdges: (NSInteger) allowedPocketEdges {
+    _allowedPocketEdges = allowedPocketEdges;
+}
+
+- (NSInteger) allowedPocketEdges {
+    return _allowedPocketEdges;
+}
+
 - (void) dealloc {
     [_clipView release];
     [_verticalScroller release];
