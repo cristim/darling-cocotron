@@ -576,7 +576,6 @@ NSApplication *NSApp = nil;
                                 [title stringByDeletingLastPathComponent]];
 
             [item setTitle: title];
-            [[self windowsMenu] itemChanged: item];
         } else
             [self addWindowsItem: window title: title filename: isFilename];
     }
