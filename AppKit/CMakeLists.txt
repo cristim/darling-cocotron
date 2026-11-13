@@ -299,7 +299,9 @@ set(AppKit_sources
 	NSPathComponentCell.m
 	NSCachedImageRep.m
 	NSWindow-Drag.m
+	NSGlassEffectView.m
 	NSCIImageRep.m
+	NSPICTImageRep.m
 	NSPrintProgressPanelController.m
 	NSHelpManager.m
 	NSProgressIndicator.m
@@ -437,6 +439,7 @@ set(AppKit_sources
 	NSTouchBar.m
 	NSTreeNode.m
 	NSVisualEffectView.m
+	NSBackgroundExtensionView.m
 	NSATSTypesetter.m
 	NSOpenGLLayer.m
 	NSCollectionViewLayout.m
