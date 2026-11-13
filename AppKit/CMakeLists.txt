@@ -249,6 +249,7 @@ set(AppKit_sources
 	NSTextView.subproj/NSRulerMarker+NSTextExtensions.m
 	NSTextView.subproj/NSSecureLayoutManager.m
 	NSTextView.subproj/NSUndoTextOperation.m
+	NSTextView.subproj/NSSubTextStorage.m
 	NSTextView.subproj/NSSecureTextView.m
 
 	NSTableColumn.m

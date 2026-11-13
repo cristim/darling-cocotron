@@ -53,7 +53,6 @@ set(UIFoundation_sources
 	NSParagraphStyle.m
 	NSRangeArray.m
 	NSShadow.m
-	NSSubTextStorage.m
 	NSTextAttachment.m
 	NSTextContainer.m
 	NSTextKit2.m
