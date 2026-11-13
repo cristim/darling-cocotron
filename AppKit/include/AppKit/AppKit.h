@@ -35,6 +35,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSBezierPath.h>
 #import <AppKit/NSBitmapImageRep.h>
 #import <AppKit/NSBox.h>
+#import <AppKit/NSMenuItemBadge.h>
 #import <AppKit/NSBrowser.h>
 #import <AppKit/NSBrowserCell.h>
 #import <AppKit/NSButton.h>
@@ -149,6 +150,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSScroller.h>
 #import <AppKit/NSScrubber.h>
 #import <AppKit/NSScrubberItemView.h>
+#import <AppKit/NSScrubberLayoutAttributes.h>
 #import <AppKit/NSSearchField.h>
 #import <AppKit/NSSearchFieldCell.h>
 #import <AppKit/NSSearchToolbarItem.h>
