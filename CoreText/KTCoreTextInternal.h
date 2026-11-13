@@ -13,6 +13,9 @@ CFDictionaryRef KTCoreTextObjectDictionary(CFTypeRef object);
 // made by another CoreText cannot be read here and stops by class name.
 CFDictionaryRef KTCoreTextDescriptorAttributesFrom(CTFontDescriptorRef descriptor, const char *function);
 #define KTCoreTextDescriptorAttributes(descriptor) KTCoreTextDescriptorAttributesFrom((descriptor), __func__)
+// Not in the public headers: cache frameworks import them.
+void *CTFontGetClientObject(CTFontRef font);
+void CTFontSetClientObject(CTFontRef font, void *object);
 // Makes CF treat objects of a CF type as instances of the named class, when the shared cache defines it.
 bool KTCoreTextBridgeType(CFTypeID type, const char *className);
 // True for anything that can stand for a descriptor in a cascade list or collection.

@@ -28,6 +28,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #include <CoreFoundation/CFRuntime.h>
 #import <Onyx2D/O2Font_freetype.h>
 #include <pthread.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 #ifdef DARLING
 #define __linux__
@@ -90,6 +92,7 @@ struct __CTFont {
     CGFontRef cgFont;
     CGFloat size;
     CFArrayRef cascade;
+    const void *client;
 };
 
 static void finalizeFont(CFTypeRef value) {
@@ -880,4 +883,25 @@ CFTypeID CTFontGetTypeID(void)
 uint32_t CTGetCoreTextVersion(void)
 {
     return 0x000C0000;
+}
+
+// A pointer that the font's class keeps in the font: the bridge class stores its own object here. The signatures are a
+// GUESS from the names (a font and one pointer); the pointer is kept as given, neither retained nor released.
+// Only fonts that keep their state themselves have room for it, and any other font stops here by name.
+static struct __CTFont *clientFont(CTFontRef font, const char *name) {
+    if (font == NULL || !isStateFont(font)) {
+        fprintf(stderr, "CoreText: %s needs a font made by this CoreText as a bridged class\n", name);
+        abort();
+    }
+    return (struct __CTFont *)stateOf(font);
+}
+
+void *CTFontGetClientObject(CTFontRef font)
+{
+    return (void *)clientFont(font, "CTFontGetClientObject")->client;
+}
+
+void CTFontSetClientObject(CTFontRef font, void *object)
+{
+    clientFont(font, "CTFontSetClientObject")->client = object;
 }

@@ -14,6 +14,10 @@
 - (double)sizeThroughCoreText;
 @end
 
+// Not in the public headers: cache frameworks import them.
+extern void *CTFontGetClientObject(CTFontRef font);
+extern void CTFontSetClientObject(CTFontRef font, void *object);
+
 static void expect(BOOL condition, NSString *message)
 {
     if (!condition)
@@ -103,6 +107,12 @@ int main(int argc, char **argv)
         CFRelease(descriptor);
         CFRelease(attributes);
         CFRelease(cascade);
+
+        int marker;
+        expect(CTFontGetClientObject(font) == NULL, @"no client object at first");
+        CTFontSetClientObject(font, &marker);
+        expect(CTFontGetClientObject(font) == &marker, @"the client object is kept in the font");
+        CTFontSetClientObject(font, NULL);
 
         // Held through both retain families.
         NSArray *held = [NSArray arrayWithObject:(id)font];
