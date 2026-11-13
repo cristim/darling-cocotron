@@ -55,6 +55,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSColorSampler.h>
 #import <AppKit/NSColorSpace.h>
 #import <AppKit/NSColorWell.h>
+#import <AppKit/NSTintConfiguration.h>
 #import <AppKit/NSComboBox.h>
 #import <AppKit/NSComboBoxCell.h>
 #import <AppKit/NSControl.h>
@@ -129,6 +130,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSPathCell.h>
 #import <AppKit/NSPathComponentCell.h>
 #import <AppKit/NSPathControl.h>
+#import <AppKit/NSPathControlItem.h>
 #import <AppKit/NSPopUpButton.h>
 #import <AppKit/NSPopUpButtonCell.h>
 #import <AppKit/NSPopover.h>
