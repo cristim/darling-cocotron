@@ -1,6 +1,7 @@
 #import <QuartzCore/CAAnimation.h>
 #import <QuartzCore/CADisplayLink.h>
 #import <QuartzCore/CAFrameRateRange.h>
+#import <QuartzCore/CAEDRMetadata.h>
 #import <QuartzCore/CAConstraintLayoutManager.h>
 #import <QuartzCore/CALayer.h>
 #import <QuartzCore/CAMediaTimingFunction.h>
@@ -12,6 +13,7 @@
 #import <QuartzCore/CAGradientLayer.h>
 #import <QuartzCore/CAMetalDrawable.h>
 #import <QuartzCore/CAMetalLayer.h>
+#import <QuartzCore/CAMetalDisplayLink.h>
 #import <QuartzCore/CAOpenGLLayer.h>
 #import <QuartzCore/CAReplicatorLayer.h>
 #import <QuartzCore/CAScrollLayer.h>

@@ -29,6 +29,7 @@ set(QuartzCore_sources
 	CABasicAnimation.m
 	CAContext.m
 	CAEmitterCell.m
+	CAEDRMetadata.m
 	CAEmitterLayer.m
 	CALayerContext.m
 	CACoding.m
@@ -67,6 +68,7 @@ set(QuartzCore_sources
 	CAOpenGLLayer.m
 	CAMetalLayer.mm
 	CAMetalDrawable.mm
+	CAMetalDisplayLink.m
 	CASpringAnimation.m
 	CATransformLayer.m
 )
