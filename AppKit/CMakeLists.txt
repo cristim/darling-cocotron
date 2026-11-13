@@ -179,6 +179,7 @@ set(AppKit_sources
 	NSInterfaceStyle.m
 	NSFontTypeface.m
 	NSBox.m
+	NSMenuItemBadge.m
 	NSPopUpButton.m
 	NSDatePickerCell.m
 	NSForm.m
@@ -244,6 +245,7 @@ set(AppKit_sources
 	NSMenu.subproj/NSCarbonMenuImpl.m
 
 	NSPathControl.m
+	NSPathControlItem.m
 	NSSound.m
 	NSFontManager.m
 	NSTokenFieldCell.m
@@ -251,6 +253,7 @@ set(AppKit_sources
 	NSControl.m
 	NSControlAuxiliary.m
 	NSViewController.m
+	NSViewCornerConfiguration.m
 
 	NSTextView.subproj/NSTextView.m
 	NSTextView.subproj/NSBidiHelper.m
@@ -300,10 +303,12 @@ set(AppKit_sources
 	NSCachedImageRep.m
 	NSWindow-Drag.m
 	NSCIImageRep.m
+	NSPICTImageRep.m
 	NSPrintProgressPanelController.m
 	NSHelpManager.m
+	NSWritingToolsCoordinator.m
 	NSProgressIndicator.m
-	NSFontCollection.m
+	NSGlassEffectView.m
 	NSFontDescriptor.m
 	NSDisplay.m
 
@@ -363,6 +368,7 @@ set(AppKit_sources
 	NSPrivateStubClasses.m
 
 	NSToolbar.subproj/NSToolbarItemGroup.m
+	NSToolbar.subproj/NSSharingServicePickerToolbarItem.m
 	NSToolbar.subproj/NSToolbarCustomizationView.m
 	NSToolbar.subproj/NSToolbarView.m
 	NSToolbar.subproj/NSToolbar.m
@@ -398,6 +404,7 @@ set(AppKit_sources
 	NSDockTile.m
 	NSGraphics.m
 	NSColorWell.m
+	NSTintConfiguration.m
 	NSAlertPanel.m
 	NSPanel.m
 	NSRuleEditorButtonCell.m
@@ -413,6 +420,7 @@ set(AppKit_sources
 
 	NSStepper.m
 	NSAccessibility.m
+	NSAccessibilityCustomRotor.m
 	NSAppearance.m
 	NSAccessibilityElement.m
 	NSAccessibilityRemoteUIElement.m
@@ -420,6 +428,7 @@ set(AppKit_sources
 	NSCandidateListTouchBarItem.m
 	NSCollectionViewFlowLayout.m
 	NSTouchBarItem.m
+	NSTouch.m
 	NSLayoutConstraint.m
 	NSSpeechSynthesizer.m
 	NSCustomTouchBarItem.m
@@ -427,6 +436,7 @@ set(AppKit_sources
 	NSClickGestureRecognizer.m
 	NSDraggingItem.m
 	NSGroupTouchBarItem.m
+	NSButtonTouchBarItem.m
 	NSKeyBindingManager.m
 	NSPasteboardItem.m
 	NSPopoverTouchBarItem.m
@@ -435,8 +445,10 @@ set(AppKit_sources
 	NSTableCellView.m
 	NSTableRowView.m
 	NSTouchBar.m
+	NSStepperTouchBarItem.m
 	NSTreeNode.m
 	NSVisualEffectView.m
+	NSBackgroundExtensionView.m
 	NSATSTypesetter.m
 	NSOpenGLLayer.m
 	NSCollectionViewLayout.m
@@ -474,6 +486,7 @@ set(AppKit_sources
 	NSTextFinder.m
 	NSScrubber.m
 	NSScrubberItemView.m
+	NSScrubberLayoutAttributes.m
 	NSUserInterfaceItemIdentification.m
 )
 

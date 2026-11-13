@@ -1,7 +1,7 @@
 /*
  This file is part of Darling.
 
- Copyright (C) 2024 Darling developers
+ Copyright (C) 2026 Darling Developers
 
  Darling is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
@@ -17,18 +17,14 @@
  along with Darling.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#import <AppKit/NSFontCollection.h>
+#import <AppKit/NSImageRep.h>
 
-@implementation NSFontCollection
+// Documented at developer.apple.com/documentation/appkit/nspictimagerep
+@interface NSPICTImageRep : NSImageRep
 
-- (NSMethodSignature *)methodSignatureForSelector:(SEL)aSelector
-{
-    return [NSMethodSignature signatureWithObjCTypes: "v@:"];
-}
+- (instancetype) initWithData: (NSData *) pictData;
 
-- (void)forwardInvocation:(NSInvocation *)anInvocation
-{
-    NSLog(@"Stub called: %@ in %@", NSStringFromSelector([anInvocation selector]), [self class]);
-}
+@property(readonly) NSRect boundingBox;
+@property(copy, readonly) NSData *PICTRepresentation;
 
 @end

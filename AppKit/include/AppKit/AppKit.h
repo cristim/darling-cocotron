@@ -22,6 +22,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSATSTypesetter.h>
 #import <AppKit/NSAccessibility.h>
 #import <AppKit/NSAccessibilityElement.h>
+#import <AppKit/NSAccessibilityCustomRotor.h>
 #import <AppKit/NSActionCell.h>
 #import <AppKit/NSAdaptiveImageGlyph.h>
 #import <AppKit/NSAffineTransform.h>
@@ -35,11 +36,13 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSBezierPath.h>
 #import <AppKit/NSBitmapImageRep.h>
 #import <AppKit/NSBox.h>
+#import <AppKit/NSMenuItemBadge.h>
 #import <AppKit/NSBrowser.h>
 #import <AppKit/NSBrowserCell.h>
 #import <AppKit/NSButton.h>
 #import <AppKit/NSButtonCell.h>
 #import <AppKit/NSCIImageRep.h>
+#import <AppKit/NSPICTImageRep.h>
 #import <AppKit/NSCachedImageRep.h>
 #import <AppKit/NSCandidateListTouchBarItem.h>
 #import <AppKit/NSCell.h>
@@ -55,6 +58,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSColorSampler.h>
 #import <AppKit/NSColorSpace.h>
 #import <AppKit/NSColorWell.h>
+#import <AppKit/NSTintConfiguration.h>
 #import <AppKit/NSComboBox.h>
 #import <AppKit/NSComboBoxCell.h>
 #import <AppKit/NSControl.h>
@@ -88,6 +92,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSGraphics.h>
 #import <AppKit/NSGraphicsContext.h>
 #import <AppKit/NSGroupTouchBarItem.h>
+#import <AppKit/NSButtonTouchBarItem.h>
 #import <AppKit/NSHaptics.h>
 #import <AppKit/NSHelpManager.h>
 #import <AppKit/NSImage.h>
@@ -129,6 +134,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSPathCell.h>
 #import <AppKit/NSPathComponentCell.h>
 #import <AppKit/NSPathControl.h>
+#import <AppKit/NSPathControlItem.h>
 #import <AppKit/NSPopUpButton.h>
 #import <AppKit/NSPopUpButtonCell.h>
 #import <AppKit/NSPopover.h>
@@ -138,6 +144,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSPrintPanel.h>
 #import <AppKit/NSPrinter.h>
 #import <AppKit/NSProgressIndicator.h>
+#import <AppKit/NSGlassEffectView.h>
 #import <AppKit/NSResponder.h>
 #import <AppKit/NSRuleEditor.h>
 #import <AppKit/NSRulerMarker.h>
@@ -149,6 +156,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSScroller.h>
 #import <AppKit/NSScrubber.h>
 #import <AppKit/NSScrubberItemView.h>
+#import <AppKit/NSScrubberLayoutAttributes.h>
 #import <AppKit/NSSearchField.h>
 #import <AppKit/NSSearchFieldCell.h>
 #import <AppKit/NSSearchToolbarItem.h>
@@ -201,14 +209,18 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSTextTable.h>
 #import <AppKit/NSTextTableBlock.h>
 #import <AppKit/NSTextView.h>
+#import <AppKit/NSWritingToolsCoordinator.h>
 #import <AppKit/NSTitlebarAccessoryViewController.h>
 #import <AppKit/NSTokenField.h>
 #import <AppKit/NSTokenFieldCell.h>
 #import <AppKit/NSToolbar.h>
 #import <AppKit/NSToolbarItem.h>
+#import <AppKit/NSSharingServicePickerToolbarItem.h>
 #import <AppKit/NSToolbarItemGroup.h>
 #import <AppKit/NSTouchBar.h>
+#import <AppKit/NSStepperTouchBarItem.h>
 #import <AppKit/NSTouchBarItem.h>
+#import <AppKit/NSTouch.h>
 #import <AppKit/NSTrackingArea.h>
 #import <AppKit/NSTreeController.h>
 #import <AppKit/NSTreeNode.h>
@@ -217,7 +229,9 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSUserInterfaceItemSearching.h>
 #import <AppKit/NSView.h>
 #import <AppKit/NSViewController.h>
+#import <AppKit/NSViewCornerConfiguration.h>
 #import <AppKit/NSVisualEffectView.h>
+#import <AppKit/NSBackgroundExtensionView.h>
 #import <AppKit/NSWindow.h>
 #import <AppKit/NSWindowController.h>
 #import <AppKit/NSWindowRestoration.h>

@@ -11,6 +11,7 @@ find_package(Freetype REQUIRED)
 
 include_directories(
 	${CMAKE_CURRENT_SOURCE_DIR}
+	${CMAKE_CURRENT_SOURCE_DIR}/../AppKit/include
 	${FREETYPE_INCLUDE_DIRS}
 )
 
@@ -23,6 +24,7 @@ set(CoreText_sources
 	CTTextTab.m
 	CTStringATtributes.m
 	CTFontCollection.m
+	NSFontCollection.m
 	CTFontDescriptor.m
 	CTFontManager.m
 	CTFrame.m
