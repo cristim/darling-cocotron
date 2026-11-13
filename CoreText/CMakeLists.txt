@@ -23,6 +23,7 @@ set(CoreText_sources
 	CTTextTab.m
 	CTStringATtributes.m
 	CTFontCollection.m
+	NSFontCollection.m
 	CTFontDescriptor.m
 	CTFontManager.m
 	CTFrame.m
