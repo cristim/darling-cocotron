@@ -221,16 +221,43 @@ CFArrayRef CTFontDescriptorCreateMatchingFontDescriptorsWithOptions(CTFontDescri
     return CTFontDescriptorCreateMatchingFontDescriptors(descriptor, mandatoryAttributes);
 }
 
+// The one font this CoreText can match a descriptor to is the one it makes for it. The match carries what the
+// descriptor lacks of that font's names (family, PostScript, display), as CoreText's matches do; what the descriptor
+// already says is kept. Callers such as the cache's NSCTFont ask a matched descriptor for its family name.
+static CTFontDescriptorRef matchedDescriptor(CTFontDescriptorRef descriptor)
+{
+    CTFontRef font = CTFontCreateWithFontDescriptor(descriptor, 0, NULL);
+    if (font == NULL)
+        return (CTFontDescriptorRef)CFRetain(descriptor);
+    CFMutableDictionaryRef attributes = CFDictionaryCreateMutableCopy(kCFAllocatorDefault, 0, KTCoreTextDescriptorAttributes(descriptor));
+    CFStringRef values[] = {CTFontCopyFamilyName(font), CTFontCopyPostScriptName(font), CTFontCopyDisplayName(font)};
+    CFStringRef keys[] = {kCTFontFamilyNameAttribute, kCTFontPostScriptNameAttribute, kCTFontDisplayNameAttribute};
+    for (int i = 0; i < 3; i++) {
+        if (values[i] != NULL) {
+            if (!CFDictionaryContainsKey(attributes, keys[i]))
+                CFDictionarySetValue(attributes, keys[i], values[i]);
+            CFRelease(values[i]);
+        }
+    }
+    CTFontDescriptorRef matched = CTFontDescriptorCreateWithAttributes(attributes);
+    CFRelease(attributes);
+    CFRelease(font);
+    return matched;
+}
+
 CFArrayRef CTFontDescriptorCreateMatchingFontDescriptors(CTFontDescriptorRef descriptor, CFSetRef mandatoryAttributes)
 {
     if (!descriptor) return CFArrayCreate(kCFAllocatorDefault, NULL, 0, &kCFTypeArrayCallBacks);
-    return CFArrayCreate(kCFAllocatorDefault, (const void **)&descriptor, 1, &kCFTypeArrayCallBacks);
+    CTFontDescriptorRef matched = matchedDescriptor(descriptor);
+    CFArrayRef result = CFArrayCreate(kCFAllocatorDefault, (const void **)&matched, 1, &kCFTypeArrayCallBacks);
+    CFRelease(matched);
+    return result;
 }
 
 CTFontDescriptorRef CTFontDescriptorCreateMatchingFontDescriptor(CTFontDescriptorRef descriptor, CFSetRef mandatoryAttributes)
 {
     if (!descriptor) return NULL;
-    return (CTFontDescriptorRef)CFRetain(descriptor);
+    return matchedDescriptor(descriptor);
 }
 
 CTFontDescriptorRef CTFontDescriptorCreateCopyWithAttributes(CTFontDescriptorRef descriptor, CFDictionaryRef attributes)

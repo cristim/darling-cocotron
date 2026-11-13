@@ -73,8 +73,16 @@ static void checkAttributes(CTFontDescriptorRef descriptor)
     expect(localized != NULL && CFEqual(localized, CFSTR("TestFont")) && language == NULL, @"localized attribute");
     CFRelease(localized);
     CFArrayRef matches = CTFontDescriptorCreateMatchingFontDescriptorsWithOptions(descriptor, NULL, NULL);
-    expect(matches != NULL && CFArrayGetCount(matches) == 1 && CFEqual(CFArrayGetValueAtIndex(matches, 0), descriptor),
-           @"matching with options returns the descriptor");
+    expect(matches != NULL && CFArrayGetCount(matches) == 1, @"matching with options returns one descriptor");
+    CTFontDescriptorRef matched = (CTFontDescriptorRef)CFArrayGetValueAtIndex(matches, 0);
+    CFTypeRef matchedName = CTFontDescriptorCopyAttribute(matched, kCTFontNameAttribute);
+    expect(matchedName != NULL && CFEqual(matchedName, CFSTR("TestFont")), @"the match keeps what the descriptor says");
+    CFRelease(matchedName);
+    CFTypeRef family = CTFontDescriptorCopyAttribute(matched, kCTFontFamilyNameAttribute);
+    CFTypeRef face = CTFontDescriptorCopyAttribute(matched, kCTFontPostScriptNameAttribute);
+    expect(family != NULL && face != NULL, @"the match carries the family and PostScript names");
+    CFRelease(family);
+    CFRelease(face);
     CFRelease(matches);
 }
 
