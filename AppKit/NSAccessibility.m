@@ -624,10 +624,12 @@ void NSAccessibilityRaiseBadArgumentException(id element, NSString *attribute,
 - (void) accessibilityPerformAction: (NSString *) action;
 @end
 
-// The private NSAccessibilityEntryPoint* functions. Provenance of the declarations: the open-source OpenSwiftUI shim
-// for AppKit's private API (AppKit_Private.h:34-43) declares ValueForAttribute, ActionNames, ActionDescription and
-// PerformAction; its caller (AppKitAccessibility.swift:576, 661-671) treats a nil result of each of them as "nothing
-// to report". AttributeNames, IsAccessibilityElement and IsAttributeSupported are not declared in any public source.
+// The private NSAccessibilityEntryPoint* functions. The names come from the apps' imports. GUESS (not in the public
+// documentation, not observed) for all seven SIGNATURES: the open-source OpenSwiftUI project's hand-written shim for
+// AppKit's private API (AppKit_Private.h:34-43) declares ValueForAttribute, ActionNames, ActionDescription and
+// PerformAction, and its caller (AppKitAccessibility.swift:576, 661-671) treats a nil result as "nothing to report";
+// that is a third party's own declaration of a private function, so its provenance is unconfirmed here. No source at
+// all declares AttributeNames, IsAccessibilityElement and IsAttributeSupported.
 //
 // GUESS (not in the public documentation, not observed): each function is the in-process entry point that asks an
 // element the question an accessibility client would ask it, so each forwards to the element's own public
@@ -637,8 +639,6 @@ void NSAccessibilityRaiseBadArgumentException(id element, NSString *attribute,
 // -accessibilityPerformAction:, and IsAttributeSupported is membership in the attribute names. An element that does
 // not implement the action methods answers the same as one with no actions: nil, nil, NO. Because this tree has no
 // accessibility server (see NSObject (NSAccessibility) below), a plain object answers "no attributes, no actions".
-// GUESS (same): the signatures of AttributeNames (NSArray *(id)), IsAccessibilityElement (BOOL(id)) and
-// IsAttributeSupported (BOOL(id, NSString *)).
 // GUESS (same): PerformAction answers YES when the element lists the action and was asked to perform it, NO when it
 // does not list it (nothing is performed then); the legacy method itself returns void.
 // If the guess is wrong an app sees SwiftUI-hosted AppKit views reporting too few or too many accessibility
