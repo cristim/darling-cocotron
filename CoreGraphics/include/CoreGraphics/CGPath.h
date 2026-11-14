@@ -23,6 +23,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <CoreGraphics/CGAffineTransform.h>
 #import <CoreGraphics/CGGeometry.h>
 #import <CoreGraphics/CoreGraphicsExport.h>
+#import <CoreFoundation/CFArray.h>
 
 typedef CF_ENUM(int32_t, CGLineCap) {
     kCGLineCapButt,
@@ -156,6 +157,28 @@ COREGRAPHICS_EXPORT void CGPathApplyWithBlock(CGPathRef path,
                                               CF_NOESCAPE CGPathApplyBlock block)
     CF_SWIFT_NAME(CGPath.applyWithBlock(self:_:));
 #endif
+
+/* Boolean operations on filled paths (macOS 13). The fill rule applies to both
+   paths: true is even-odd, false is non-zero winding. A NULL path, or one with
+   a NaN or infinite coordinate, gives NULL (false for CGPathIntersectsPath).
+   GUESS (not in the public documentation, not observed): these C prototypes
+   and names. The results are made of straight segments, because curves are
+   flattened first (see CGPathBoolean.m for every other guess). */
+COREGRAPHICS_EXPORT CGPathRef _Nullable
+CGPathCreateCopyByUnioningPath(CGPathRef _Nullable path, CGPathRef _Nullable maskPath,
+                               bool evenOddFillRule);
+COREGRAPHICS_EXPORT CGPathRef _Nullable
+CGPathCreateCopyByIntersectingPath(CGPathRef _Nullable path, CGPathRef _Nullable maskPath,
+                                   bool evenOddFillRule);
+COREGRAPHICS_EXPORT CGPathRef _Nullable
+CGPathCreateCopyBySubtractingPath(CGPathRef _Nullable path, CGPathRef _Nullable maskPath,
+                                  bool evenOddFillRule);
+COREGRAPHICS_EXPORT CGPathRef _Nullable
+CGPathCreateCopyBySymmetricallyDifferencingPath(CGPathRef _Nullable path,
+                                                CGPathRef _Nullable maskPath,
+                                                bool evenOddFillRule);
+COREGRAPHICS_EXPORT CGPathRef _Nullable
+CGPathCreateCopyByNormalizing(CGPathRef _Nullable path, bool evenOddFillRule);
 
 CF_ASSUME_NONNULL_END
 CF_IMPLICIT_BRIDGING_DISABLED

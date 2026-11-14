@@ -36,6 +36,7 @@ set_property(SOURCE
 	CGLayer.m
 	CGLPixelSurface.m
 	CGPath.m
+	CGPathBoolean.m
 	CGPattern.m
 	CGPDFContext.m
 	CGPDFDictionary.m
@@ -82,6 +83,7 @@ set(CoreGraphics_sources
 	CGDisplayStream.m
 	src/CGEvent.c
 	src/CGColorMatching.c
+	src/CGPathBoolean.c
 	src/stubs.c
 	CGFont.m
 	CGFunction.m
@@ -91,6 +93,7 @@ set(CoreGraphics_sources
 	CGLayer.m
 	CGLPixelSurface.m
 	CGPath.m
+	CGPathBoolean.m
 	CGPattern.m
 	CGPDFContext.m
 	CGPDFDictionary.m
