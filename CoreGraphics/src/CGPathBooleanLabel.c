@@ -77,7 +77,6 @@ static void label_vertical(const Graph *g, const Active *act, Edge *e)
         e->wl[s] = w[s];
         e->wr[s] = w[s] - e->d[s];
     }
-    e->labelled = 1;
 }
 
 CGPBStatus pb_label_edges(Graph *g)
@@ -96,7 +95,6 @@ CGPBStatus pb_label_edges(Graph *g)
     size_t ni = 0, nr = 0, nv = 0;
     for (size_t i = 0; i < n; i++) {
         Edge *e = &g->edges.v[i];
-        e->labelled = 0;
         IPt ea = vp(g, e->a), eb = vp(g, e->b);
         if (ea.x == eb.x) {
             Keyed k = {ea.x, i, e};
@@ -127,6 +125,7 @@ CGPBStatus pb_label_edges(Graph *g)
             size_t k = 0;
             while (k < act.n && entry_edge(&act.v[k]) != e)
                 k++;
+            g->work += k;
             if (k == act.n) {
                 st = CGPBStatusInconsistent;
                 goto done;
@@ -169,7 +168,6 @@ CGPBStatus pb_label_edges(Graph *g)
                         e->wr[s] = w[s];
                         e->wl[s] = w[s] + e->d[s];
                     }
-                    e->labelled = 1;
                     a->ep &= ~(uintptr_t) 1;
                 }
                 w[0] += a->d[0];

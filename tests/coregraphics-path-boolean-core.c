@@ -544,6 +544,34 @@ static void stress(void)
     EXPECT(took < 2, "the 2400-point star failed after %.1f s, bound 2 s (0.1 s at -O2; the work limit alone takes 8 s)", took);
     free(big);
 
+    /* The review's memory case: 200000 input vertices on one line and 100
+       triangles whose different bottom edges lie on it. No crossing is involved and the
+       work counter stays small, but every triangle edge is cut at every vertex,
+       20 million chain entries (1.1 GB before the limit on them). */
+    enum { LINE_VERTICES = 200000, TRIANGLES = 100 };
+    CGPBPoint *lp = malloc((LINE_VERTICES + 2) * sizeof *lp);
+    for (int i = 0; i < LINE_VERTICES; i++)
+        lp[i] = (CGPBPoint) {i, 0};
+    lp[LINE_VERTICES] = (CGPBPoint) {LINE_VERTICES - 1, -1};
+    lp[LINE_VERTICES + 1] = (CGPBPoint) {0, -1};
+    CGPBPoint *tp = malloc(3 * TRIANGLES * sizeof *tp);
+    CGPBContour *lc = malloc((TRIANGLES + 1) * sizeof *lc);
+    lc[0] = (CGPBContour) {lp, LINE_VERTICES + 2, true};
+    for (int k = 0; k < TRIANGLES; k++) {
+        tp[3 * k] = (CGPBPoint) {k, 0};
+        tp[3 * k + 1] = (CGPBPoint) {LINE_VERTICES - 1 - k, 0};
+        tp[3 * k + 2] = (CGPBPoint) {LINE_VERTICES / 2, 10 + k};
+        lc[k + 1] = (CGPBContour) {tp + 3 * k, 3, true};
+    }
+    t0 = seconds();
+    st = CGPBRegion(CGPBOpUnion, lc, TRIANGLES + 1, NULL, 0, false, false, &r);
+    took = seconds() - t0;
+    EXPECT(st == CGPBStatusTooComplex && r.count == 0, "200000 collinear vertices under 100 triangles trip the chain limit (status %d)", st);
+    EXPECT(took < 20, "the collinear case failed after %.1f s, bound 20 s", took);
+    free(lp);
+    free(tp);
+    free(lc);
+
     enum { SQUARES = 16000 };
     CGPBPoint *sq = malloc(4 * SQUARES * sizeof *sq);
     CGPBContour *cs = malloc(SQUARES * sizeof *cs);

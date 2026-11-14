@@ -393,6 +393,11 @@ static CGPBStatus node_segments(Graph *g)
             st = CGPBStatusNoMemory;
             break;
         }
+        g->work += hits.n;
+        if (g->ids.n > PB_MAX_CHAIN_IDS) {
+            st = CGPBStatusTooComplex;
+            break;
+        }
     }
     VFREE(hits);
     pixel_index_free(&pi);
