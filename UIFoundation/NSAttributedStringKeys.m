@@ -26,11 +26,11 @@
 // kCTFontAttributeName and kCTParagraphStyleAttributeName do.
 NSAttributedStringKey NSFontAttributeName = @"NSFont";
 NSAttributedStringKey NSParagraphStyleAttributeName = @"NSParagraphStyle";
-NSAttributedStringKey NSForegroundColorAttributeName = @"NSForegroundColorAttributeName";
-NSAttributedStringKey NSBackgroundColorAttributeName = @"NSBackgroundColorAttributeName";
-NSAttributedStringKey NSUnderlineStyleAttributeName = @"NSUnderlineStyleAttributeName";
-NSAttributedStringKey NSUnderlineColorAttributeName = @"NSUnderlineColorAttributeName";
-NSAttributedStringKey NSAttachmentAttributeName = @"NSAttachmentAttributeName";
+NSAttributedStringKey NSForegroundColorAttributeName = @"NSColor";
+NSAttributedStringKey NSBackgroundColorAttributeName = @"NSBackgroundColor";
+NSAttributedStringKey NSUnderlineStyleAttributeName = @"NSUnderline";
+NSAttributedStringKey NSUnderlineColorAttributeName = @"NSUnderlineColor";
+NSAttributedStringKey NSAttachmentAttributeName = @"NSAttachment";
 NSAttributedStringKey NSKernAttributeName = @"NSKernAttributeName";
 NSAttributedStringKey NSLigatureAttributeName = @"NSLigatureAttributeName";
 NSAttributedStringKey NSStrikethroughStyleAttributeName = @"NSStrikethroughStyleAttributeName";
@@ -49,4 +49,4 @@ NSAttributedStringKey NSToolTipAttributeName = @"NSToolTipAttributeName";
 NSAttributedStringKey NSGlyphInfoAttributeName = @"NSGlyphInfo";
 NSAttributedStringKey NSVerticalGlyphFormAttributeName = @"NSVerticalGlyphForm";
 NSAttributedStringKey NSTextAlternativesAttributeName = @"NSTextAlternatives";
-NSAttributedStringKey NSSpellingStateAttributeName = @"NSSpellingStateAttributeName"; // temporary attribute
+NSAttributedStringKey NSSpellingStateAttributeName = @"NSSpellingState"; // temporary attribute

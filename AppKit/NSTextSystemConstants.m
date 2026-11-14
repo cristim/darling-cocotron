@@ -32,6 +32,18 @@
 NSAttributedStringKey const NSAdaptiveImageGlyphAttributeName = @"NSAdaptiveImageGlyph";
 NSNotificationName NSAntialiasThresholdChangedNotification =
         @"NSAntialiasThresholdChangedNotification";
+// The nine attribute names that Books, Clock, FaceTime and FindMy (and AppKit's own re-export binds) report as unresolved
+// when only the UIFoundation stand-in defines them, so AppKit defines them too; the stand-in exports the same values.
+// Values: GNUstep libs-gui Source/externs.m (open source, rung 2). NEEDS-REAL-MAC (mac-probe/darling_probe_a1.c).
+NSAttributedStringKey NSAttachmentAttributeName = @"NSAttachment";
+NSAttributedStringKey NSBackgroundColorAttributeName = @"NSBackgroundColor";
+NSAttributedStringKey NSFontAttributeName = @"NSFont";
+NSAttributedStringKey NSForegroundColorAttributeName = @"NSColor";
+NSAttributedStringKey NSParagraphStyleAttributeName = @"NSParagraphStyle";
+NSAttributedStringKey NSSpellingStateAttributeName = @"NSSpellingState";
+NSAttributedStringKey NSSuperscriptAttributeName = @"NSSuperScript";
+NSAttributedStringKey NSUnderlineColorAttributeName = @"NSUnderlineColor";
+NSAttributedStringKey NSUnderlineStyleAttributeName = @"NSUnderline";
 NSAttributedStringKey NSBaselineOffsetAttributeName = @"NSBaselineOffsetAttributeName";
 NSAttributedStringKey NSCursorAttributeName = @"NSCursorAttributeName";
 NSFontDescriptorSystemDesign const NSFontDescriptorSystemDesignRounded = @"NSCTFontUIFontDesignRounded";
