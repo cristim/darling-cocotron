@@ -16,10 +16,17 @@ APPKIT_EXPORT void NSAccessibilityRaiseBadArgumentException(id element,
                                                             NSString *attribute,
                                                             id value);
 
-// Private: AppKit exports it but it is not in the public documentation. The declaration (element in, nullable
-// array of action names out) is from the open-source OpenSwiftUI shim for AppKit's private API. A call prints its
-// name and aborts.
+// Private: AppKit exports them but they are not in the public documentation. The declarations of ValueForAttribute,
+// ActionNames, ActionDescription and PerformAction are from the open-source OpenSwiftUI shim for AppKit's private API;
+// those of AttributeNames, IsAccessibilityElement and IsAttributeSupported are guesses. Each forwards to the element's
+// own accessibility method; see NSAccessibility.m.
+APPKIT_EXPORT NSArray *NSAccessibilityEntryPointAttributeNames(id element);
+APPKIT_EXPORT id NSAccessibilityEntryPointValueForAttribute(id element, NSString *attribute);
+APPKIT_EXPORT BOOL NSAccessibilityEntryPointIsAccessibilityElement(id element);
+APPKIT_EXPORT BOOL NSAccessibilityEntryPointIsAttributeSupported(id element, NSString *attribute);
 APPKIT_EXPORT NSArray *NSAccessibilityEntryPointActionNames(id element);
+APPKIT_EXPORT NSString *NSAccessibilityEntryPointActionDescription(id element, NSString *action);
+APPKIT_EXPORT BOOL NSAccessibilityEntryPointPerformAction(id element, NSString *action);
 
 APPKIT_EXPORT id NSAccessibilityUnignoredAncestor(id element);
 APPKIT_EXPORT id NSAccessibilityUnignoredDescendant(id element);
