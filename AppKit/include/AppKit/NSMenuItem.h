@@ -62,7 +62,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 + (NSMenuItem *) separatorItem;
 // macOS 14: a non-selectable item that titles the items after it.
-+ (NSMenuItem *) sectionHeaderWithTitle: (NSString *) title;
+// GUESS (not in the public documentation, not observed): Swift sees this method as __sectionHeader(withTitle:),
+// because Apple's Swift documentation lists both sectionHeader(title:) and sectionHeader(withTitle:) as static
+// functions and apps import Swift symbols for both, so both are Swift overlay functions over a refined import.
++ (NSMenuItem *) sectionHeaderWithTitle: (NSString *) title NS_REFINED_FOR_SWIFT;
 
 - (instancetype) initWithTitle: (NSString *) title
                         action: (SEL) action
