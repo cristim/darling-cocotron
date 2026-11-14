@@ -93,12 +93,13 @@ int main(void)
     NSTextAttachmentViewProvider *weakProvider = nil;
     @autoreleasepool {
         NSTextAttachment *shortLived = [[NSTextAttachment alloc] initWithData:[NSData data] ofType:@"public.data"];
-        weakProvider = [[[NSTextAttachmentViewProvider alloc] initWithTextAttachment:shortLived parentView:nil
-                                                                   textLayoutManager:nil location:location] autorelease];
+        weakProvider = [[NSTextAttachmentViewProvider alloc] initWithTextAttachment:shortLived parentView:nil
+                                                                  textLayoutManager:nil location:location];
         expect(weakProvider.textAttachment == shortLived, @"the attachment is kept while it lives");
         [shortLived release];
     }
     expect(weakProvider.textAttachment == nil, @"the text attachment is weak (documented): nil once it is gone");
+    [weakProvider release];
 
     BOOL raised = NO;
     @try {

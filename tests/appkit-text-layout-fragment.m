@@ -61,11 +61,12 @@ int main(void)
     NSTextLayoutFragment *weakFragment = nil;
     @autoreleasepool {
         NSTextParagraph *shortLived = [[NSTextParagraph alloc] initWithAttributedString:content.attributedString];
-        weakFragment = [[[NSTextLayoutFragment alloc] initWithTextElement:shortLived range:nil] autorelease];
+        weakFragment = [[NSTextLayoutFragment alloc] initWithTextElement:shortLived range:nil];
         expect(weakFragment.textElement == shortLived, @"the element is kept while it lives");
         [shortLived release];
     }
     expect(weakFragment.textElement == nil, @"the text element is weak (documented): nil once it is gone");
+    [weakFragment release];
 
     BOOL raised = NO;
     @try {
