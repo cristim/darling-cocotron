@@ -22,6 +22,8 @@
 
 typedef NSString *NSStoryboardName;
 typedef NSString *NSStoryboardSceneIdentifier;
+// Builds a scene's controller from the coder that holds its storyboard data, with the caller's own initializer.
+typedef id (^NSStoryboardControllerCreator)(NSCoder *coder);
 
 @interface NSStoryboard : NSObject {
     NSString *_path;
@@ -35,5 +37,10 @@ typedef NSString *NSStoryboardSceneIdentifier;
 
 - (id) instantiateInitialController;
 - (id) instantiateControllerWithIdentifier: (NSStoryboardSceneIdentifier) identifier;
+// A nil creator is the plain method. A creator raises NSInvalidArgumentException: the nib decoder here has no hook
+// that hands a scene's coder to a block.
+- (id) instantiateInitialControllerWithCreator: (NSStoryboardControllerCreator) block;
+- (id) instantiateControllerWithIdentifier: (NSStoryboardSceneIdentifier) identifier
+                                   creator: (NSStoryboardControllerCreator) block;
 
 @end
