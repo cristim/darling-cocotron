@@ -15,15 +15,21 @@
    3. Merge coincident edges, adding up their signed winding contributions
       (one count per input set).
    4. Label every edge with the winding numbers of both inputs on both of its
-      sides by casting a ray (down from non-vertical edges, left from vertical
-      ones) through the other edges with a half-open rule. All comparisons are
-      exact (128-bit integers).
+      sides with a left-to-right sweep that keeps the edges crossing the sweep line
+      sorted (a vertical edge reads the sum just before its x). All comparisons
+      are exact (128-bit integers).
    5. Keep the edges where the operation flips between inside and outside,
       directed so the interior is on the left, and trace them into rings.
 
-   Cost: quadratic in the number of segments in the worst case (the hot pixel
-   lookup scans the pixels in a segment's x range, the vertical-edge labelling
-   scans all edges); fine for UI-sized paths of a few thousand segments. */
+   Tolerance: the grid is one. Every vertex moves by at most half a step, and
+   the step is the extent of the joint bounding box divided by 2^40 (up to
+   twice that). Within that, the arithmetic is exact.
+
+   Cost: crossing detection is a sweep over x ranges, hot pixels are found
+   through a cell index, labelling is a sweep that costs the number of edges
+   times the number crossing the sweep line. Past fixed limits on the number
+   of hot pixels and on the total work (CGPathBooleanInternal.h) the operation
+   fails with CGPBStatusTooComplex instead of running on. */
 
 #include "CGPathBooleanInternal.h"
 
