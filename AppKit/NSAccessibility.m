@@ -615,6 +615,16 @@ void NSAccessibilityRaiseBadArgumentException(id element, NSString *attribute,
                         attribute, element];
 }
 
+// Private. The open-source OpenSwiftUI shim declares it as `NSArray * _Nullable (id element)`, and a client's notes
+// (expo/exact docs/agent-pitfalls.md) describe its result as the action names AppKit's accessibility server lists
+// for the element: every accessibilityPerform... method the class overrides that isAccessibilitySelectorAllowed:
+// lets through. This tree has no accessibility server and no public source fixes the result for an element
+// without actions, so a call fails loudly instead of answering (GUESS: the signature).
+NSArray *NSAccessibilityEntryPointActionNames(id element) {
+    fprintf(stderr, "AppKit: NSAccessibilityEntryPointActionNames is not implemented\n");
+    abort();
+}
+
 // Cocotron never treats an element as ignored, so each of these returns what it was given.
 id NSAccessibilityUnignoredAncestor(id element) {
     return element;
