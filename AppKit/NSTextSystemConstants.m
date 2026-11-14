@@ -32,20 +32,24 @@
 NSAttributedStringKey const NSAdaptiveImageGlyphAttributeName = @"NSAdaptiveImageGlyph";
 NSNotificationName NSAntialiasThresholdChangedNotification =
         @"NSAntialiasThresholdChangedNotification";
-// The nine attribute names that Books, Clock, FaceTime and FindMy (and AppKit's own re-export binds) report as unresolved
-// when only the UIFoundation stand-in defines them, so AppKit defines them too; the stand-in exports the same values.
-// Values: GNUstep libs-gui Source/externs.m (open source, rung 2). NEEDS-REAL-MAC (mac-probe/darling_probe_a1.c).
+// The attribute names that Books, Clock, FaceTime, FindMy and the other Mac Catalyst apps (and AppKit's own re-export binds)
+// report as unresolved when only the UIFoundation stand-in defines them, so AppKit defines them too; the stand-in exports the
+// same values. Values: observed on a real Mac (macOS 26.1, mac-probe/darling_probe_a1.txt lines 2-10, 15, 80 and 81),
+// rung 4; they agree with the open-source GNUstep libs-gui (Source/externs.m).
 NSAttributedStringKey NSAttachmentAttributeName = @"NSAttachment";
 NSAttributedStringKey NSBackgroundColorAttributeName = @"NSBackgroundColor";
 NSAttributedStringKey NSFontAttributeName = @"NSFont";
 NSAttributedStringKey NSForegroundColorAttributeName = @"NSColor";
+NSAttributedStringKey NSObliquenessAttributeName = @"NSObliqueness";
+NSAttributedStringKey NSParagraphAttachmentAttributeName = @"NSTextParagraphAnchoredAttachment";
 NSAttributedStringKey NSParagraphStyleAttributeName = @"NSParagraphStyle";
 NSAttributedStringKey NSSpellingStateAttributeName = @"NSSpellingState";
 NSAttributedStringKey NSSuperscriptAttributeName = @"NSSuperScript";
+NSAttributedStringKey NSTextEncapsulationAttributeName = @"NSTextEncapsulation";
 NSAttributedStringKey NSUnderlineColorAttributeName = @"NSUnderlineColor";
 NSAttributedStringKey NSUnderlineStyleAttributeName = @"NSUnderline";
-NSAttributedStringKey NSBaselineOffsetAttributeName = @"NSBaselineOffsetAttributeName";
-NSAttributedStringKey NSCursorAttributeName = @"NSCursorAttributeName";
+NSAttributedStringKey NSBaselineOffsetAttributeName = @"NSBaselineOffset";
+NSAttributedStringKey NSCursorAttributeName = @"NSCursor";
 NSFontDescriptorSystemDesign const NSFontDescriptorSystemDesignRounded = @"NSCTFontUIFontDesignRounded";
 NSFontDescriptorAttributeName NSFontFamilyAttribute = @"NSFontFamilyAttribute";
 NSFontDescriptorAttributeName NSFontNameAttribute = @"NSFontNameAttribute";
@@ -76,16 +80,16 @@ const NSFontWeight NSFontWeightThin = 0xbfe3333340000000;
 NSFontDescriptorTraitKey NSFontWeightTrait = @"NSCTFontWeightTrait";
 const NSFontWeight NSFontWeightUltraLight = 0xbfe99999a0000000;
 NSAttributedStringKey NSGlyphInfoAttributeName = @"NSGlyphInfo";
-NSAttributedStringKey NSKernAttributeName = @"NSKernAttributeName";
-NSAttributedStringKey NSLigatureAttributeName = @"NSLigatureAttributeName";
-NSAttributedStringKey NSLinkAttributeName = @"NSLinkAttributeName";
+NSAttributedStringKey NSKernAttributeName = @"NSKern";
+NSAttributedStringKey NSLigatureAttributeName = @"NSLigature";
+NSAttributedStringKey NSLinkAttributeName = @"NSLink";
 NSAttributedStringKey NSMarkedClauseSegmentAttributeName = @"NSMarkedClauseSegment";
-NSAttributedStringKey NSShadowAttributeName = @"NSShadowAttributeName";
-NSAttributedStringKey NSStrikethroughStyleAttributeName = @"NSStrikethroughStyleAttributeName";
+NSAttributedStringKey NSShadowAttributeName = @"NSShadow";
+NSAttributedStringKey NSStrikethroughStyleAttributeName = @"NSStrikethrough";
 NSString *const NSTextContentStorageUnsupportedAttributeAddedNotification =
         @"NSTextContentStorageUnsupportedAttributeAddedNotification";
 NSString *const NSTextListMarkerDecimal = @"{decimal}";
 NSString *const NSTextListMarkerDisc = @"{disc}";
-NSAttributedStringKey NSToolTipAttributeName = @"NSToolTipAttributeName";
+NSAttributedStringKey NSToolTipAttributeName = @"NSToolTip";
 NSAttributedStringDocumentReadingOptionKey const NSTextKit1ListMarkerFormatDocumentOption =
         @"NSTextKit1ListMarkerFormatDocumentOption";
