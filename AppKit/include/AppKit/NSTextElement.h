@@ -49,8 +49,34 @@
 
 @end
 
-// A list item's element. The public documentation lists no members of its own.
-// GUESS (not in the public documentation, not observed): the superclass is NSTextElement (it vends the element's
-// range and content manager); Journal imports the class.
-@interface NSTextListElement : NSTextElement
+@class NSTextList;
+
+// A text list node (macOS 12), declared as Apple's public documentation spells it: it inherits from NSTextParagraph
+// and has the members below. The documentation does not say what -attributedString (the contents with the list
+// marker and indentation) is, and this tree has no list marker layout, so that one raises instead of answering the
+// contents without their marker; the ranges inherited from NSTextParagraph work on the contents.
+@interface NSTextListElement : NSTextParagraph
+
+- (instancetype) initWithParentElement: (nullable NSTextListElement *) parent
+                              textList: (NSTextList *) textList
+                              contents: (nullable NSAttributedString *) contents
+                      markerAttributes: (nullable NSDictionary<NSString *, id> *) markerAttributes
+                         childElements: (nullable NSArray<NSTextListElement *> *) children;
+
++ (instancetype) textListElementWithContents: (NSAttributedString *) contents
+                            markerAttributes: (nullable NSDictionary<NSString *, id> *) markerAttributes
+                                    textList: (NSTextList *) textList
+                               childElements: (nullable NSArray<NSTextListElement *> *) children;
+// The nesting level is documented as a parameter and nothing says what it does to an element made from children
+// alone, so this one raises.
++ (nullable instancetype) textListElementWithChildElements: (NSArray<NSTextListElement *> *) children
+                                                  textList: (NSTextList *) textList
+                                              nestingLevel: (NSInteger) nestingLevel;
+
+@property(readonly, strong) NSTextList *textList;
+@property(readonly, strong, nullable) NSAttributedString *contents;
+@property(readonly, strong, nullable) NSDictionary<NSString *, id> *markerAttributes;
+@property(readonly, weak, nullable) NSTextListElement *parentElement;
+@property(readonly, copy) NSArray<NSTextListElement *> *childElements;
+
 @end
