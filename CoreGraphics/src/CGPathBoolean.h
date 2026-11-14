@@ -54,6 +54,7 @@ typedef enum {
     CGPBStatusNonFinite,    /* a coordinate is NaN or infinite */
     CGPBStatusTooLarge,     /* the coordinate range overflows a double */
     CGPBStatusInconsistent, /* the noded graph is not a planar subdivision */
+    CGPBStatusTooComplex,   /* more crossings or work than the fixed limits allow */
 } CGPBStatus;
 
 /* Region operations. The result is a set of closed rings: outer rings run

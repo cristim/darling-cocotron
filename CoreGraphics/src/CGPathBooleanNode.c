@@ -74,6 +74,10 @@ static CGPBStatus pb_grid_init(Grid *grid, const InputSet *sets, size_t nsets)
     int e = 1;
     if (extent > 0)
         frexp(extent, &e); /* extent < 2^e */
+    /* The grid is a tolerance: every vertex moves by at most half a step, and
+       the step is extent / 2^40 (between extent / 2^41 and extent / 2^40) for the
+       joint bounding box of both inputs. A 1e-3 square next to a 1e9 one is
+       snapped to a 1/512 grid. */
     grid->ox = minx;
     grid->oy = miny;
     grid->shift = GRID_BITS - e;
@@ -102,7 +106,13 @@ static CGPBStatus pb_add_contour(Graph *g, VecHV *tmp, const CGPBContour *c,
     size_t seg0 = g->segs.n;
     size_t nseg = closed ? n : n - 1;
     for (size_t k = 0; k < nseg; k++) {
-        Seg s = {tmp->v[k].p, tmp->v[(k + 1) % n].p, src};
+        IPt p = tmp->v[k].p, q = tmp->v[(k + 1) % n].p;
+        Seg s = {p, q, src, 1};
+        if (region && ipt_cmp(p, q) > 0) {
+            s.p = q;
+            s.q = p;
+            s.w = -1;
+        }
         if (!VPUSH(g->segs, s))
             return CGPBStatusNoMemory;
     }
@@ -115,6 +125,42 @@ static CGPBStatus pb_add_contour(Graph *g, VecHV *tmp, const CGPBContour *c,
             return CGPBStatusNoMemory;
     }
     return CGPBStatusOK;
+}
+
+static int seg_cmp(const void *pa, const void *pb)
+{
+    const Seg *a = pa, *b = pb;
+    int c = ipt_cmp(a->p, b->p);
+    if (c == 0)
+        c = ipt_cmp(a->q, b->q);
+    if (c == 0)
+        c = (int) a->src - (int) b->src;
+    return c;
+}
+
+/* Merge equal region segments of one set, adding their weights, and drop the
+   ones that cancel. This keeps many coincident or retraced edges (a path
+   drawn twice, 16000 identical squares) from costing a pair test each. The
+   line segments sit first in segs and are left alone: their order matters. */
+static void dedupe_region_segments(Graph *g)
+{
+    Seg *r = g->segs.v + g->nlineSegs;
+    size_t n = g->segs.n - g->nlineSegs;
+    if (n < 2)
+        return;
+    qsort(r, n, sizeof(Seg), seg_cmp);
+    size_t out = 0;
+    for (size_t i = 0; i < n; i++) {
+        if (out > 0 && seg_cmp(&r[out - 1], &r[i]) == 0)
+            r[out - 1].w += r[i].w;
+        else
+            r[out++] = r[i];
+    }
+    size_t keep = 0;
+    for (size_t i = 0; i < out; i++)
+        if (r[i].w != 0)
+            r[keep++] = r[i];
+    g->segs.n = g->nlineSegs + keep;
 }
 
 static CGPBStatus find_crossings(Graph *g)
@@ -138,6 +184,7 @@ static CGPBStatus find_crossings(Graph *g)
         i64 aymin = imin(a->p.y, a->q.y), aymax = imax(a->p.y, a->q.y);
         for (size_t j = i + 1; j < n; j++) {
             const Seg *b = &g->segs.v[idx[j].idx];
+            g->work++;
             if (imin(b->p.x, b->q.x) > axmax)
                 break;
             if (imin(b->p.y, b->q.y) > aymax || imax(b->p.y, b->q.y) < aymin)
@@ -157,11 +204,17 @@ static CGPBStatus find_crossings(Graph *g)
             c.y = a->p.y + (i64) round_div(day * num, den);
             HV v = {c, 0, 0, 0};
             grid_unsnap(&g->grid, c, &v.x, &v.y);
+            if (g->hv.n >= PB_MAX_HOT_PIXELS) {
+                st = CGPBStatusTooComplex;
+                break;
+            }
             if (!VPUSH(g->hv, v)) {
                 st = CGPBStatusNoMemory;
                 break;
             }
         }
+        if (st == CGPBStatusOK && g->work > PB_WORK_LIMIT)
+            st = CGPBStatusTooComplex;
     }
     free(idx);
     return st;
@@ -175,19 +228,117 @@ static int hit_cmp(const void *pa, const void *pb)
     return a->id < b->id ? -1 : a->id > b->id;
 }
 
-/* Does the segment p-q touch the closed unit pixel centred on c? */
+/* Does the segment p-q touch the closed unit pixel centred on c? The corners
+   of the pixel are c + (+-1/2, +-1/2) and the cross product is linear, so the
+   segment misses the pixel exactly when |cross| exceeds (|dx| + |dy|) / 2 (all
+   four corners on one side of the line), given that their bounding boxes
+   overlap, which the caller checks. */
 static bool pixel_touched(IPt p, IPt q, IPt c)
 {
-    IPt p2 = {2 * p.x, 2 * p.y}, q2 = {2 * q.x, 2 * q.y};
-    IPt k[4] = {{2 * c.x - 1, 2 * c.y - 1}, {2 * c.x + 1, 2 * c.y - 1},
-                {2 * c.x + 1, 2 * c.y + 1}, {2 * c.x - 1, 2 * c.y + 1}};
-    int pos = 0, neg = 0;
-    for (int i = 0; i < 4; i++) {
-        int s = sgn(orient(p2, q2, k[i]));
-        pos += s > 0;
-        neg += s < 0;
+    i128 o = orient(p, q, c);
+    i128 reach = (i128) (q.x > p.x ? q.x - p.x : p.x - q.x) + (q.y > p.y ? q.y - p.y : p.y - q.y);
+    return 2 * (o < 0 ? -o : o) <= reach;
+}
+
+typedef VEC(Hit) VecHit;
+
+/* The hot pixels in square cells of `side` grid steps, by counting sort, so a
+   segment only looks at the cells it passes through. */
+typedef struct {
+    IPt p;
+    uint32_t id;
+} PixelItem;
+
+typedef struct {
+    i64 side;
+    size_t ncx;
+    size_t *start;    /* ncells + 1 offsets into items */
+    PixelItem *items; /* vertices grouped by cell, with their position at hand */
+} PixelIndex;
+
+static void pixel_index_free(PixelIndex *pi)
+{
+    free(pi->start);
+    free(pi->items);
+}
+
+static size_t cell_of(const PixelIndex *pi, IPt p)
+{
+    return (size_t) (p.y / pi->side) * pi->ncx + (size_t) (p.x / pi->side);
+}
+
+static bool pixel_index_build(const Graph *g, PixelIndex *pi)
+{
+    memset(pi, 0, sizeof *pi);
+    i64 top = 0;
+    for (size_t i = 0; i < g->hv.n; i++)
+        top = imax(top, imax(g->hv.v[i].p.x, g->hv.v[i].p.y));
+    pi->side = (i64) ceil((double) top / sqrt(4.0 * ((double) g->hv.n + 1)));
+    if (pi->side < 1)
+        pi->side = 1;
+    pi->ncx = (size_t) (top / pi->side) + 1;
+    size_t ncells = pi->ncx * pi->ncx;
+    pi->start = calloc(ncells + 1, sizeof(size_t));
+    pi->items = malloc((g->hv.n ? g->hv.n : 1) * sizeof(PixelItem));
+    size_t *fill = malloc((ncells + 1) * sizeof(size_t));
+    if (pi->start == NULL || pi->items == NULL || fill == NULL) {
+        free(fill);
+        pixel_index_free(pi);
+        return false;
     }
-    return !(pos == 4 || neg == 4);
+    for (size_t i = 0; i < g->hv.n; i++)
+        pi->start[cell_of(pi, g->hv.v[i].p) + 1]++;
+    for (size_t c = 0; c < ncells; c++)
+        pi->start[c + 1] += pi->start[c];
+    memcpy(fill, pi->start, (ncells + 1) * sizeof(size_t));
+    for (size_t i = 0; i < g->hv.n; i++)
+    {
+        PixelItem item = {g->hv.v[i].p, (uint32_t) i};
+        pi->items[fill[cell_of(pi, item.p)]++] = item;
+    }
+    free(fill);
+    return true;
+}
+
+/* Collect the hot pixels, other than the two end vertices, that the segment
+   touches. Candidates are the pixels whose centre lies in the segment's
+   bounding box and inside the cells along the segment (a margin of 1.5 steps
+   absorbs the rounding of the double arithmetic used only to pick cells). */
+static bool collect_hits(Graph *g, const PixelIndex *pi, const Seg *seg, uint32_t idp,
+                         uint32_t idq, VecHit *hits)
+{
+    i64 xmin = imin(seg->p.x, seg->q.x), xmax = imax(seg->p.x, seg->q.x);
+    i64 ymin = imin(seg->p.y, seg->q.y), ymax = imax(seg->p.y, seg->q.y);
+    double dx = (double) (seg->q.x - seg->p.x), dy = (double) (seg->q.y - seg->p.y);
+    for (i64 col = xmin / pi->side; col <= xmax / pi->side; col++) {
+        i64 rlo = ymin, rhi = ymax;
+        if (dx != 0) {
+            double xa = fmax((double) (col * pi->side) - 0.5, (double) xmin);
+            double xb = fmin((double) (col * pi->side + pi->side - 1) + 0.5, (double) xmax);
+            double ya = (double) seg->p.y + (xa - (double) seg->p.x) * dy / dx;
+            double yb = (double) seg->p.y + (xb - (double) seg->p.x) * dy / dx;
+            rlo = imax(ymin, (i64) floor(fmin(ya, yb) - 1.5));
+            rhi = imin(ymax, (i64) ceil(fmax(ya, yb) + 1.5));
+        }
+        for (i64 row = rlo / pi->side; row <= rhi / pi->side; row++) {
+            size_t cell = (size_t) row * pi->ncx + (size_t) col;
+            for (size_t k = pi->start[cell]; k < pi->start[cell + 1]; k++) {
+                uint32_t i = pi->items[k].id;
+                IPt c = pi->items[k].p;
+                g->work++;
+                if (c.x < xmin || c.x > xmax || c.y < ymin || c.y > ymax || i == idp || i == idq)
+                    continue;
+                if (!pixel_touched(seg->p, seg->q, c))
+                    continue;
+                Hit h = {(i128) (c.x - seg->p.x) * (seg->q.x - seg->p.x) +
+                             (i128) (c.y - seg->p.y) * (seg->q.y - seg->p.y),
+                         i};
+                if (!VPUSH(*hits, h))
+                    return false;
+            }
+        }
+    }
+    return true;
 }
 
 static CGPBStatus node_segments(Graph *g)
@@ -206,42 +357,29 @@ static CGPBStatus node_segments(Graph *g)
     }
     g->hv.n = out;
 
-    VEC(Hit) hits = {0};
+    PixelIndex pi;
+    if (!pixel_index_build(g, &pi))
+        return CGPBStatusNoMemory;
+    VecHit hits = {0};
     for (size_t s = 0; s < g->segs.n; s++) {
         const Seg *seg = &g->segs.v[s];
         uint32_t idp, idq;
         if (!pb_find_vertex(g, seg->p, &idp) || !pb_find_vertex(g, seg->q, &idq)) {
-            VFREE(hits);
-            return CGPBStatusInconsistent;
+            st = CGPBStatusInconsistent;
+            break;
         }
         if (!VPUSH(g->off, g->ids.n)) {
-            VFREE(hits);
-            return CGPBStatusNoMemory;
+            st = CGPBStatusNoMemory;
+            break;
         }
         hits.n = 0;
-        i64 xmin = imin(seg->p.x, seg->q.x), xmax = imax(seg->p.x, seg->q.x);
-        i64 ymin = imin(seg->p.y, seg->q.y), ymax = imax(seg->p.y, seg->q.y);
-        size_t lo = 0, hi = g->hv.n;
-        while (lo < hi) {
-            size_t mid = (lo + hi) / 2;
-            if (g->hv.v[mid].p.x < xmin)
-                lo = mid + 1;
-            else
-                hi = mid;
+        if (!collect_hits(g, &pi, seg, idp, idq, &hits)) {
+            st = CGPBStatusNoMemory;
+            break;
         }
-        for (size_t i = lo; i < g->hv.n && g->hv.v[i].p.x <= xmax; i++) {
-            IPt c = g->hv.v[i].p;
-            if (c.y < ymin || c.y > ymax || i == idp || i == idq)
-                continue;
-            if (!pixel_touched(seg->p, seg->q, c))
-                continue;
-            Hit h = {(i128) (c.x - seg->p.x) * (seg->q.x - seg->p.x) +
-                         (i128) (c.y - seg->p.y) * (seg->q.y - seg->p.y),
-                     (uint32_t) i};
-            if (!VPUSH(hits, h)) {
-                VFREE(hits);
-                return CGPBStatusNoMemory;
-            }
+        if (g->work > PB_WORK_LIMIT) {
+            st = CGPBStatusTooComplex;
+            break;
         }
         if (hits.n > 1)
             qsort(hits.v, hits.n, sizeof(Hit), hit_cmp);
@@ -252,11 +390,14 @@ static CGPBStatus node_segments(Graph *g)
         if (ok && g->ids.v[g->ids.n - 1] != idq)
             ok = VPUSH(g->ids, idq);
         if (!ok) {
-            VFREE(hits);
-            return CGPBStatusNoMemory;
+            st = CGPBStatusNoMemory;
+            break;
         }
     }
     VFREE(hits);
+    pixel_index_free(&pi);
+    if (st != CGPBStatusOK)
+        return st;
     if (!VPUSH(g->off, g->ids.n))
         return CGPBStatusNoMemory;
     return CGPBStatusOK;
@@ -287,7 +428,7 @@ static CGPBStatus build_edges(Graph *g)
             if (g->segs.v[s].src == 2)
                 e.line = 1;
             else
-                e.d[g->segs.v[s].src] = sign;
+                e.d[g->segs.v[s].src] = sign * g->segs.v[s].w;
             if (!VPUSH(g->edges, e))
                 return CGPBStatusNoMemory;
         }
@@ -333,8 +474,12 @@ CGPBStatus pb_build_graph(Graph *g, const InputSet *sets, size_t nsets,
         }
     }
     VFREE(tmp);
-    if (st == CGPBStatusOK)
+    if (st == CGPBStatusOK) {
+        for (g->nlineSegs = 0; g->nlineSegs < g->segs.n && g->segs.v[g->nlineSegs].src == 2;)
+            g->nlineSegs++;
+        dedupe_region_segments(g);
         st = node_segments(g);
+    }
     if (st == CGPBStatusOK)
         st = build_edges(g);
     if (st == CGPBStatusOK)

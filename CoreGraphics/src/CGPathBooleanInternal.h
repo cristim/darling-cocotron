@@ -122,9 +122,14 @@ typedef struct {
     int orig;
 } HV;
 
+/* Region segments are stored with p before q (x, then y) and a signed weight:
+   +1 when the input ran p to q, -1 when it ran q to p; equal segments of one
+   set are merged and their weights added. Line segments keep their direction
+   and weight 1. */
 typedef struct {
     IPt p, q;
     uint8_t src; /* 0: region set A, 1: region set B, 2: line of A */
+    int w;
 } Seg;
 
 typedef struct {
@@ -136,6 +141,7 @@ typedef struct {
     uint32_t a, b; /* vertex ids, a < b: left to right, vertical edges upward */
     int d[2];      /* signed winding contribution per region set */
     uint8_t line;
+    uint8_t labelled;
     int wl[2], wr[2]; /* winding on the left and right of a -> b */
 } Edge;
 
@@ -155,7 +161,21 @@ typedef struct {
     VEC(size_t) off;
     VecU32 ids;
     VEC(Edge) edges;
+    size_t nlineSegs; /* line segments come first in segs */
+    uint64_t work;    /* elementary steps taken so far, against PB_WORK_LIMIT */
 } Graph;
+
+/* Hard limits, so a pathological path fails loudly (CGPBStatusTooComplex)
+   instead of hanging the caller. Measured on the host: a star polygon of 1600
+   points (1.3 million crossings, 640000 result rings) takes 5 s, one of 1800
+   points 7 s, one of 2000 points reaches the work limit after about 8 s, and
+   from 2200 points the crossing limit stops it in 0.1 s. */
+#ifndef PB_MAX_HOT_PIXELS
+#define PB_MAX_HOT_PIXELS ((size_t) 1 << 21)
+#endif
+#ifndef PB_WORK_LIMIT
+#define PB_WORK_LIMIT ((uint64_t) 1 << 33)
+#endif
 
 typedef struct {
     const CGPBContour *list;
