@@ -254,6 +254,7 @@ set(AppKit_sources
 	NSTextView.subproj/NSLayoutManager+NSTextViewSupport.m
 	NSTextSystemConstants.m
 	UIFontDesignNames.m
+	NSAppConstantsBatch6.m
 	NSTextView.subproj/NSSecureTextView.m
 
 	NSTableColumn.m
