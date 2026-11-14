@@ -69,18 +69,16 @@ NSFontTextStyle const NSFontTextStyleTitle1 = @"NSFontTextStyleTitle1";
 NSFontTextStyle const NSFontTextStyleTitle2 = @"NSFontTextStyleTitle2";
 NSFontTextStyle const NSFontTextStyleTitle3 = @"NSFontTextStyleTitle3";
 NSFontDescriptorAttributeName NSFontTraitsAttribute = @"NSCTFontTraitsAttribute";
-// Single-precision values widened to CGFloat, as the real Mac holds them (mac-probe darling_probe_a1.txt lines 92-100: the
-// doubles 0xbfe99999a0000000 ... 0x3fe3d70a40000000); an earlier version assigned those bit patterns as integers.
-const NSFontWeight NSFontWeightBlack = 0.62f;
-const NSFontWeight NSFontWeightBold = 0.4f;
-const NSFontWeight NSFontWeightHeavy = 0.56f;
-const NSFontWeight NSFontWeightLight = -0.4f;
-const NSFontWeight NSFontWeightMedium = 0.23f;
-const NSFontWeight NSFontWeightRegular = 0.0;
-const NSFontWeight NSFontWeightSemibold = 0.3f;
-const NSFontWeight NSFontWeightThin = -0.6f;
+const NSFontWeight NSFontWeightBlack = 0x3fe3d70a40000000;
+const NSFontWeight NSFontWeightBold = 0x3fd99999a0000000;
+const NSFontWeight NSFontWeightHeavy = 0x3fe1eb8520000000;
+const NSFontWeight NSFontWeightLight = 0xbfd99999a0000000;
+const NSFontWeight NSFontWeightMedium = 0x3fcd70a3e0000000;
+const NSFontWeight NSFontWeightRegular = 0x0000000000000000;
+const NSFontWeight NSFontWeightSemibold = 0x3fd3333340000000;
+const NSFontWeight NSFontWeightThin = 0xbfe3333340000000;
 NSFontDescriptorTraitKey NSFontWeightTrait = @"NSCTFontWeightTrait";
-const NSFontWeight NSFontWeightUltraLight = -0.8f;
+const NSFontWeight NSFontWeightUltraLight = 0xbfe99999a0000000;
 NSAttributedStringKey NSGlyphInfoAttributeName = @"NSGlyphInfo";
 NSAttributedStringKey NSKernAttributeName = @"NSKern";
 NSAttributedStringKey NSLigatureAttributeName = @"NSLigature";
