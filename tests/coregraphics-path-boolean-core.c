@@ -328,11 +328,185 @@ static void fuzz(const char *tag, int mode, int grid, double scale, double ox, d
     }
 }
 
+/* ---- hand-computed fixtures ---------------------------------------------- */
+
+static void rect(CGPBPoint *p, double x0, double y0, double x1, double y1)
+{
+    p[0] = (CGPBPoint) {x0, y0};
+    p[1] = (CGPBPoint) {x1, y0};
+    p[2] = (CGPBPoint) {x1, y1};
+    p[3] = (CGPBPoint) {x0, y1};
+}
+
+static void fixtures(void)
+{
+    CGPBPoint ra[4], rb[4];
+    rect(ra, 0, 0, 2, 2);
+    rect(rb, 1, 1, 3, 3);
+    CGPBContour a = {ra, 4, true}, b = {rb, 4, true};
+    CGPBResult r;
+    double expectArea[5] = {7, 1, 3, 6, 4};
+    size_t expectRings[5] = {1, 1, 1, 2, 1};
+    for (CGPBOp op = CGPBOpUnion; op <= CGPBOpNormalize; op++) {
+        EXPECT(CGPBRegion(op, &a, 1, &b, 1, false, false, &r) == CGPBStatusOK, "fixture %s", opname[op]);
+        EXPECT(fabs(result_area(&r) - expectArea[op]) < 1e-12, "fixture %s area %g want %g", opname[op],
+               result_area(&r), expectArea[op]);
+        EXPECT(r.count == expectRings[op], "fixture %s rings %zu want %zu", opname[op], r.count, expectRings[op]);
+        CGPBResultFree(&r);
+    }
+    /* union of rectangles sharing an edge: one ring of 4 corners, exact input coordinates */
+    rect(ra, 0, 0, 1, 1);
+    rect(rb, 1, 0, 2, 1);
+    EXPECT(CGPBRegion(CGPBOpUnion, &a, 1, &b, 1, false, false, &r) == CGPBStatusOK && r.count == 1 &&
+               r.rings[0].count == 4 && fabs(result_area(&r) - 2) < 1e-15,
+           "adjacent rectangles merge into one 4-corner ring");
+    bool exact = true;
+    for (size_t i = 0; r.count == 1 && i < 4; i++) {
+        double x = r.rings[0].points[i].x, y = r.rings[0].points[i].y;
+        exact &= (x == 0 || x == 2) && (y == 0 || y == 1);
+    }
+    EXPECT(exact, "corners are the input coordinates");
+    CGPBResultFree(&r);
+    /* hole: big minus small, even-odd nested squares */
+    CGPBPoint big[4], small[4];
+    rect(big, 0, 0, 10, 10);
+    rect(small, 3, 3, 7, 7);
+    CGPBContour cb = {big, 4, true}, cs = {small, 4, true};
+    EXPECT(CGPBRegion(CGPBOpSubtraction, &cb, 1, &cs, 1, false, true, &r) == CGPBStatusOK && r.count == 2 &&
+               fabs(result_area(&r) - 84) < 1e-12 && r.rings[0].hole != r.rings[1].hole &&
+               r.rings[0].group == r.rings[1].group,
+           "square minus inner square is a ring with one hole in one component");
+    CGPBResultFree(&r);
+    /* same-direction nested squares: winding fills the middle, even-odd makes a hole */
+    CGPBContour both[2] = {cb, cs};
+    EXPECT(CGPBRegion(CGPBOpNormalize, both, 2, NULL, 0, false, false, &r) == CGPBStatusOK && r.count == 1 &&
+               fabs(result_area(&r) - 100) < 1e-12, "winding normalize of nested same-direction squares");
+    CGPBResultFree(&r);
+    EXPECT(CGPBRegion(CGPBOpNormalize, both, 2, NULL, 0, true, false, &r) == CGPBStatusOK && r.count == 2 &&
+               fabs(result_area(&r) - 84) < 1e-12, "even-odd normalize of nested squares has a hole");
+    CGPBResultFree(&r);
+    /* island inside a hole is its own component */
+    CGPBPoint island[4];
+    rect(island, 4, 4, 6, 6);
+    CGPBContour three[3] = {cb, cs, {island, 4, true}};
+    EXPECT(CGPBRegion(CGPBOpNormalize, three, 3, NULL, 0, true, true, &r) == CGPBStatusOK && r.count == 3,
+           "island, hole and outer");
+    size_t groups[3] = {r.rings[0].group, r.rings[1].group, r.rings[2].group};
+    size_t distinct = 1 + (groups[1] != groups[0]) + (groups[2] != groups[0] && groups[2] != groups[1]);
+    EXPECT(distinct == 2, "island forms its own component (got %zu groups)", distinct);
+    CGPBResultFree(&r);
+    /* a hole inside an island inside a hole: it belongs to the island, not to the outer frame */
+    CGPBPoint f1[4], f2[4], f3[4], f4[4];
+    rect(f1, 0, 0, 30, 30);
+    rect(f2, 5, 5, 25, 25);
+    rect(f3, 10, 10, 20, 20);
+    rect(f4, 13, 13, 17, 17);
+    CGPBContour four[4] = {{f1, 4, true}, {f2, 4, true}, {f3, 4, true}, {f4, 4, true}};
+    EXPECT(CGPBRegion(CGPBOpNormalize, four, 4, NULL, 0, true, true, &r) == CGPBStatusOK && r.count == 4,
+           "four nested squares give four rings");
+    size_t outerGroup[2] = {0, 0}, holeGroup[2] = {0, 0};
+    for (size_t k = 0; k < r.count; k++) {
+        double area = fabs(ring_area(&r.rings[k]));
+        if (!r.rings[k].hole) {
+            outerGroup[area > 500 ? 0 : 1] = r.rings[k].group;
+        } else {
+            holeGroup[area > 300 ? 0 : 1] = r.rings[k].group;
+        }
+    }
+    EXPECT(holeGroup[0] == outerGroup[0] && holeGroup[1] == outerGroup[1] && outerGroup[0] != outerGroup[1],
+           "each hole joins the smallest outer ring around it");
+    CGPBResultFree(&r);
+    /* touching rectangles (corner only): union keeps two rings, intersection is empty */
+    rect(ra, 0, 0, 1, 1);
+    rect(rb, 1, 1, 2, 2);
+    EXPECT(CGPBRegion(CGPBOpIntersection, &a, 1, &b, 1, false, false, &r) == CGPBStatusOK && r.count == 0,
+           "corner-touching rectangles do not intersect");
+    CGPBResultFree(&r);
+    EXPECT(CGPBRegion(CGPBOpUnion, &a, 1, &b, 1, false, false, &r) == CGPBStatusOK && r.count == 2 &&
+               fabs(result_area(&r) - 2) < 1e-15, "corner-touching union has two rings");
+    CGPBResultFree(&r);
+    /* identical inputs */
+    rect(ra, 0, 0, 5, 5);
+    rect(rb, 0, 0, 5, 5);
+    EXPECT(CGPBRegion(CGPBOpSubtraction, &a, 1, &b, 1, false, false, &r) == CGPBStatusOK && r.count == 0,
+           "a minus a is empty");
+    CGPBResultFree(&r);
+    EXPECT(CGPBRegion(CGPBOpIntersection, &a, 1, &b, 1, false, false, &r) == CGPBStatusOK && r.count == 1 &&
+               fabs(result_area(&r) - 25) < 1e-12, "a and a is a");
+    CGPBResultFree(&r);
+    /* empty and degenerate inputs */
+    CGPBPoint line2[2] = {{0, 0}, {5, 5}}, dot[1] = {{1, 1}};
+    CGPBContour deg[2] = {{line2, 2, true}, {dot, 1, true}};
+    EXPECT(CGPBRegion(CGPBOpUnion, deg, 2, &b, 1, false, false, &r) == CGPBStatusOK && r.count == 1 &&
+               fabs(result_area(&r) - 25) < 1e-12, "zero-area contours add nothing");
+    CGPBResultFree(&r);
+    EXPECT(CGPBRegion(CGPBOpUnion, NULL, 0, NULL, 0, false, false, &r) == CGPBStatusOK && r.count == 0, "empty");
+    CGPBResultFree(&r);
+    /* NaN and infinity are refused, not silently dropped */
+    CGPBPoint bad[3] = {{0, 0}, {NAN, 1}, {1, 0}};
+    CGPBContour badc = {bad, 3, true};
+    EXPECT(CGPBRegion(CGPBOpUnion, &badc, 1, &b, 1, false, false, &r) == CGPBStatusNonFinite, "NaN refused");
+    bad[1] = (CGPBPoint) {INFINITY, 1};
+    EXPECT(CGPBRegion(CGPBOpUnion, &a, 1, &badc, 1, false, false, &r) == CGPBStatusNonFinite, "inf refused");
+    bad[1] = (CGPBPoint) {1.7e308, 1};
+    bad[0] = (CGPBPoint) {-1.7e308, 0};
+    EXPECT(CGPBRegion(CGPBOpUnion, &badc, 1, &b, 1, false, false, &r) == CGPBStatusTooLarge, "range overflow refused");
+
+    /* lines */
+    CGPBPoint ln[2] = {{-1, 1}, {5, 1}};
+    rect(rb, 1, 0, 3, 2);
+    CGPBContour line = {ln, 2, false};
+    EXPECT(CGPBLines(true, &line, 1, &b, 1, false, &r) == CGPBStatusOK && r.count == 1 && !r.rings[0].closed &&
+               r.rings[0].count == 2 && r.rings[0].points[0].x == 1 && r.rings[0].points[1].x == 3,
+           "line intersection keeps x in [1,3]");
+    CGPBResultFree(&r);
+    EXPECT(CGPBLines(false, &line, 1, &b, 1, false, &r) == CGPBStatusOK && r.count == 2 &&
+               r.rings[0].points[0].x == -1 && r.rings[0].points[1].x == 1 && r.rings[1].points[0].x == 3 &&
+               r.rings[1].points[1].x == 5,
+           "line subtraction keeps the two outer pieces");
+    CGPBResultFree(&r);
+    /* a closed contour crossing the region: pieces wrap around the start vertex into one run */
+    CGPBPoint tri[3] = {{10, 10}, {2, 1}, {10, 1}};
+    CGPBContour closedLine = {tri, 3, true};
+    EXPECT(CGPBLines(false, &closedLine, 1, &b, 1, false, &r) == CGPBStatusOK && r.count == 1,
+           "closed contour starting outside: the pieces around the start vertex form one open run (%zu runs)", r.count);
+    CGPBResultFree(&r);
+    /* a line along the mask boundary counts as inside */
+    CGPBPoint edge[2] = {{1, -1}, {1, 4}};
+    CGPBContour edgeLine = {edge, 2, false};
+    EXPECT(CGPBLines(true, &edgeLine, 1, &b, 1, false, &r) == CGPBStatusOK && r.count == 1 &&
+               r.rings[0].points[0].y == 0 && r.rings[0].points[r.rings[0].count - 1].y == 2,
+           "boundary piece is kept by line intersection (GUESS pinned)");
+    CGPBResultFree(&r);
+}
+
+/* a 2000-gon circle against a shifted copy and a star, to see the cost */
+static void stress(void)
+{
+    enum { N = 2000 };
+    static CGPBPoint c1[N], c2[N], star[N];
+    for (int i = 0; i < N; i++) {
+        double t = 2 * M_PI * i / N;
+        c1[i] = (CGPBPoint) {100 * cos(t), 100 * sin(t)};
+        c2[i] = (CGPBPoint) {50 + 100 * cos(t), 30 + 100 * sin(t)};
+        double rr = (i % 2) ? 130 : 40;
+        star[i] = (CGPBPoint) {rr * cos(t), rr * sin(t)};
+    }
+    CGPBContour a = {c1, N, true}, b = {c2, N, true}, s = {star, N, true};
+    CGPBResult r;
+    EXPECT(CGPBRegion(CGPBOpUnion, &a, 1, &b, 1, false, false, &r) == CGPBStatusOK && r.count == 1, "circle union");
+    CGPBResultFree(&r);
+    EXPECT(CGPBRegion(CGPBOpIntersection, &a, 1, &s, 1, true, false, &r) == CGPBStatusOK, "circle and star");
+    CGPBResultFree(&r);
+}
+
 int main(int argc, char **argv)
 {
     long scale = argc > 1 ? atol(argv[1]) : 1;
     if (argc > 2)
         rng_state ^= (uint64_t) atol(argv[2]) * 0x9E3779B97F4A7C15ull;
+    fixtures();
+    stress();
     fuzz("int-grid-4", 0, 4, 1, 0, 0, 3000 * scale);
     fuzz("int-grid-8", 0, 8, 1, 0, 0, 3000 * scale);
     fuzz("int-grid-30", 0, 30, 1, 0, 0, 1000 * scale);
