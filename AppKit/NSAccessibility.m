@@ -615,14 +615,71 @@ void NSAccessibilityRaiseBadArgumentException(id element, NSString *attribute,
                         attribute, element];
 }
 
-// Private. The open-source OpenSwiftUI shim declares it as `NSArray * _Nullable (id element)`
-// (AppKit_Private.h:38); that is the only source of the signature (GUESS). This tree has no accessibility server
-// and no public source fixes the result, so a call fails loudly instead of answering. A nil result would match the
-// signature (OpenSwiftUI's caller, AppKitAccessibility.swift:660, handles nil with `if let`): switch to nil only
-// once App Store is shown to cope with it.
+// The pre-10.10 accessibility informal protocol: the action half of it, which this tree does not declare for
+// NSObject. An element may implement any of it.
+@protocol _NSAccessibilityEntryPointElement <NSObject>
+@optional
+- (NSArray *) accessibilityActionNames;
+- (NSString *) accessibilityActionDescription: (NSString *) action;
+- (void) accessibilityPerformAction: (NSString *) action;
+@end
+
+// The private NSAccessibilityEntryPoint* functions. Provenance of the declarations: the open-source OpenSwiftUI shim
+// for AppKit's private API (AppKit_Private.h:34-43) declares ValueForAttribute, ActionNames, ActionDescription and
+// PerformAction; its caller (AppKitAccessibility.swift:576, 661-671) treats a nil result of each of them as "nothing
+// to report". AttributeNames, IsAccessibilityElement and IsAttributeSupported are not declared in any public source.
+//
+// GUESS (not in the public documentation, not observed): each function is the in-process entry point that asks an
+// element the question an accessibility client would ask it, so each forwards to the element's own public
+// accessibility method and adds nothing: AttributeNames to -accessibilityAttributeNames, ValueForAttribute to
+// -accessibilityAttributeValue:, IsAccessibilityElement to -isAccessibilityElement, ActionNames to
+// -accessibilityActionNames, ActionDescription to -accessibilityActionDescription:, PerformAction to
+// -accessibilityPerformAction:, and IsAttributeSupported is membership in the attribute names. An element that does
+// not implement the action methods answers the same as one with no actions: nil, nil, NO. Because this tree has no
+// accessibility server (see NSObject (NSAccessibility) below), a plain object answers "no attributes, no actions".
+// GUESS (same): the signatures of AttributeNames (NSArray *(id)), IsAccessibilityElement (BOOL(id)) and
+// IsAttributeSupported (BOOL(id, NSString *)).
+// GUESS (same): PerformAction answers YES when the element lists the action and was asked to perform it, NO when it
+// does not list it (nothing is performed then); the legacy method itself returns void.
+// If the guess is wrong an app sees SwiftUI-hosted AppKit views reporting too few or too many accessibility
+// attributes or actions; no call here can crash it.
+NSArray *NSAccessibilityEntryPointAttributeNames(id element) {
+    return [element accessibilityAttributeNames];
+}
+
+id NSAccessibilityEntryPointValueForAttribute(id element, NSString *attribute) {
+    return [element accessibilityAttributeValue: attribute];
+}
+
+BOOL NSAccessibilityEntryPointIsAccessibilityElement(id element) {
+    return [element isAccessibilityElement];
+}
+
+BOOL NSAccessibilityEntryPointIsAttributeSupported(id element, NSString *attribute) {
+    return [[element accessibilityAttributeNames] containsObject: attribute];
+}
+
 NSArray *NSAccessibilityEntryPointActionNames(id element) {
-    fprintf(stderr, "AppKit: NSAccessibilityEntryPointActionNames is not implemented\n");
-    abort();
+    id<_NSAccessibilityEntryPointElement> actions = element;
+    if (![actions respondsToSelector: @selector(accessibilityActionNames)])
+        return nil;
+    return [actions accessibilityActionNames];
+}
+
+NSString *NSAccessibilityEntryPointActionDescription(id element, NSString *action) {
+    id<_NSAccessibilityEntryPointElement> actions = element;
+    if (![actions respondsToSelector: @selector(accessibilityActionDescription:)])
+        return nil;
+    return [actions accessibilityActionDescription: action];
+}
+
+BOOL NSAccessibilityEntryPointPerformAction(id element, NSString *action) {
+    id<_NSAccessibilityEntryPointElement> actions = element;
+    if (![actions respondsToSelector: @selector(accessibilityPerformAction:)] ||
+        ![NSAccessibilityEntryPointActionNames(element) containsObject: action])
+        return NO;
+    [actions accessibilityPerformAction: action];
+    return YES;
 }
 
 // Cocotron never treats an element as ignored, so each of these returns what it was given.
