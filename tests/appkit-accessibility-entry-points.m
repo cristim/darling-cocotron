@@ -17,7 +17,7 @@
 - accessibilityAttributeValue: (NSString *) attribute { return [attribute isEqual: @"AXTitle"] ? @"Get" : nil; }
 - (BOOL) isAccessibilityElement { return YES; }
 - (NSArray *) accessibilityActionNames { return @[ @"AXShowMenu" ]; }
-- (NSString *) accessibilityActionDescription: (NSString *) action { return @"show menu"; }
+- (NSString *) accessibilityActionDescription: (NSString *) action { return [@"describes " stringByAppendingString: action]; }
 - (void) accessibilityPerformAction: (NSString *) action { self.performed++; }
 @end
 
@@ -51,8 +51,9 @@ int main(void) {
     EXPECT(isSupported(element, @"AXRole"), "GUESS: a listed attribute is supported");
     EXPECT(!isSupported(element, @"AXHelp"), "GUESS: an unlisted attribute is not supported");
     EXPECT([actionNames(element) isEqual: @[ @"AXShowMenu" ]], "GUESS: the action names are the element's own");
-    EXPECT([actionDescription(element, @"AXShowMenu") isEqual: @"show menu"],
-           "GUESS: the description is the element's own");
+    EXPECT([actionDescription(element, @"AXShowMenu") isEqual: @"describes AXShowMenu"] &&
+               [actionDescription(element, @"AXOther") isEqual: @"describes AXOther"],
+           "GUESS: the description is the element's own, for the action that was asked about");
     EXPECT(performAction(element, @"AXShowMenu") && element.performed == 1,
            "GUESS: a listed action is performed once and answers YES");
     EXPECT(!performAction(element, @"AXPress") && element.performed == 1,
