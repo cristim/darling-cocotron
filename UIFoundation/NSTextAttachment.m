@@ -23,15 +23,6 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSImage.h>
 #import <AppKit/NSTextAttachment.h>
 
-// NSTextAttachmentViewProvider's initializer; this AppKit has no provider base
-// class, so registered provider classes supply it themselves.
-@protocol NSTextAttachmentViewProviderInit
-- (instancetype) initWithTextAttachment: (NSTextAttachment *) textAttachment
-                             parentView: (NSView *) parentView
-                      textLayoutManager: (NSTextLayoutManager *) textLayoutManager
-                               location: (id<NSTextLocation>) location;
-@end
-
 static NSMutableDictionary *viewProviderClasses;
 
 @implementation NSTextAttachment

@@ -92,4 +92,24 @@ enum { NSAttachmentCharacter = 0xFFFC };
 
 @end
 
+// A view for a text attachment at a document location (macOS 12), declared as the public documentation spells it.
+// A subclass supplies the view in -loadView; the base class creates none. This tree's text views are TextKit 1 and
+// never ask for one: only code that makes a provider itself, or NSTextAttachment's -viewProviderForParentView:location:
+// textContainer:, gets one.
+@interface NSTextAttachmentViewProvider : NSObject
+
+- (instancetype)initWithTextAttachment:(NSTextAttachment *)textAttachment parentView:(nullable NSView *)parentView textLayoutManager:(nullable NSTextLayoutManager *)textLayoutManager location:(id <NSTextLocation>)location;
+
+@property (nullable, weak, readonly) NSTextAttachment *textAttachment;
+@property (nullable, weak, readonly) NSTextLayoutManager *textLayoutManager;
+@property (strong, readonly) id <NSTextLocation> location;
+@property (nullable, strong) NSView *view;
+@property BOOL tracksTextAttachmentViewBounds;
+
+- (void)loadView;
+
+- (CGRect)attachmentBoundsForAttributes:(NSDictionary<NSAttributedStringKey, id> *)attributes location:(id <NSTextLocation>)location textContainer:(nullable NSTextContainer *)textContainer proposedLineFragment:(CGRect)proposedLineFragment position:(CGPoint)position;
+
+@end
+
 NS_HEADER_AUDIT_END(nullability, sendability)
