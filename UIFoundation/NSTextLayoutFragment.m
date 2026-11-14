@@ -34,7 +34,7 @@
 // invalidate; -drawAtPoint:inContext: draws nothing because nothing is laid out. -initWithCoder: fails loudly: the
 // archive format of a layout fragment is not documented and nothing here writes one.
 @implementation NSTextLayoutFragment {
-    NSTextElement *_textElement; // weak in Apple's header; not retained here, like NSTextKit2.m
+    id _textElement; // weak (objc_storeWeak), as in Apple's header
     NSTextRange *_rangeInElement;
     NSOperationQueue *_layoutQueue;
 }
@@ -48,13 +48,14 @@
 
 - (instancetype) initWithTextElement: (NSTextElement *) textElement range: (NSTextRange *) rangeInElement {
     if ((self = [super init])) {
-        _textElement = textElement;
+        objc_storeWeak(&_textElement, textElement);
         _rangeInElement = [(rangeInElement ?: [textElement elementRange]) retain];
     }
     return self;
 }
 
 - (void) dealloc {
+    objc_storeWeak(&_textElement, nil);
     [_rangeInElement release];
     [_layoutQueue release];
     [super dealloc];
@@ -65,7 +66,7 @@
 }
 
 - (NSTextElement *) textElement {
-    return _textElement;
+    return objc_loadWeak(&_textElement);
 }
 
 - (NSTextRange *) rangeInElement {

@@ -22,6 +22,17 @@ static void expect(BOOL condition, NSString *message)
 }
 @end
 
+@interface QuietProvider : NSTextAttachmentViewProvider
+@property(assign) int loads;
+@end
+
+@implementation QuietProvider
+- (void)loadView
+{
+    self.loads++;
+}
+@end
+
 int main(void)
 {
     NSAutoreleasePool *pool = [NSAutoreleasePool new];
@@ -73,6 +84,21 @@ int main(void)
     expect(custom.loads == 0, @"GUESS: creating a provider does not call -loadView");
     expect(custom.view != nil && custom.loads == 1, @"GUESS: the view getter calls a subclass's -loadView once");
     expect(custom.view != nil && custom.loads == 1, @"GUESS: -loadView is not called again");
+
+    QuietProvider *quiet = [[[QuietProvider alloc] initWithTextAttachment:attachment parentView:nil textLayoutManager:nil
+                                                                 location:location] autorelease];
+    expect(quiet.view == nil && quiet.view == nil && quiet.loads == 1,
+           @"GUESS: -loadView runs once even when it leaves the view nil");
+
+    NSTextAttachmentViewProvider *weakProvider = nil;
+    @autoreleasepool {
+        NSTextAttachment *shortLived = [[NSTextAttachment alloc] initWithData:[NSData data] ofType:@"public.data"];
+        weakProvider = [[[NSTextAttachmentViewProvider alloc] initWithTextAttachment:shortLived parentView:nil
+                                                                   textLayoutManager:nil location:location] autorelease];
+        expect(weakProvider.textAttachment == shortLived, @"the attachment is kept while it lives");
+        [shortLived release];
+    }
+    expect(weakProvider.textAttachment == nil, @"the text attachment is weak (documented): nil once it is gone");
 
     BOOL raised = NO;
     @try {

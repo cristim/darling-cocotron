@@ -35,8 +35,8 @@
 // at the origin otherwise. The documentation says only that the bounds come from the provider when
 // tracksTextAttachmentViewBounds is YES (default NO).
 @implementation NSTextAttachmentViewProvider {
-    NSTextAttachment *_textAttachment;         // weak in Apple's header; not retained here, like NSTextKit2.m
-    NSTextLayoutManager *_textLayoutManager;   // weak, same
+    id _textAttachment;         // weak (objc_storeWeak), as in Apple's header
+    id _textLayoutManager;      // weak, same
     id<NSTextLocation> _location;
     NSView *_view;
     BOOL _tracksTextAttachmentViewBounds;
@@ -56,25 +56,27 @@
                                location: (id<NSTextLocation>) location
 {
     if ((self = [super init])) {
-        _textAttachment = textAttachment;
-        _textLayoutManager = textLayoutManager;
+        objc_storeWeak(&_textAttachment, textAttachment);
+        objc_storeWeak(&_textLayoutManager, textLayoutManager);
         _location = [(id) location retain];
     }
     return self;
 }
 
 - (void) dealloc {
+    objc_storeWeak(&_textAttachment, nil);
+    objc_storeWeak(&_textLayoutManager, nil);
     [(id) _location release];
     [_view release];
     [super dealloc];
 }
 
 - (NSTextAttachment *) textAttachment {
-    return _textAttachment;
+    return objc_loadWeak(&_textAttachment);
 }
 
 - (NSTextLayoutManager *) textLayoutManager {
-    return _textLayoutManager;
+    return objc_loadWeak(&_textLayoutManager);
 }
 
 - (id<NSTextLocation>) location {
@@ -112,7 +114,7 @@
                     proposedLineFragment: (CGRect) proposedLineFragment
                                 position: (CGPoint) position
 {
-    CGRect bounds = [_textAttachment bounds];
+    CGRect bounds = [[self textAttachment] bounds];
     if (!CGRectIsEmpty(bounds))
         return bounds;
     NSView *view = [self view];

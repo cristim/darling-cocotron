@@ -34,7 +34,8 @@ int main(void)
 
     expect(fragment.state == NSTextLayoutFragmentStateNone, @"no layout information is available (documented state none)");
     expect(fragment.textLayoutManager == nil, @"GUESS: no layout manager made the fragment");
-    expect([fragment.textLineFragments count] == 0, @"line fragments exist only once layout is available");
+    expect(fragment.textLineFragments != nil && [fragment.textLineFragments count] == 0,
+           @"line fragments exist only once layout is available: an empty array, not nil");
     expect([fragment textLineFragmentForTextLocation:sub.location isUpstreamAffinity:NO] == nil &&
                [fragment textLineFragmentForVerticalOffset:3 requiresExactMatch:NO] == nil,
            @"no line fragment matches without layout");
@@ -44,7 +45,8 @@ int main(void)
     expect(fragment.leadingPadding == 0 && fragment.trailingPadding == 0 && fragment.topMargin == 0 &&
                fragment.bottomMargin == 0,
            @"GUESS: margins and paddings are 0 before layout");
-    expect([fragment.textAttachmentViewProviders count] == 0, @"no attachment view providers without layout");
+    expect(fragment.textAttachmentViewProviders != nil && [fragment.textAttachmentViewProviders count] == 0,
+           @"no attachment view providers without layout: an empty array, not nil");
     expect(CGRectEqualToRect([fragment frameForTextAttachmentAtLocation:sub.location], CGRectZero),
            @"the attachment frame is CGRectZero unless layout is available (documented)");
 
@@ -55,6 +57,15 @@ int main(void)
     expect(fragment.state == NSTextLayoutFragmentStateNone, @"GUESS: invalidating an unlaid fragment changes nothing");
 
     expect(NSTextLayoutFragmentStateLayoutAvailable > NSTextLayoutFragmentStateNone, @"GUESS: layoutAvailable follows none");
+
+    NSTextLayoutFragment *weakFragment = nil;
+    @autoreleasepool {
+        NSTextParagraph *shortLived = [[NSTextParagraph alloc] initWithAttributedString:content.attributedString];
+        weakFragment = [[[NSTextLayoutFragment alloc] initWithTextElement:shortLived range:nil] autorelease];
+        expect(weakFragment.textElement == shortLived, @"the element is kept while it lives");
+        [shortLived release];
+    }
+    expect(weakFragment.textElement == nil, @"the text element is weak (documented): nil once it is gone");
 
     BOOL raised = NO;
     @try {
