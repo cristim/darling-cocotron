@@ -158,12 +158,19 @@ COREGRAPHICS_EXPORT void CGPathApplyWithBlock(CGPathRef path,
     CF_SWIFT_NAME(CGPath.applyWithBlock(self:_:));
 #endif
 
-/* Boolean operations on filled paths (macOS 13). The fill rule applies to both
-   paths: true is even-odd, false is non-zero winding. A NULL path, or one with
-   a NaN or infinite coordinate, gives NULL (false for CGPathIntersectsPath).
-   GUESS (not in the public documentation, not observed): these C prototypes
-   and names. The results are made of straight segments, because curves are
-   flattened first (see CGPathBoolean.m for every other guess). */
+/* Boolean operations on filled paths. Apple's public documentation lists
+   these only as Swift methods of CGPath (union(_:using:), intersection,
+   subtracting, symmetricDifference, normalized(using:), lineIntersection,
+   lineSubtracting, componentsSeparated(using:), intersects(_:using:); macOS 13,
+   iOS 16; see developer.apple.com/tutorials/data/documentation/coregraphics/
+   cgpath/union(_:using:).json and its siblings). It documents no C function:
+   the C names and prototypes below are Darling's own guess, not in the public
+   documentation and not observed on a Mac. The fill rule applies to both
+   paths: true is even-odd, false is non-zero winding. A NULL path, a path with
+   a NaN or infinite coordinate, or one too complex for the fixed limits gives
+   NULL (false for CGPathIntersectsPath). The results are made of straight
+   segments, because curves are flattened first (see CGPathBoolean.m for every
+   other guess). */
 COREGRAPHICS_EXPORT CGPathRef _Nullable
 CGPathCreateCopyByUnioningPath(CGPathRef _Nullable path, CGPathRef _Nullable maskPath,
                                bool evenOddFillRule);

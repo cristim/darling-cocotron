@@ -228,8 +228,9 @@ static const char *status_text(CGPBStatus st)
 {
     switch (st) {
     case CGPBStatusNoMemory: return "out of memory";
-    case CGPBStatusNonFinite: return "a coordinate is NaN or infinite";
-    case CGPBStatusTooLarge: return "the coordinates span more than a double can hold";
+    case CGPBStatusNonFinite: return "a path has a NaN or infinite coordinate";
+    case CGPBStatusTooLarge: return "the paths span more than a double can hold";
+    case CGPBStatusTooComplex: return "path too complex (too many crossings or too much work)";
     case CGPBStatusInconsistent: return "the paths are degenerate beyond what the algorithm handles";
     default: return "unknown error";
     }
@@ -276,7 +277,8 @@ static CGPBStatus run_region(const CGPBContour *a, size_t na, const CGPBContour 
 
 /* GUESS (not in the public documentation, not observed): a NULL path or mask
    returns NULL, as does an input with a NaN or infinite coordinate (after a
-   message on stderr). An empty result is an empty path, not NULL. */
+   message on stderr), and so does a path too complex for the fixed limits
+   (see CGPathBooleanInternal.h). An empty result is an empty path, not NULL. */
 static CGPathRef region_operation(const char *name, CGPathRef path, CGPathRef mask, CGPBOp op,
                                   bool evenOdd)
 {
@@ -399,8 +401,10 @@ CFArrayRef CGPathCreateSeparateComponents(CGPathRef path, bool evenOddFillRule)
    false after a message on stderr. */
 bool CGPathIntersectsPath(CGPathRef path1, CGPathRef path2, bool evenOddFillRule)
 {
-    if (path1 == NULL || path2 == NULL)
+    if (path1 == NULL || path2 == NULL) {
+        fprintf(stderr, "CGPathIntersectsPath: NULL path\n");
         return false;
+    }
     RegionArg arg = {CGPBOpIntersection, evenOddFillRule, false};
     CGPBResult result;
     if (!run_on_paths("CGPathIntersectsPath", path1, path2, run_region, &arg, &result))
