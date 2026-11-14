@@ -4,6 +4,9 @@
      cc -std=gnu11 -O2 -I CoreGraphics/src tests/coregraphics-path-boolean-core.c \
         CoreGraphics/src/CGPathBoolean*.c -lm
 
+   The work limit has its own check: build again with -DPB_WORK_LIMIT=1000000
+   (for the test and the sources alike) and the program only runs that check.
+
    Random polygons (self-intersecting, on tiny integer grids so edges overlap
    and vertices coincide, and with float coordinates at several scales) are run
    through every operation and both fill rules. Each result is compared with a
@@ -18,6 +21,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 
 static int failures;
 #define EXPECT(cond, ...)                                                      \
@@ -480,7 +484,29 @@ static void fixtures(void)
     CGPBResultFree(&r);
 }
 
-/* a 2000-gon circle against a shifted copy and a star, to see the cost */
+static double seconds(void)
+{
+    struct timespec t;
+    clock_gettime(CLOCK_MONOTONIC, &t);
+    return (double) t.tv_sec + 1e-9 * (double) t.tv_nsec;
+}
+
+/* The star polygon {n/(n/2-1)}: every edge crosses nearly every other one. */
+static CGPBPoint *star_points(int n)
+{
+    CGPBPoint *p = malloc((size_t) n * sizeof *p);
+    int k = n / 2 - 1;
+    for (int i = 0; i < n; i++) {
+        double t = 2 * M_PI * (double) ((long) i * k % n) / n;
+        p[i] = (CGPBPoint) {100 * cos(t), 100 * sin(t)};
+    }
+    return p;
+}
+
+/* a 2000-gon circle against a shifted copy and a star, to see the cost; then
+   the worst cases the review found: a 1600-point star (1.3 million crossings,
+   5 s at -O2) must finish, a 2400-point star must fail loudly and fast, and
+   many identical squares must cost next to nothing */
 static void stress(void)
 {
     enum { N = 2000 };
@@ -498,14 +524,107 @@ static void stress(void)
     CGPBResultFree(&r);
     EXPECT(CGPBRegion(CGPBOpIntersection, &a, 1, &s, 1, true, false, &r) == CGPBStatusOK, "circle and star");
     CGPBResultFree(&r);
+
+    CGPBPoint *big = star_points(1600);
+    CGPBContour bigc = {big, 1600, true};
+    double t0 = seconds();
+    CGPBStatus st = CGPBRegion(CGPBOpNormalize, &bigc, 1, NULL, 0, true, false, &r);
+    double took = seconds() - t0;
+    EXPECT(st == CGPBStatusOK && r.count > 600000, "1600-point star normalizes (status %d, %zu rings)", st, r.count);
+    EXPECT(took < 60, "1600-point star took %.1f s, bound 60 s (about 5 s at -O2)", took);
+    CGPBResultFree(&r);
+    free(big);
+
+    big = star_points(2400);
+    bigc = (CGPBContour) {big, 2400, true};
+    t0 = seconds();
+    st = CGPBRegion(CGPBOpNormalize, &bigc, 1, NULL, 0, true, false, &r);
+    took = seconds() - t0;
+    EXPECT(st == CGPBStatusTooComplex && r.count == 0, "2400-point star trips the crossing limit (status %d)", st);
+    EXPECT(took < 2, "the 2400-point star failed after %.1f s, bound 2 s (0.1 s at -O2; the work limit alone takes 8 s)", took);
+    free(big);
+
+    enum { SQUARES = 16000 };
+    CGPBPoint *sq = malloc(4 * SQUARES * sizeof *sq);
+    CGPBContour *cs = malloc(SQUARES * sizeof *cs);
+    for (int i = 0; i < SQUARES; i++) {
+        rect(sq + 4 * i, 0, 0, 1, 1);
+        cs[i] = (CGPBContour) {sq + 4 * i, 4, true};
+    }
+    t0 = seconds();
+    st = CGPBRegion(CGPBOpNormalize, cs, SQUARES, NULL, 0, true, false, &r);
+    took = seconds() - t0;
+    EXPECT(st == CGPBStatusOK && r.count == 0, "16000 identical squares cancel under even-odd (status %d)", st);
+    EXPECT(took < 5, "16000 identical squares took %.1f s, bound 5 s", took);
+    CGPBResultFree(&r);
+    st = CGPBRegion(CGPBOpNormalize, cs, SQUARES - 1, NULL, 0, true, false, &r);
+    EXPECT(st == CGPBStatusOK && r.count == 1 && fabs(result_area(&r) - 1) < 1e-12, "an odd count of identical squares is one square");
+    CGPBResultFree(&r);
+    free(sq);
+    free(cs);
 }
+
+/* A crossing that rounds into the pixel of an input vertex must not replace
+   it: the result keeps the input coordinates. The grid step here is 2^-20. */
+static void kept_vertex(void)
+{
+    CGPBPoint tri[3] = {{0, 0}, {1000000, 1000000}, {1000000, 0}};
+    /* B touches the hypotenuse of tri at v, which is 2e-7 from the point (500000, 500000) */
+    CGPBPoint v = {500000.0000002, 500000.0000003};
+    CGPBPoint touching[3] = {v, {400000, 600000}, {600000, 700000}};
+    /* C crosses the hypotenuse exactly at (500000, 500000): that crossing rounds into v's pixel */
+    CGPBPoint crossing[3] = {{499999, 500001}, {500001, 499999}, {500000, 500002.5}};
+    CGPBContour a[2] = {{tri, 3, true}, {crossing, 3, true}}, b = {touching, 3, true};
+    CGPBResult r;
+    EXPECT(CGPBRegion(CGPBOpUnion, a, 2, &b, 1, false, false, &r) == CGPBStatusOK, "kept vertex union");
+    bool found = false, centre = false;
+    for (size_t i = 0; i < r.count; i++)
+        for (size_t k = 0; k < r.rings[i].count; k++) {
+            found |= r.rings[i].points[k].x == v.x && r.rings[i].points[k].y == v.y;
+            centre |= r.rings[i].points[k].x == 500000 && r.rings[i].points[k].y == 500000;
+        }
+    EXPECT(found && !centre, "a crossing in an input vertex's pixel keeps the input coordinates (found %d, centre %d)", found, centre);
+    CGPBResultFree(&r);
+}
+
+#ifdef PB_WORK_LIMIT
+/* Built with a small work limit: ordinary inputs pass, a 400-point star (80000
+   crossings, far below the crossing limit) is stopped by the work limit. */
+static void work_limit(void)
+{
+    CGPBPoint ra[4], rb[4];
+    rect(ra, 0, 0, 2, 2);
+    rect(rb, 1, 1, 3, 3);
+    CGPBContour a = {ra, 4, true}, b = {rb, 4, true};
+    CGPBResult r;
+    EXPECT(CGPBRegion(CGPBOpUnion, &a, 1, &b, 1, false, false, &r) == CGPBStatusOK && r.count == 1, "small inputs fit the small limit");
+    CGPBResultFree(&r);
+    CGPBPoint *p = star_points(400);
+    CGPBContour c = {p, 400, true};
+    CGPBStatus st = CGPBRegion(CGPBOpNormalize, &c, 1, NULL, 0, true, false, &r);
+    EXPECT(st == CGPBStatusTooComplex && r.count == 0, "the work limit stops a 400-point star (status %d)", st);
+    free(p);
+}
+#endif
 
 int main(int argc, char **argv)
 {
+#ifdef PB_WORK_LIMIT
+    (void) argc;
+    (void) argv;
+    work_limit();
+    if (failures) {
+        fprintf(stderr, "%d FAILURES\n", failures);
+        return 1;
+    }
+    puts("ALL PASS (work limit)");
+    return 0;
+#else
     long scale = argc > 1 ? atol(argv[1]) : 1;
     if (argc > 2)
         rng_state ^= (uint64_t) atol(argv[2]) * 0x9E3779B97F4A7C15ull;
     fixtures();
+    kept_vertex();
     stress();
     fuzz("int-grid-4", 0, 4, 1, 0, 0, 3000 * scale);
     fuzz("int-grid-8", 0, 8, 1, 0, 0, 3000 * scale);
@@ -520,4 +639,5 @@ int main(int argc, char **argv)
     }
     puts("ALL PASS");
     return 0;
+#endif
 }
