@@ -35,7 +35,7 @@
 // of that character's glyph in the same coordinates; the character indexes of the last three methods are indexes
 // into attributedString (inside characterRange), not into the range; characterIndexForPoint: clamps a point outside
 // the line to the first or last character of the range; fractionOfDistanceThroughGlyphForPoint: is the fraction that
-// TextKit 1 reports for the glyph under the point. The first line of the range is laid out; -initWithCoder: fails
+// TextKit 1 reports for the glyph under the point. Only the first line of the range is laid out, measured and drawn (an index on a later line raises NSRangeException); -initWithCoder: fails
 // loudly (the archive format is not documented, and nothing here writes one).
 @implementation NSTextLineFragment {
     NSAttributedString *_attributedString;
@@ -45,6 +45,9 @@
     NSTextContainer *_container;
     CGRect _typographicBounds;
     CGPoint _glyphOrigin;
+    NSRange _lineGlyphs;  // the glyphs of the first line of the range
+    NSRange _lineChars;   // their characters, relative to the range
+    NSRect _lineRect;     // the first line's used rectangle
 }
 
 - (instancetype) initWithCoder: (NSCoder *) aDecoder {
@@ -55,10 +58,12 @@
 }
 
 - (instancetype) initWithAttributedString: (NSAttributedString *) attributedString range: (NSRange) range {
-    if (NSMaxRange(range) > [attributedString length])
+    if (NSMaxRange(range) > [attributedString length]) {
+        [self release];
         [NSException raise: NSRangeException
                     format: @"-[NSTextLineFragment initWithAttributedString:range:]: range %@ is beyond the string of length %lu",
                             NSStringFromRange(range), (unsigned long) [attributedString length]];
+    }
     if ((self = [super init])) {
         _attributedString = [attributedString copy];
         _characterRange = range;
@@ -71,8 +76,9 @@
         [_storage addLayoutManager: _layoutManager];
         [_layoutManager ensureLayoutForTextContainer: _container];
         if ([_layoutManager numberOfGlyphs] > 0) {
-            NSRect used = [_layoutManager lineFragmentUsedRectForGlyphAtIndex: 0 effectiveRange: NULL];
-            _typographicBounds = CGRectMake(0, 0, used.size.width, used.size.height);
+            _lineRect = [_layoutManager lineFragmentUsedRectForGlyphAtIndex: 0 effectiveRange: &_lineGlyphs];
+            _lineChars = [_layoutManager characterRangeForGlyphRange: _lineGlyphs actualGlyphRange: NULL];
+            _typographicBounds = CGRectMake(0, 0, _lineRect.size.width, _lineRect.size.height);
             _glyphOrigin = CGPointMake(0, [_layoutManager locationForGlyphAtIndex: 0].y);
         }
     }
@@ -112,14 +118,19 @@
     return _glyphOrigin;
 }
 
+// Draws only the first line of the range. The previous current graphics context, which may be none, is current again
+// afterwards: +saveGraphicsState and +restoreGraphicsState push nothing when no context is current.
 - (void) drawAtPoint: (CGPoint) point inContext: (CGContextRef) context {
     Class graphicsContext = UIFAppKitClass(NSGraphicsContext);
-    [graphicsContext saveGraphicsState];
-    [graphicsContext setCurrentContext: [graphicsContext graphicsContextWithCGContext: context flipped: YES]];
-    NSRange glyphs = NSMakeRange(0, [_layoutManager numberOfGlyphs]);
-    [_layoutManager drawBackgroundForGlyphRange: glyphs atPoint: NSPointFromCGPoint(point)];
-    [_layoutManager drawGlyphsForGlyphRange: glyphs atPoint: NSPointFromCGPoint(point)];
-    [graphicsContext restoreGraphicsState];
+    id previous = [[graphicsContext currentContext] retain];
+    @try {
+        [graphicsContext setCurrentContext: [graphicsContext graphicsContextWithCGContext: context flipped: YES]];
+        [_layoutManager drawBackgroundForGlyphRange: _lineGlyphs atPoint: NSPointFromCGPoint(point)];
+        [_layoutManager drawGlyphsForGlyphRange: _lineGlyphs atPoint: NSPointFromCGPoint(point)];
+    } @finally {
+        [graphicsContext setCurrentContext: previous];
+        [previous release];
+    }
 }
 
 - (CGPoint) locationForCharacterAtIndex: (NSInteger) index {
@@ -127,43 +138,53 @@
         [NSException raise: NSRangeException
                     format: @"-[NSTextLineFragment locationForCharacterAtIndex:]: index %ld is outside the character range %@",
                             (long) index, NSStringFromRange(_characterRange)];
-    NSUInteger glyphCount = [_layoutManager numberOfGlyphs];
     NSUInteger local = (NSUInteger) index - _characterRange.location;
-    if (glyphCount == 0)
+    if ([_layoutManager numberOfGlyphs] == 0)
         return CGPointMake(0, _glyphOrigin.y);
-    if (local >= glyphCount)
-        return CGPointMake(NSMaxX([_layoutManager lineFragmentUsedRectForGlyphAtIndex: glyphCount - 1 effectiveRange: NULL]),
-                           _glyphOrigin.y);
+    if (local > NSMaxRange(_lineChars))
+        [NSException raise: NSRangeException
+                    format: @"-[NSTextLineFragment locationForCharacterAtIndex:]: index %ld is not on this line fragment, "
+                             "which holds the first line of %@",
+                            (long) index, NSStringFromRange(_characterRange)];
+    if (local == NSMaxRange(_lineChars))
+        return CGPointMake(NSMaxX(_lineRect), _glyphOrigin.y);
     NSUInteger glyph = [_layoutManager glyphIndexForCharacterAtIndex: local];
     // locationForGlyphAtIndex: is only set for the first glyph of a run; the glyph's own origin is its bounding box.
     NSRect glyphBox = [_layoutManager boundingRectForGlyphRange: NSMakeRange(glyph, 1) inTextContainer: _container];
     return CGPointMake(NSMinX(glyphBox), _glyphOrigin.y);
 }
 
+// The index of the last character of the first line that is not its paragraph separator.
+- (NSUInteger) _lastLineCharacter {
+    NSUInteger contentsEnd = 0;
+    [[_storage string] getLineStart: NULL end: NULL contentsEnd: &contentsEnd
+                           forRange: NSMakeRange(_lineChars.location, 0)];
+    return contentsEnd > _lineChars.location ? contentsEnd - 1 : _lineChars.location;
+}
+
 - (NSInteger) characterIndexForPoint: (CGPoint) point {
     if ([_layoutManager numberOfGlyphs] == 0)
         return (NSInteger) _characterRange.location;
-    NSUInteger glyphCount = [_layoutManager numberOfGlyphs];
-    NSUInteger glyph;
+    NSUInteger local;
     if (point.x <= 0)
-        glyph = 0;
+        local = _lineChars.location;
     else if (point.x >= _typographicBounds.size.width)
-        glyph = glyphCount - 1;
-    else
-    {
+        local = [self _lastLineCharacter];
+    else {
         CGFloat fraction;
-        glyph = MIN([_layoutManager glyphIndexForPoint: NSPointFromCGPoint(point)
-                                       inTextContainer: _container
-                        fractionOfDistanceThroughGlyph: &fraction],
-                    glyphCount - 1);
+        NSUInteger glyph = [_layoutManager glyphIndexForPoint: NSMakePoint(point.x, NSMidY(_lineRect))
+                                              inTextContainer: _container
+                               fractionOfDistanceThroughGlyph: &fraction];
+        glyph = MIN(MAX(glyph, _lineGlyphs.location), NSMaxRange(_lineGlyphs) - 1);
+        local = [_layoutManager characterIndexForGlyphAtIndex: glyph];
     }
-    return (NSInteger) (_characterRange.location + [_layoutManager characterIndexForGlyphAtIndex: glyph]);
+    return (NSInteger) (_characterRange.location + local);
 }
 
 - (CGFloat) fractionOfDistanceThroughGlyphForPoint: (CGPoint) point {
     if ([_layoutManager numberOfGlyphs] == 0)
         return 0;
-    return [_layoutManager fractionOfDistanceThroughGlyphForPoint: NSPointFromCGPoint(point)
+    return [_layoutManager fractionOfDistanceThroughGlyphForPoint: NSMakePoint(point.x, NSMidY(_lineRect))
                                                   inTextContainer: _container];
 }
 

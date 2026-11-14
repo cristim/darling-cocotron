@@ -1,5 +1,6 @@
 #import <AppKit/AppKit.h>
 #include <stdlib.h>
+#include <string.h>
 
 static void expect(BOOL condition, NSString *message)
 {
@@ -8,6 +9,40 @@ static void expect(BOOL condition, NSString *message)
         NSLog(@"FAIL: %@", message);
         exit(1);
     }
+}
+
+static NSString *raisedName(void (^block)(void))
+{
+    @try {
+        block();
+    } @catch (NSException *exception) {
+        return [exception name];
+    }
+    return nil;
+}
+
+// Renders the fragment into an RGBA bitmap and returns its bytes; nil context state is the caller's business.
+static NSData *render(NSTextLineFragment *fragment)
+{
+    CGColorSpaceRef space = CGColorSpaceCreateDeviceRGB();
+    size_t width = 160, height = 80;
+    NSMutableData *data = [NSMutableData dataWithLength:width * height * 4];
+    CGContextRef context = CGBitmapContextCreate([data mutableBytes], width, height, 8, width * 4, space,
+                                                 kCGImageAlphaPremultipliedLast);
+    CGContextSetRGBFillColor(context, 0, 0, 0, 1);
+    [fragment drawAtPoint:CGPointMake(4, 4) inContext:context];
+    CGContextRelease(context);
+    CGColorSpaceRelease(space);
+    return data;
+}
+
+static BOOL hasInk(NSData *data)
+{
+    const unsigned char *bytes = [data bytes];
+    for (NSUInteger i = 3; i < [data length]; i += 4)
+        if (bytes[i] != 0)
+            return YES;
+    return NO;
 }
 
 // GUESS (not in the public documentation, not observed): every coordinate convention below, as listed in
@@ -73,6 +108,50 @@ int main(void)
         raised = [[exception name] isEqual:NSInvalidArgumentException];
     }
     expect(raised, @"GUESS: initWithCoder: fails loudly");
+
+    // Characters that are not one glyph each: a surrogate pair and a combining mark. A character that has a glyph is
+    // not at the end of the line.
+    for (NSString *text in @[ @"a\U0001F600b", @"e\u0301b" ]) {
+        NSUInteger last = [text length] - 1;
+        NSTextLineFragment *wide = [[[NSTextLineFragment alloc] initWithString:text attributes:attributes
+                                                                         range:NSMakeRange(0, [text length])] autorelease];
+        CGPoint atLast = [wide locationForCharacterAtIndex:last];
+        CGPoint atEnd = [wide locationForCharacterAtIndex:[text length]];
+        expect(atLast.x < atEnd.x && atLast.x > [wide locationForCharacterAtIndex:0].x,
+               [NSString stringWithFormat:@"GUESS: the last character of %@ is before the end of the line, not at it", text]);
+        expect(fabs(atEnd.x - wide.typographicBounds.size.width) < 0.01,
+               @"GUESS: the end of the string is at the right edge of the typographic bounds");
+    }
+
+    // A range with a line break: only its first line is measured, drawn and addressed.
+    NSAttributedString *twoLines = [[[NSAttributedString alloc] initWithString:@"ab\ncd" attributes:attributes] autorelease];
+    NSTextLineFragment *two = [[[NSTextLineFragment alloc] initWithAttributedString:twoLines range:NSMakeRange(0, 5)] autorelease];
+    NSTextLineFragment *one = [[[NSTextLineFragment alloc] initWithString:@"ab" attributes:attributes range:NSMakeRange(0, 2)] autorelease];
+    expect(NSEqualRanges(two.characterRange, NSMakeRange(0, 5)), @"the character range is the whole range");
+    expect(two.typographicBounds.size.height == one.typographicBounds.size.height &&
+               two.typographicBounds.size.width == one.typographicBounds.size.width,
+           @"GUESS: a range with a line break has the bounds of its first line");
+    expect([raisedName(^{ [two locationForCharacterAtIndex:4]; }) isEqual:NSRangeException],
+           @"GUESS: a character on a later line raises NSRangeException");
+    expect([two characterIndexForPoint:CGPointMake(10000, 3)] == 1 && [two characterIndexForPoint:CGPointMake(-5, 3)] == 0,
+           @"GUESS: the far right of a first line ending in a break is its last character, not the break");
+    NSData *twoInk = render(two), *oneInk = render(one);
+    expect(hasInk(oneInk), @"drawing a line puts ink in the bitmap");
+    expect([twoInk isEqualToData:oneInk], @"GUESS: drawing a range with a line break draws only its first line");
+
+    // drawAtPoint:inContext: leaves the current graphics context as it found it, none included.
+    CGColorSpaceRef space = CGColorSpaceCreateDeviceRGB();
+    CGContextRef scratch = CGBitmapContextCreate(NULL, 8, 8, 8, 32, space, kCGImageAlphaPremultipliedLast);
+    [NSGraphicsContext setCurrentContext:nil];
+    [one drawAtPoint:CGPointMake(4, 4) inContext:scratch];
+    expect([NSGraphicsContext currentContext] == nil, @"GUESS: with no current graphics context, none is current after drawing");
+    NSGraphicsContext *other = [NSGraphicsContext graphicsContextWithCGContext:scratch flipped:NO];
+    [NSGraphicsContext setCurrentContext:other];
+    [one drawAtPoint:CGPointMake(4, 4) inContext:scratch];
+    expect([NSGraphicsContext currentContext] == other, @"GUESS: the previous current graphics context is current after drawing");
+    [NSGraphicsContext setCurrentContext:nil];
+    CGContextRelease(scratch);
+    CGColorSpaceRelease(space);
 
     [pool drain];
     printf("PASS: NSTextLineFragment\n");
