@@ -84,6 +84,9 @@ set(CoreGraphics_sources
 	src/CGEvent.c
 	src/CGColorMatching.c
 	src/CGPathBoolean.c
+	src/CGPathBooleanLabel.c
+	src/CGPathBooleanNode.c
+	src/CGPathBooleanRings.c
 	src/stubs.c
 	CGFont.m
 	CGFunction.m
