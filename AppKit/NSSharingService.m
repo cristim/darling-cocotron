@@ -11,6 +11,8 @@ NSSharingServiceName const NSSharingServiceNamePostOnSinaWeibo = @"com.apple.sha
 NSSharingServiceName const NSSharingServiceNamePostOnTencentWeibo = @"com.apple.share.TencentWeibo.post";
 NSSharingServiceName const NSSharingServiceNamePostOnLinkedIn = @"com.apple.share.LinkedIn.post";
 
+NSString *const NSSharingServiceParametersDefaultRecipientsKey = @"NSSharingServiceParametersDefaultRecipientsKey";
+
 @implementation NSSharingService
 
 + (NSArray<NSSharingService *> *) sharingServicesForItems: (NSArray *) items {

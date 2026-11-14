@@ -488,6 +488,9 @@ NSAccessibilityActionName const NSAccessibilityShowAlternateUIAction = @"AXShowA
 NSAccessibilityActionName const NSAccessibilityShowDefaultUIAction = @"AXShowDefaultUI";
 NSString *const NSAccessibilityShowMenuAction =
         @"NSAccessibilityShowMenuAction";
+// GUESS (rung 6): the action and attribute name themselves, as the neighbouring constants do.
+NSString *const NSAccessibilityOpenAction = @"NSAccessibilityOpenAction";
+NSString *const NSAccessibilityDateTimeComponentsAttribute = @"NSAccessibilityDateTimeComponentsAttribute";
 
 NSString *const NSAccessibilityMainWindowChangedNotification =
         @"NSAccessibilityMainWindowChangedNotification";
