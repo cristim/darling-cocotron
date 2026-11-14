@@ -5,7 +5,8 @@ include(darling_framework)
 # The classes macOS ships in UIFoundation and that AppKit used to define itself: NSFont, NSFontDescriptor,
 # NSParagraphStyle and its mutable subclass, NSShadow, NSTextAttachment, NSTextList, NSTextTab, the NSTextBlock family,
 # NSTextStorage, NSTextContainer, NSLayoutManager, NSTypesetter and NSATSTypesetter, NSGlyphGenerator, NSGlyphInfo,
-# NSDataAsset, NSAdaptiveImageGlyph, UINibEncoder, _NSAttributes, _NSAttributeRun and the minimal TextKit 2 classes.
+# NSDataAsset, NSAdaptiveImageGlyph, UINibEncoder, _NSAttributes, _NSAttributeRun and the minimal TextKit 2 classes
+# (NSTextAttachmentViewProvider, NSTextElement, NSTextParagraph, NSTextLayoutFragment and NSTextLineFragment among them).
 #
 # This is an object library: the UIFoundation framework itself is the target in src/private-frameworks/UIFoundation,
 # which links these objects with the no-op classes that were already there. The objects must not import anything
@@ -58,6 +59,7 @@ set(UIFoundation_sources
 	NSTextContainer.m
 	NSTextElement.m
 	NSTextKit2.m
+	NSTextLayoutFragment.m
 	NSTextLineFragment.m
 	NSTextList.m
 	NSTextStorage.m

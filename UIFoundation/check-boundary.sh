@@ -7,7 +7,7 @@ set -u
 UIF=$1; AK=$2; bad=0
 tmp=$(mktemp -d) || exit 2
 trap 'rm -rf "$tmp"' EXIT
-CLASSES="NSATSTypesetter NSAdaptiveImageGlyph NSDataAsset NSFont NSFontDescriptor NSGlyphGenerator NSGlyphInfo NSLayoutManager NSMutableParagraphStyle NSParagraphStyle NSShadow NSTextAttachment NSTextAttachmentViewProvider NSTextBlock NSTextContainer NSTextContentManager NSTextContentStorage NSTextElement NSTextLayoutManager NSTextLineFragment NSTextList NSTextRange NSTextStorage NSTextTab NSTextTable NSTextTableBlock NSTypesetter UINibEncoder _NSAttributeRun _NSAttributes"
+CLASSES="NSATSTypesetter NSAdaptiveImageGlyph NSDataAsset NSFont NSFontDescriptor NSGlyphGenerator NSGlyphInfo NSLayoutManager NSMutableParagraphStyle NSParagraphStyle NSShadow NSTextAttachment NSTextAttachmentViewProvider NSTextBlock NSTextContainer NSTextContentManager NSTextContentStorage NSTextElement NSTextLayoutFragment NSTextLayoutManager NSTextLineFragment NSTextList NSTextListElement NSTextParagraph NSTextRange NSTextStorage NSTextTab NSTextTable NSTextTableBlock NSTypesetter UINibEncoder _NSAttributeRun _NSAttributes"
 allowed_classes=$(printf '%s|' $CLASSES); allowed_classes=${allowed_classes%|}
 
 if llvm-otool -L "$UIF" | tail -n +2 | grep -q "/AppKit"; then
