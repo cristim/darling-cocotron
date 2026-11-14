@@ -58,6 +58,7 @@ set(UIFoundation_sources
 	NSTextContainer.m
 	NSTextElement.m
 	NSTextKit2.m
+	NSTextLineFragment.m
 	NSTextList.m
 	NSTextStorage.m
 	NSTextStorage_concrete.m
