@@ -323,3 +323,89 @@ CGPathRef CGPathCreateCopyByNormalizing(CGPathRef path, bool evenOddFillRule)
     return region_operation("CGPathCreateCopyByNormalizing", path, NULL, CGPBOpNormalize,
                             evenOddFillRule);
 }
+
+typedef struct {
+    bool keepInside, evenOdd;
+} LineArg;
+
+static CGPBStatus run_lines(const CGPBContour *a, size_t na, const CGPBContour *b, size_t nb,
+                            void *arg, CGPBResult *result)
+{
+    const LineArg *l = arg;
+    return CGPBLines(l->keepInside, a, na, b, nb, l->evenOdd, result);
+}
+
+/* GUESS (not in the public documentation, not observed): the line operations
+   treat the subpaths of `path` as lines (the closing segment of a closed
+   subpath is part of the line, the implicit closing segment of an open one is
+   not) and `maskPath` as a filled region. A piece lying exactly on the mask's
+   boundary counts as inside. The result is open polylines, plus closed
+   subpaths for closed lines kept whole. */
+static CGPathRef line_operation(const char *name, CGPathRef path, CGPathRef mask, bool keepInside,
+                                bool evenOdd)
+{
+    if (path == NULL || mask == NULL)
+        return NULL;
+    LineArg arg = {keepInside, evenOdd};
+    CGPBResult result;
+    if (!run_on_paths(name, path, mask, run_lines, &arg, &result))
+        return NULL;
+    CGPathRef out = path_from_result(&result, 0, true);
+    CGPBResultFree(&result);
+    return out;
+}
+
+CGPathRef CGPathCreateLineSubtractingPath(CGPathRef path, CGPathRef maskPath, bool evenOddFillRule)
+{
+    return line_operation("CGPathCreateLineSubtractingPath", path, maskPath, false,
+                          evenOddFillRule);
+}
+
+CGPathRef CGPathCreateLineIntersectingPath(CGPathRef path, CGPathRef maskPath, bool evenOddFillRule)
+{
+    return line_operation("CGPathCreateLineIntersectingPath", path, maskPath, true,
+                          evenOddFillRule);
+}
+
+/* GUESS (not in the public documentation, not observed): a component is a
+   region the normalized path fills that touches no other: an outer boundary
+   with the holes directly inside it. An island inside a hole is a component of
+   its own. Components come in the order of their outer boundaries in the
+   normalized path, each as a path of its rings. An empty path has no
+   components (an empty array, not NULL). */
+CFArrayRef CGPathCreateSeparateComponents(CGPathRef path, bool evenOddFillRule)
+{
+    if (path == NULL)
+        return NULL;
+    RegionArg arg = {CGPBOpNormalize, evenOddFillRule, true};
+    CGPBResult result;
+    if (!run_on_paths("CGPathCreateSeparateComponents", path, NULL, run_region, &arg, &result))
+        return NULL;
+    CFMutableArrayRef array = CFArrayCreateMutable(NULL, 0, &kCFTypeArrayCallBacks);
+    for (size_t i = 0; i < result.count; i++) {
+        if (result.rings[i].hole)
+            continue;
+        CGPathRef component = path_from_result(&result, result.rings[i].group, false);
+        CFArrayAppendValue(array, component);
+        CGPathRelease(component);
+    }
+    CGPBResultFree(&result);
+    return array;
+}
+
+/* GUESS (not in the public documentation, not observed): two paths intersect
+   when the regions they fill share area. Regions that only touch along an edge
+   or at a point do not intersect. A failure (NULL path, NaN coordinate) answers
+   false after a message on stderr. */
+bool CGPathIntersectsPath(CGPathRef path1, CGPathRef path2, bool evenOddFillRule)
+{
+    if (path1 == NULL || path2 == NULL)
+        return false;
+    RegionArg arg = {CGPBOpIntersection, evenOddFillRule, false};
+    CGPBResult result;
+    if (!run_on_paths("CGPathIntersectsPath", path1, path2, run_region, &arg, &result))
+        return false;
+    bool intersects = result.count > 0;
+    CGPBResultFree(&result);
+    return intersects;
+}

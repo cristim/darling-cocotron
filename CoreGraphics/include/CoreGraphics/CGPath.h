@@ -179,6 +179,17 @@ CGPathCreateCopyBySymmetricallyDifferencingPath(CGPathRef _Nullable path,
                                                 bool evenOddFillRule);
 COREGRAPHICS_EXPORT CGPathRef _Nullable
 CGPathCreateCopyByNormalizing(CGPathRef _Nullable path, bool evenOddFillRule);
+COREGRAPHICS_EXPORT CGPathRef _Nullable
+CGPathCreateLineSubtractingPath(CGPathRef _Nullable path, CGPathRef _Nullable maskPath,
+                                bool evenOddFillRule);
+COREGRAPHICS_EXPORT CGPathRef _Nullable
+CGPathCreateLineIntersectingPath(CGPathRef _Nullable path, CGPathRef _Nullable maskPath,
+                                 bool evenOddFillRule);
+COREGRAPHICS_EXPORT CFArrayRef _Nullable
+CGPathCreateSeparateComponents(CGPathRef _Nullable path, bool evenOddFillRule);
+COREGRAPHICS_EXPORT bool CGPathIntersectsPath(CGPathRef _Nullable path1,
+                                              CGPathRef _Nullable path2,
+                                              bool evenOddFillRule);
 
 CF_ASSUME_NONNULL_END
 CF_IMPLICIT_BRIDGING_DISABLED
