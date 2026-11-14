@@ -56,6 +56,7 @@ set(UIFoundation_sources
 	NSTextAttachment.m
 	NSTextAttachmentViewProvider.m
 	NSTextContainer.m
+	NSTextElement.m
 	NSTextKit2.m
 	NSTextList.m
 	NSTextStorage.m
