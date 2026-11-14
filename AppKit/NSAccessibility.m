@@ -615,11 +615,11 @@ void NSAccessibilityRaiseBadArgumentException(id element, NSString *attribute,
                         attribute, element];
 }
 
-// Private. The open-source OpenSwiftUI shim declares it as `NSArray * _Nullable (id element)`, and a client's notes
-// (expo/exact docs/agent-pitfalls.md) describe its result as the action names AppKit's accessibility server lists
-// for the element: every accessibilityPerform... method the class overrides that isAccessibilitySelectorAllowed:
-// lets through. This tree has no accessibility server and no public source fixes the result for an element
-// without actions, so a call fails loudly instead of answering (GUESS: the signature).
+// Private. The open-source OpenSwiftUI shim declares it as `NSArray * _Nullable (id element)`
+// (AppKit_Private.h:38); that is the only source of the signature (GUESS). This tree has no accessibility server
+// and no public source fixes the result, so a call fails loudly instead of answering. A nil result would match the
+// signature (OpenSwiftUI's caller, AppKitAccessibility.swift:660, handles nil with `if let`): switch to nil only
+// once App Store is shown to cope with it.
 NSArray *NSAccessibilityEntryPointActionNames(id element) {
     fprintf(stderr, "AppKit: NSAccessibilityEntryPointActionNames is not implemented\n");
     abort();
