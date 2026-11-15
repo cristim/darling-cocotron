@@ -7,7 +7,6 @@ void pb_graph_free(Graph *g)
 {
     VFREE(g->hv);
     VFREE(g->segs);
-    VFREE(g->lines);
     VFREE(g->off);
     VFREE(g->ids);
     VFREE(g->edges);
@@ -84,8 +83,7 @@ static CGPBStatus pb_grid_init(Grid *grid, const InputSet *sets, size_t nsets)
     return CGPBStatusOK;
 }
 
-static CGPBStatus pb_add_contour(Graph *g, VecHV *tmp, const CGPBContour *c,
-                              uint8_t src, bool closed)
+static CGPBStatus pb_add_contour(Graph *g, VecHV *tmp, const CGPBContour *c, uint8_t src)
 {
     tmp->n = 0;
     for (size_t k = 0; k < c->count; k++) {
@@ -96,19 +94,16 @@ static CGPBStatus pb_add_contour(Graph *g, VecHV *tmp, const CGPBContour *c,
         if (!VPUSH(*tmp, v))
             return CGPBStatusNoMemory;
     }
-    while (closed && tmp->n > 1 && ipt_eq(tmp->v[0].p, tmp->v[tmp->n - 1].p))
+    while (tmp->n > 1 && ipt_eq(tmp->v[0].p, tmp->v[tmp->n - 1].p))
         tmp->n--;
     size_t n = tmp->n;
-    bool region = src != 2;
-    if ((region && n < 3) || (!region && n < 2))
+    if (n < 3)
         return CGPBStatusOK;
 
-    size_t seg0 = g->segs.n;
-    size_t nseg = closed ? n : n - 1;
-    for (size_t k = 0; k < nseg; k++) {
+    for (size_t k = 0; k < n; k++) {
         IPt p = tmp->v[k].p, q = tmp->v[(k + 1) % n].p;
         Seg s = {p, q, src, 1};
-        if (region && ipt_cmp(p, q) > 0) {
+        if (ipt_cmp(p, q) > 0) {
             s.p = q;
             s.q = p;
             s.w = -1;
@@ -119,11 +114,6 @@ static CGPBStatus pb_add_contour(Graph *g, VecHV *tmp, const CGPBContour *c,
     for (size_t k = 0; k < n; k++)
         if (!VPUSH(g->hv, tmp->v[k]))
             return CGPBStatusNoMemory;
-    if (!region) {
-        LineContour lc = {seg0, nseg, closed};
-        if (!VPUSH(g->lines, lc))
-            return CGPBStatusNoMemory;
-    }
     return CGPBStatusOK;
 }
 
@@ -138,14 +128,13 @@ static int seg_cmp(const void *pa, const void *pb)
     return c;
 }
 
-/* Merge equal region segments of one set, adding their weights, and drop the
-   ones that cancel. This keeps many coincident or retraced edges (a path
-   drawn twice, 16000 identical squares) from costing a pair test each. The
-   line segments sit first in segs and are left alone: their order matters. */
+/* Merge equal segments of one set, adding their weights, and drop the ones
+   that cancel. This keeps many coincident or retraced edges (a path drawn
+   twice, 16000 identical squares) from costing a pair test each. */
 static void dedupe_region_segments(Graph *g)
 {
-    Seg *r = g->segs.v + g->nlineSegs;
-    size_t n = g->segs.n - g->nlineSegs;
+    Seg *r = g->segs.v;
+    size_t n = g->segs.n;
     if (n < 2)
         return;
     qsort(r, n, sizeof(Seg), seg_cmp);
@@ -160,7 +149,7 @@ static void dedupe_region_segments(Graph *g)
     for (size_t i = 0; i < out; i++)
         if (r[i].w != 0)
             r[keep++] = r[i];
-    g->segs.n = g->nlineSegs + keep;
+    g->segs.n = keep;
 }
 
 static CGPBStatus find_crossings(Graph *g)
@@ -430,10 +419,7 @@ static CGPBStatus build_edges(Graph *g)
             e.a = u < v ? u : v;
             e.b = u < v ? v : u;
             int sign = u < v ? 1 : -1;
-            if (g->segs.v[s].src == 2)
-                e.line = 1;
-            else
-                e.d[g->segs.v[s].src] = sign * g->segs.v[s].w;
+            e.d[g->segs.v[s].src] = sign * g->segs.v[s].w;
             if (!VPUSH(g->edges, e))
                 return CGPBStatusNoMemory;
         }
@@ -447,7 +433,6 @@ static CGPBStatus build_edges(Graph *g)
             Edge *m = &g->edges.v[out - 1];
             m->d[0] += e->d[0];
             m->d[1] += e->d[1];
-            m->line |= e->line;
             continue;
         }
         g->edges.v[out++] = *e;
@@ -455,7 +440,7 @@ static CGPBStatus build_edges(Graph *g)
     size_t keep = 0;
     for (size_t i = 0; i < out; i++) {
         const Edge *e = &g->edges.v[i];
-        if (e->d[0] == 0 && e->d[1] == 0 && !e->line)
+        if (e->d[0] == 0 && e->d[1] == 0)
             continue;
         g->edges.v[keep++] = *e;
     }
@@ -463,8 +448,7 @@ static CGPBStatus build_edges(Graph *g)
     return CGPBStatusOK;
 }
 
-CGPBStatus pb_build_graph(Graph *g, const InputSet *sets, size_t nsets,
-                              bool linesInA)
+CGPBStatus pb_build_graph(Graph *g, const InputSet *sets, size_t nsets)
 {
     CGPBStatus st = pb_grid_init(&g->grid, sets, nsets);
     if (st != CGPBStatusOK)
@@ -473,15 +457,11 @@ CGPBStatus pb_build_graph(Graph *g, const InputSet *sets, size_t nsets,
     for (size_t s = 0; s < nsets && st == CGPBStatusOK; s++) {
         for (size_t i = 0; i < sets[s].count && st == CGPBStatusOK; i++) {
             const CGPBContour *c = &sets[s].list[i];
-            bool isLine = linesInA && sets[s].src == 0;
-            st = pb_add_contour(g, &tmp, c, isLine ? 2 : sets[s].src,
-                             isLine ? c->closed : true);
+            st = pb_add_contour(g, &tmp, c, sets[s].src);
         }
     }
     VFREE(tmp);
     if (st == CGPBStatusOK) {
-        for (g->nlineSegs = 0; g->nlineSegs < g->segs.n && g->segs.v[g->nlineSegs].src == 2;)
-            g->nlineSegs++;
         dedupe_region_segments(g);
         st = node_segments(g);
     }

@@ -33,23 +33,6 @@
 
 #include "CGPathBooleanInternal.h"
 
-static const Edge *pb_find_edge(const Graph *g, uint32_t u, uint32_t v)
-{
-    uint32_t a = u < v ? u : v, b = u < v ? v : u;
-    size_t lo = 0, hi = g->edges.n;
-    while (lo < hi) {
-        size_t mid = (lo + hi) / 2;
-        const Edge *e = &g->edges.v[mid];
-        if (e->a == a && e->b == b)
-            return e;
-        if (e->a < a || (e->a == a && e->b < b))
-            lo = mid + 1;
-        else
-            hi = mid;
-    }
-    return NULL;
-}
-
 CGPBStatus CGPBRegion(CGPBOp op, const CGPBContour *a, size_t na,
                       const CGPBContour *b, size_t nb, bool evenOdd,
                       bool wantGroups, CGPBResult *result)
@@ -62,7 +45,7 @@ CGPBStatus CGPBRegion(CGPBOp op, const CGPBContour *a, size_t na,
     VecRing out = {0};
     VEC(DEdge) boundary = {0};
     VecIRing rings = {0};
-    CGPBStatus st = pb_build_graph(&g, sets, 2, false);
+    CGPBStatus st = pb_build_graph(&g, sets, 2);
 
     for (size_t i = 0; st == CGPBStatusOK && i < g.edges.n; i++) {
         const Edge *e = &g.edges.v[i];
@@ -123,104 +106,6 @@ CGPBStatus CGPBRegion(CGPBOp op, const CGPBContour *a, size_t na,
         pb_iring_free(&rings.v[i]);
     VFREE(rings);
     VFREE(boundary);
-    pb_graph_free(&g);
-    return pb_finish(&out, st, result);
-}
-
-CGPBStatus CGPBLines(bool keepInside, const CGPBContour *a, size_t na,
-                     const CGPBContour *b, size_t nb, bool evenOdd,
-                     CGPBResult *result)
-{
-    result->rings = NULL;
-    result->count = 0;
-    InputSet sets[2] = {{a, na, 0}, {b, nb, 1}};
-    Graph g;
-    memset(&g, 0, sizeof g);
-    VecRing out = {0};
-    VecU32 seq = {0}, run = {0};
-    VEC(uint8_t) keep = {0};
-    CGPBStatus st = pb_build_graph(&g, sets, 2, true);
-
-    for (size_t c = 0; st == CGPBStatusOK && c < g.lines.n; c++) {
-        const LineContour *lc = &g.lines.v[c];
-        seq.n = keep.n = 0;
-        for (size_t s = lc->seg0; s < lc->seg0 + lc->nseg && st == CGPBStatusOK; s++) {
-            const uint32_t *ids = g.ids.v + g.off.v[s];
-            size_t n = g.off.v[s + 1] - g.off.v[s];
-            for (size_t k = (seq.n ? 1 : 0); k < n; k++)
-                if (!VPUSH(seq, ids[k]))
-                    st = CGPBStatusNoMemory;
-        }
-        if (st != CGPBStatusOK || seq.n < 2)
-            continue;
-        size_t pieces = seq.n - 1;
-        size_t allKept = 0;
-        for (size_t i = 0; i < pieces && st == CGPBStatusOK; i++) {
-            const Edge *e = pb_find_edge(&g, seq.v[i], seq.v[i + 1]);
-            if (e == NULL) {
-                st = CGPBStatusInconsistent;
-                break;
-            }
-            bool inside = pb_in_rule(evenOdd, e->wl[1]) || pb_in_rule(evenOdd, e->wr[1]);
-            uint8_t k = (inside == keepInside);
-            allKept += k;
-            if (!VPUSH(keep, k))
-                st = CGPBStatusNoMemory;
-        }
-        if (st != CGPBStatusOK)
-            break;
-        if (allKept == 0)
-            continue;
-        if (lc->closed && allKept == pieces) {
-            run.n = 0;
-            for (size_t i = 0; i < pieces && st == CGPBStatusOK; i++)
-                if (!VPUSH(run, seq.v[i]))
-                    st = CGPBStatusNoMemory;
-            if (st == CGPBStatusOK) {
-                if (!pb_ring_simplify(&g, &run, true))
-                    st = CGPBStatusNoMemory;
-                else if (run.n >= 2 &&
-                         /* a closed contour that retraces itself has no area: it is a line */
-                         !pb_result_push(&out, &g, run.v, run.n, run.n >= 3, false, out.n))
-                    st = CGPBStatusNoMemory;
-            }
-            continue;
-        }
-        /* start after a dropped piece so closed contours do not split a run */
-        size_t first = 0;
-        if (lc->closed)
-            while (keep.v[first])
-                first++;
-        size_t total = pieces;
-        size_t i = 0;
-        while (i < total && st == CGPBStatusOK) {
-            size_t pi = (first + i) % pieces;
-            if (!keep.v[pi]) {
-                i++;
-                continue;
-            }
-            run.n = 0;
-            if (!VPUSH(run, seq.v[pi]))
-                st = CGPBStatusNoMemory;
-            while (st == CGPBStatusOK && i < total && keep.v[(first + i) % pieces]) {
-                size_t pj = (first + i) % pieces;
-                if (!VPUSH(run, seq.v[pj + 1]))
-                    st = CGPBStatusNoMemory;
-                i++;
-            }
-            if (st != CGPBStatusOK)
-                break;
-            if (!pb_ring_simplify(&g, &run, false)) {
-                st = CGPBStatusNoMemory;
-                break;
-            }
-            if (run.n >= 2 && !pb_result_push(&out, &g, run.v, run.n, false, false, out.n))
-                st = CGPBStatusNoMemory;
-        }
-    }
-    VFREE(seq);
-    VFREE(run);
-    VFREE(keep);
     pb_graph_free(&g);
     return pb_finish(&out, st, result);
 }

@@ -17,10 +17,8 @@ typedef struct {
     double x, y;
 } CGPBPoint;
 
-/* One input subpath, already flattened to line segments. For the region
-   operations every contour is treated as closed (a fill closes open
-   subpaths). For the line operations `closed` says whether the closing
-   segment is part of the line. */
+/* One input subpath, already flattened to line segments. Every contour is
+   treated as closed (a fill closes open subpaths); `closed` is not read. */
 typedef struct {
     const CGPBPoint *points;
     size_t count;
@@ -65,14 +63,6 @@ typedef enum {
 CGPBStatus CGPBRegion(CGPBOp op, const CGPBContour *a, size_t na,
                       const CGPBContour *b, size_t nb, bool evenOdd,
                       bool wantGroups, CGPBResult *result);
-
-/* Line operations: the parts of the lines of `a` that lie inside (keepInside)
-   or outside (!keepInside) the region `b`. Pieces on the boundary of `b` count
-   as inside. The result holds open polylines, plus closed rings for contours
-   of `a` that are closed and kept whole. */
-CGPBStatus CGPBLines(bool keepInside, const CGPBContour *a, size_t na,
-                     const CGPBContour *b, size_t nb, bool evenOdd,
-                     CGPBResult *result);
 
 void CGPBResultFree(CGPBResult *result);
 

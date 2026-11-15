@@ -38,40 +38,31 @@ static bool collinear_forward(IPt prev, IPt cur, IPt next)
 
 /* Drop vertices that lie on the straight line between their neighbours. A
    closed ring whose vertices are all collinear collapses to nothing. */
-bool pb_ring_simplify(const Graph *g, VecU32 *ids, bool closed)
+bool pb_ring_simplify(const Graph *g, VecU32 *ids)
 {
     size_t n = ids->n;
-    if (n < (closed ? 3 : 2))
+    if (n < 3)
         return true;
     uint32_t *tmp = malloc(n * sizeof(uint32_t));
     if (tmp == NULL)
         return false;
     size_t out = 0;
-    if (closed) {
-        size_t c = n;
-        for (size_t i = 0; i < n && c == n; i++)
-            if (!collinear_forward(vp(g, ids->v[(i + n - 1) % n]), vp(g, ids->v[i]),
-                                   vp(g, ids->v[(i + 1) % n])))
-                c = i;
-        if (c == n) {
-            ids->n = 0;
-            free(tmp);
-            return true;
-        }
-        tmp[out++] = ids->v[c];
-        for (size_t k = 1; k < n; k++) {
-            size_t i = (c + k) % n;
-            if (!collinear_forward(vp(g, tmp[out - 1]), vp(g, ids->v[i]),
-                                   vp(g, ids->v[(i + 1) % n])))
-                tmp[out++] = ids->v[i];
-        }
-    } else {
-        tmp[out++] = ids->v[0];
-        for (size_t i = 1; i + 1 < n; i++)
-            if (!collinear_forward(vp(g, tmp[out - 1]), vp(g, ids->v[i]),
-                                   vp(g, ids->v[i + 1])))
-                tmp[out++] = ids->v[i];
-        tmp[out++] = ids->v[n - 1];
+    size_t c = n;
+    for (size_t i = 0; i < n && c == n; i++)
+        if (!collinear_forward(vp(g, ids->v[(i + n - 1) % n]), vp(g, ids->v[i]),
+                               vp(g, ids->v[(i + 1) % n])))
+            c = i;
+    if (c == n) {
+        ids->n = 0;
+        free(tmp);
+        return true;
+    }
+    tmp[out++] = ids->v[c];
+    for (size_t k = 1; k < n; k++) {
+        size_t i = (c + k) % n;
+        if (!collinear_forward(vp(g, tmp[out - 1]), vp(g, ids->v[i]),
+                               vp(g, ids->v[(i + 1) % n])))
+            tmp[out++] = ids->v[i];
     }
     memcpy(ids->v, tmp, out * sizeof(uint32_t));
     ids->n = out;
@@ -167,7 +158,7 @@ CGPBStatus pb_trace_rings(const Graph *g, const DEdge *de_in, size_t nde,
                 st = CGPBStatusInconsistent;
             break;
         }
-        if (!pb_ring_simplify(g, &ring.ids, true)) {
+        if (!pb_ring_simplify(g, &ring.ids)) {
             pb_iring_free(&ring);
             st = CGPBStatusNoMemory;
             break;

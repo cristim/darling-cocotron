@@ -83,29 +83,16 @@ static double dist_seg(double px, double py, CGPBPoint a, CGPBPoint b)
     return sqrt(ex * ex + ey * ey);
 }
 
-static double dist_contours(const CGPBContour *cs, size_t nc, double px, double py,
-                            bool closeAll)
+static double dist_contours(const CGPBContour *cs, size_t nc, double px, double py)
 {
     double best = INFINITY;
     for (size_t c = 0; c < nc; c++) {
         size_t n = cs[c].count;
-        size_t segs = (closeAll || cs[c].closed) ? n : (n ? n - 1 : 0);
+        size_t segs = n;
         if (n == 1)
             best = fmin(best, hypot(px - cs[c].points[0].x, py - cs[c].points[0].y));
         for (size_t i = 0; i < segs; i++)
             best = fmin(best, dist_seg(px, py, cs[c].points[i], cs[c].points[(i + 1) % n]));
-    }
-    return best;
-}
-
-static double dist_result(const CGPBResult *r, double px, double py)
-{
-    double best = INFINITY;
-    for (size_t c = 0; c < r->count; c++) {
-        const CGPBRing *ring = &r->rings[c];
-        size_t segs = ring->closed ? ring->count : ring->count - 1;
-        for (size_t i = 0; i < segs; i++)
-            best = fmin(best, dist_seg(px, py, ring->points[i], ring->points[(i + 1) % ring->count]));
     }
     return best;
 }
@@ -205,14 +192,14 @@ static void shape_random(Shape *s, int mode, int grid, double scale, double ox, 
         }
         s->c[k].points = s->pts[k];
         s->c[k].count = n;
-        s->c[k].closed = rndi(2);
+        s->c[k].closed = true;
     }
 }
 
 static void shape_dump(const char *name, const Shape *s)
 {
     for (size_t i = 0; i < s->n; i++) {
-        fprintf(stderr, "  %s[%zu] %s:", name, i, s->c[i].closed ? "closed" : "open");
+        fprintf(stderr, "  %s[%zu] %s:", name, i, "closed");
         for (size_t k = 0; k < s->c[i].count; k++)
             fprintf(stderr, " (%.17g,%.17g)", s->c[i].points[k].x, s->c[i].points[k].y);
         fputc('\n', stderr);
@@ -253,59 +240,13 @@ static void check_region(const Shape *a, const Shape *b, CGPBOp op, bool eo, dou
     }
     for (int k = 0; k < 120; k++) {
         double px = ox + (rndf() * (grid + 2) - 1) * scale, py = oy + (rndf() * (grid + 2) - 1) * scale;
-        if (dist_contours(a->c, a->n, px, py, true) < eps || dist_contours(b->c, b->n, px, py, true) < eps)
+        if (dist_contours(a->c, a->n, px, py) < eps || dist_contours(b->c, b->n, px, py) < eps)
             continue;
         bool want = expected_in(op, inside(a->c, a->n, px, py, eo), inside(b->c, b->n, px, py, eo));
         bool gotw = result_inside(&r, px, py, false), gote = result_inside(&r, px, py, true);
         EXPECT(gotw == want && gote == want,
                "%s iter %ld %s eo=%d: point (%.9g,%.9g) want %d got winding %d evenodd %d", tag, iter,
                opname[op], eo, px, py, want, gotw, gote);
-    }
-    CGPBResultFree(&r);
-}
-
-static void check_lines(const Shape *a, const Shape *b, bool keepInside, bool eo, double scale,
-                        const char *tag, long iter)
-{
-    CGPBResult r;
-    CGPBStatus st = CGPBLines(keepInside, a->c, a->n, b->c, b->n, eo, &r);
-    EXPECT(st == CGPBStatusOK, "%s iter %ld lines: status %d", tag, iter, st);
-    if (st != CGPBStatusOK)
-        return;
-    double eps = 1e-6 * scale;
-    /* every result point lies on a line of a and on the right side of b */
-    for (size_t c = 0; c < r.count; c++) {
-        const CGPBRing *ring = &r.rings[c];
-        size_t segs = ring->closed ? ring->count : ring->count - 1;
-        for (size_t i = 0; i < segs; i++) {
-            CGPBPoint p = ring->points[i], q = ring->points[(i + 1) % ring->count];
-            double t = 0.17 + 0.66 * rndf();
-            double px = p.x + (q.x - p.x) * t, py = p.y + (q.y - p.y) * t;
-            EXPECT(dist_contours(a->c, a->n, px, py, false) < eps, "%s iter %ld: result off the lines", tag, iter);
-            if (dist_contours(b->c, b->n, px, py, true) > eps)
-                EXPECT(inside(b->c, b->n, px, py, eo) == keepInside,
-                       "%s iter %ld lines keepInside=%d: kept piece on the wrong side", tag, iter, keepInside);
-        }
-    }
-    /* every sampled point of a line that is clear of b's boundary is kept iff
-       it is on the wanted side */
-    for (size_t c = 0; c < a->n; c++) {
-        size_t n = a->c[c].count;
-        size_t segs = a->c[c].closed ? n : n - 1;
-        for (int k = 0; k < 30; k++) {
-            size_t i = (size_t) rndi((int) segs);
-            CGPBPoint p = a->c[c].points[i], q = a->c[c].points[(i + 1) % n];
-            if (p.x == q.x && p.y == q.y)
-                continue; /* a zero-length line draws nothing (GUESS) */
-            double t = rndf();
-            double px = p.x + (q.x - p.x) * t, py = p.y + (q.y - p.y) * t;
-            if (dist_contours(b->c, b->n, px, py, true) < eps)
-                continue;
-            bool want = inside(b->c, b->n, px, py, eo) == keepInside;
-            bool got = dist_result(&r, px, py) < eps;
-            EXPECT(want == got, "%s iter %ld lines keepInside=%d: line point (%.9g,%.9g) want %d got %d",
-                   tag, iter, keepInside, px, py, want, got);
-        }
     }
     CGPBResultFree(&r);
 }
@@ -320,8 +261,6 @@ static void fuzz(const char *tag, int mode, int grid, double scale, double ox, d
         for (int eo = 0; eo < 2; eo++) {
             for (CGPBOp op = CGPBOpUnion; op <= CGPBOpNormalize; op++)
                 check_region(&a, &b, op, eo, scale, ox, oy, grid, tag, it);
-            for (int keep = 0; keep < 2; keep++)
-                check_lines(&a, &b, keep, eo, scale, tag, it);
         }
         if (failures > before && before == 0) {
             shape_dump("A", &a);
@@ -455,33 +394,6 @@ static void fixtures(void)
     bad[1] = (CGPBPoint) {1.7e308, 1};
     bad[0] = (CGPBPoint) {-1.7e308, 0};
     EXPECT(CGPBRegion(CGPBOpUnion, &badc, 1, &b, 1, false, false, &r) == CGPBStatusTooLarge, "range overflow refused");
-
-    /* lines */
-    CGPBPoint ln[2] = {{-1, 1}, {5, 1}};
-    rect(rb, 1, 0, 3, 2);
-    CGPBContour line = {ln, 2, false};
-    EXPECT(CGPBLines(true, &line, 1, &b, 1, false, &r) == CGPBStatusOK && r.count == 1 && !r.rings[0].closed &&
-               r.rings[0].count == 2 && r.rings[0].points[0].x == 1 && r.rings[0].points[1].x == 3,
-           "line intersection keeps x in [1,3]");
-    CGPBResultFree(&r);
-    EXPECT(CGPBLines(false, &line, 1, &b, 1, false, &r) == CGPBStatusOK && r.count == 2 &&
-               r.rings[0].points[0].x == -1 && r.rings[0].points[1].x == 1 && r.rings[1].points[0].x == 3 &&
-               r.rings[1].points[1].x == 5,
-           "line subtraction keeps the two outer pieces");
-    CGPBResultFree(&r);
-    /* a closed contour crossing the region: pieces wrap around the start vertex into one run */
-    CGPBPoint tri[3] = {{10, 10}, {2, 1}, {10, 1}};
-    CGPBContour closedLine = {tri, 3, true};
-    EXPECT(CGPBLines(false, &closedLine, 1, &b, 1, false, &r) == CGPBStatusOK && r.count == 1,
-           "closed contour starting outside: the pieces around the start vertex form one open run (%zu runs)", r.count);
-    CGPBResultFree(&r);
-    /* a line along the mask boundary counts as inside */
-    CGPBPoint edge[2] = {{1, -1}, {1, 4}};
-    CGPBContour edgeLine = {edge, 2, false};
-    EXPECT(CGPBLines(true, &edgeLine, 1, &b, 1, false, &r) == CGPBStatusOK && r.count == 1 &&
-               r.rings[0].points[0].y == 0 && r.rings[0].points[r.rings[0].count - 1].y == 2,
-           "boundary piece is kept by line intersection (GUESS pinned)");
-    CGPBResultFree(&r);
 }
 
 static double seconds(void)

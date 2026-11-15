@@ -122,25 +122,18 @@ typedef struct {
     int orig;
 } HV;
 
-/* Region segments are stored with p before q (x, then y) and a signed weight:
-   +1 when the input ran p to q, -1 when it ran q to p; equal segments of one
-   set are merged and their weights added. Line segments keep their direction
-   and weight 1. */
+/* Segments are stored with p before q (x, then y) and a signed weight: +1
+   when the input ran p to q, -1 when it ran q to p; equal segments of one set
+   are merged and their weights added. */
 typedef struct {
     IPt p, q;
-    uint8_t src; /* 0: region set A, 1: region set B, 2: line of A */
+    uint8_t src; /* 0: region set A, 1: region set B */
     int w;
 } Seg;
 
 typedef struct {
-    size_t seg0, nseg;
-    bool closed;
-} LineContour;
-
-typedef struct {
     uint32_t a, b; /* vertex ids, a < b: left to right, vertical edges upward */
     int d[2];      /* signed winding contribution per region set */
-    uint8_t line;
     int wl[2], wr[2]; /* winding on the left and right of a -> b */
 } Edge;
 
@@ -156,11 +149,9 @@ typedef struct {
     Grid grid;
     VecHV hv; /* unique, sorted by position after build */
     VEC(Seg) segs;
-    VEC(LineContour) lines;
     VEC(size_t) off;
     VecU32 ids;
     VEC(Edge) edges;
-    size_t nlineSegs; /* line segments come first in segs */
     uint64_t work;    /* costly steps (segment tests, pixel tests) so far, against PB_WORK_LIMIT */
     uint64_t cheap;   /* sweep-line moves and scans, about 16 times cheaper each (PB_CHEAP_SHIFT) */
 } Graph;
@@ -245,12 +236,12 @@ typedef struct {
 /* Node.c */
 void pb_graph_free(Graph *g);
 bool pb_find_vertex(const Graph *g, IPt p, uint32_t *id);
-CGPBStatus pb_build_graph(Graph *g, const InputSet *sets, size_t nsets, bool linesInA);
+CGPBStatus pb_build_graph(Graph *g, const InputSet *sets, size_t nsets);
 /* Label.c */
 CGPBStatus pb_label_edges(Graph *g);
 /* Rings.c */
 void pb_iring_free(IRing *r);
-bool pb_ring_simplify(const Graph *g, VecU32 *ids, bool closed);
+bool pb_ring_simplify(const Graph *g, VecU32 *ids);
 bool pb_ring_contains_point2(const Graph *g, const IRing *r, IPt p2);
 CGPBStatus pb_trace_rings(const Graph *g, const DEdge *de_in, size_t nde, VecIRing *rings);
 bool pb_result_push(VecRing *out, const Graph *g, const uint32_t *ids, size_t n, bool closed,
