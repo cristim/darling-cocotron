@@ -1,6 +1,6 @@
 /* CGPath boolean operations through the public C API, in a Darling guest.
    Apple documents none of their results, so what is pinned here is marked
-   GUESS in the check's message. The unmarked checks hold the fill-rule
+   GUESS, DEVIATION or observed in the check's message. The unmarked checks hold the fill-rule
    semantics every implementation must share: the result of an operation covers
    exactly the points the operation says, under either rule. */
 
@@ -8,6 +8,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 static int failures;
 #define EXPECT(cond, ...)                                                      \
@@ -66,6 +67,52 @@ static Stats stats(CGPathRef p)
     return s;
 }
 
+typedef struct {
+    int n;
+    double area[8];
+    int lines[8];
+} Subs;
+
+/* per-subpath signed area and line count of a result path (curves are not counted; releases the path) */
+static void subs_visit(void *info, const CGPathElement *e)
+{
+    struct { Subs s; CGPoint cur, start; } *st = info;
+    Subs *s = &st->s;
+    switch (e->type) {
+    case kCGPathElementMoveToPoint:
+        if (s->n < 8) { s->area[s->n] = 0; s->lines[s->n] = 0; s->n++; }
+        st->start = st->cur = e->points[0];
+        break;
+    case kCGPathElementAddLineToPoint:
+        if (s->n > 0 && s->n <= 8) {
+            s->area[s->n - 1] += (st->cur.x * e->points[0].y - e->points[0].x * st->cur.y) / 2;
+            s->lines[s->n - 1]++;
+        }
+        st->cur = e->points[0];
+        break;
+    case kCGPathElementCloseSubpath:
+        if (s->n > 0 && s->n <= 8)
+            s->area[s->n - 1] += (st->cur.x * st->start.y - st->start.x * st->cur.y) / 2;
+        st->cur = st->start;
+        break;
+    default:
+        break;
+    }
+}
+
+static Subs subs(CGPathRef p)
+{
+    struct { Subs s; CGPoint cur, start; } st;
+    memset(&st, 0, sizeof st);
+    if (p == NULL) {
+        st.s.n = -1;
+        return st.s;
+    }
+    CGPathApply(p, &st, subs_visit);
+    CGPathRelease(p);
+    return st.s;
+}
+
 static CGPathRef rect(double x, double y, double w, double h)
 {
     return CGPathCreateWithRect(CGRectMake(x, y, w, h), NULL);
@@ -117,7 +164,7 @@ int main(void)
     CGPathRef u = CGPathCreateCopyByUnioningPath(a, b, false);
     CGPathRef i = CGPathCreateCopyByIntersectingPath(a, b, false);
     CGPathRef s = CGPathCreateCopyBySubtractingPath(a, b, false);
-    CGPathRef x = CGPathCreateCopyBySymmetricallyDifferencingPath(a, b, false);
+    CGPathRef x = CGPathCreateCopyBySymmetricDifferenceOfPath(a, b, false);
     EXPECT(u && i && s && x, "all four operations return a path");
     gA = a;
     gB = b;
@@ -136,10 +183,10 @@ int main(void)
            "union bounds");
     Stats su = stats(u);
     EXPECT(su.subpaths == 1 && su.closes == 1 && su.openSubpaths == 0 && su.curves == 0,
-           "GUESS: the union of two rectangles is one closed polygon subpath of straight segments (%d subpaths)",
+           "observed on a real Mac (macOS 26.1, probe stubs_f2_probe1): the union of two rectangles is one closed polygon subpath of straight segments (%d subpaths)",
            su.subpaths);
-    EXPECT(su.lines == 7, "GUESS: the union L-shape keeps its 8 corners, 7 lines then close (%d lines)", su.lines);
-    EXPECT(stats(x).subpaths == 2, "GUESS: the symmetric difference of two overlapping squares is two L-shaped subpaths (%d)",
+    EXPECT(su.lines == 7, "observed on a real Mac (macOS 26.1, probe stubs_f2_probe1): the union L-shape keeps its 8 corners, 7 lines then close (%d lines)", su.lines);
+    EXPECT(stats(x).subpaths == 2, "observed on a real Mac (macOS 26.1, probe stubs_f2_probe1): the symmetric difference of two overlapping squares is two L-shaped subpaths (%d)",
            stats(x).subpaths);
     EXPECT(stats(s).subpaths == 1, "subtraction leaves one piece (%d)", stats(s).subpaths);
     CGPathRelease(u);
@@ -155,34 +202,34 @@ int main(void)
     /* empty results are empty paths, not NULL */
     CGPathRef far = rect(100, 100, 1, 1);
     CGPathRef none = CGPathCreateCopyByIntersectingPath(a, far, false);
-    EXPECT(none != NULL && CGPathIsEmpty(none), "GUESS: an empty intersection is an empty path, not NULL");
+    EXPECT(none != NULL && CGPathIsEmpty(none), "observed on a real Mac (macOS 26.1, probe stubs_f2_probe1): an empty intersection is an empty path, not NULL");
     CGPathRelease(none);
     EXPECT(!CGPathIntersectsPath(a, far, false), "disjoint paths do not intersect");
     EXPECT(CGPathIntersectsPath(a, b, false), "overlapping paths intersect");
     CGPathRef inner = rect(1, 1, 1, 1);
     EXPECT(CGPathIntersectsPath(a, inner, false) && CGPathIntersectsPath(inner, a, false), "nested paths intersect");
     CGPathRef touch = rect(4, 0, 4, 4);
-    EXPECT(!CGPathIntersectsPath(a, touch, false), "GUESS: rectangles that only share an edge do not intersect");
+    EXPECT(!CGPathIntersectsPath(a, touch, false), "observed on a real Mac (macOS 26.1, probe stubs_f2_probe1): rectangles that only share an edge do not intersect");
     CGPathRef corner = rect(4, 4, 1, 1);
-    EXPECT(!CGPathIntersectsPath(a, corner, false), "GUESS: rectangles that only share a corner do not intersect");
+    EXPECT(!CGPathIntersectsPath(a, corner, false), "observed on a real Mac (macOS 26.1, probe stubs_f2_probe1): rectangles that only share a corner do not intersect");
     CGPathRelease(far);
     CGPathRelease(inner);
     CGPathRelease(touch);
     CGPathRelease(corner);
 
     /* NULL and non-finite inputs */
-    EXPECT(CGPathCreateCopyByUnioningPath(NULL, b, false) == NULL, "GUESS: NULL path gives NULL");
-    EXPECT(CGPathCreateCopyByUnioningPath(a, NULL, false) == NULL, "GUESS: NULL mask gives NULL");
-    EXPECT(CGPathCreateCopyByNormalizing(NULL, false) == NULL, "GUESS: normalizing NULL gives NULL");
+    EXPECT(CGPathCreateCopyByUnioningPath(NULL, b, false) == NULL, "observed on a real Mac (macOS 26.1, probe stubs_f2_probe1): NULL path gives NULL");
+    EXPECT(CGPathCreateCopyByUnioningPath(a, NULL, false) == NULL, "observed on a real Mac (macOS 26.1, probe stubs_f2_probe1): NULL mask gives NULL");
+    EXPECT(CGPathCreateCopyByNormalizing(NULL, false) == NULL, "observed on a real Mac (macOS 26.1, probe stubs_f2_probe1): normalizing NULL gives NULL");
     EXPECT(CGPathCreateSeparateComponents(NULL, false) == NULL, "GUESS: separating NULL gives NULL");
-    EXPECT(!CGPathIntersectsPath(NULL, b, false), "GUESS: intersects with NULL is false");
+    EXPECT(!CGPathIntersectsPath(NULL, b, false), "observed on a real Mac (macOS 26.1, probe stubs_f2_probe1): intersects with NULL is false");
     CGMutablePathRef nanPath = CGPathCreateMutable();
     CGPathMoveToPoint(nanPath, NULL, 0, 0);
     CGPathAddLineToPoint(nanPath, NULL, NAN, 1);
     CGPathAddLineToPoint(nanPath, NULL, 1, 0);
     CGPathCloseSubpath(nanPath);
-    EXPECT(CGPathCreateCopyByUnioningPath(nanPath, a, false) == NULL, "GUESS: a NaN coordinate gives NULL, loudly");
-    EXPECT(!CGPathIntersectsPath(nanPath, a, false), "GUESS: a NaN coordinate answers false, loudly");
+    EXPECT(CGPathCreateCopyByUnioningPath(nanPath, a, false) == NULL, "DEVIATION from the Mac (which drops the NaN subpath): a NaN coordinate gives NULL, loudly");
+    EXPECT(!CGPathIntersectsPath(nanPath, a, false), "DEVIATION from the Mac: a NaN coordinate answers false, loudly");
     CGPathRelease(nanPath);
 
     /* fill rules: nested squares drawn the same way */
@@ -205,7 +252,7 @@ int main(void)
     CGPathAddRect(many, NULL, CGRectMake(4, 4, 2, 2));   /* an island in the hole */
     CGPathAddRect(many, NULL, CGRectMake(20, 0, 3, 3));  /* a separate piece */
     CFArrayRef parts = CGPathCreateSeparateComponents(many, true);
-    EXPECT(parts != NULL && CFArrayGetCount(parts) == 3, "GUESS: frame with hole, the island, and the far square are 3 components (got %ld)",
+    EXPECT(parts != NULL && CFArrayGetCount(parts) == 3, "observed on a real Mac (macOS 26.1, probe stubs_f2_probe1): frame with hole, the island, and the far square are 3 components (got %ld)",
            parts ? (long) CFArrayGetCount(parts) : -1L);
     if (parts && CFArrayGetCount(parts) == 3) {
         int holes = 0, singles = 0;
@@ -214,14 +261,14 @@ int main(void)
             holes += ps.subpaths == 2;
             singles += ps.subpaths == 1;
         }
-        EXPECT(holes == 1 && singles == 2, "GUESS: one component has two subpaths (outer and hole), two have one");
+        EXPECT(holes == 1 && singles == 2, "observed on a real Mac (macOS 26.1, probe stubs_f2_probe1): one component has two subpaths (outer and hole), two have one");
     }
     if (parts)
         CFRelease(parts);
     CGPathRelease(many);
     CGMutablePathRef empty = CGPathCreateMutable();
     CFArrayRef noParts = CGPathCreateSeparateComponents(empty, false);
-    EXPECT(noParts != NULL && CFArrayGetCount(noParts) == 0, "GUESS: an empty path has no components (empty array)");
+    EXPECT(noParts != NULL && CFArrayGetCount(noParts) == 0, "observed on a real Mac (macOS 26.1, probe stubs_f2_probe1): an empty path has no components (empty array)");
     if (noParts)
         CFRelease(noParts);
     CGPathRelease(empty);
@@ -231,7 +278,7 @@ int main(void)
     CGPathRef sq = rect(20, 20, 40, 40);
     CGPathRef cu = CGPathCreateCopyByUnioningPath(circle, sq, false);
     Stats sc = stats(cu);
-    EXPECT(sc.curves == 0 && sc.lines > 20, "GUESS: curves are flattened to line segments (%d curves, %d lines)", sc.curves, sc.lines);
+    EXPECT(sc.curves == 0 && sc.lines > 20, "DEVIATION from the Mac (which keeps Bezier curves): curves are flattened to line segments (%d curves, %d lines)", sc.curves, sc.lines);
     int bad = 0;
     for (double px = -2.31; px < 62; px += 1.7)
         for (double py = -2.17; py < 62; py += 1.7) {
@@ -250,22 +297,69 @@ int main(void)
     CGPathRelease(circle);
     CGPathRelease(sq);
 
-    /* lines */
-    CGMutablePathRef line = CGPathCreateMutable();
-    CGPathMoveToPoint(line, NULL, -2, 1);
-    CGPathAddLineToPoint(line, NULL, 10, 1);
-    CGPathRef mask = rect(2, 0, 4, 4);
-    CGPathRef li = CGPathCreateLineIntersectingPath(line, mask, false);
-    CGPathRef ls = CGPathCreateLineSubtractingPath(line, mask, false);
-    Stats sli = stats(li), sls = stats(ls);
-    EXPECT(sli.subpaths == 1 && sli.lines == 1 && sli.openSubpaths == 1 && near(sli.current.x, 6) && near(sli.start.x, 2),
-           "GUESS: line intersection keeps the open segment from x=2 to x=6 (subpaths %d)", sli.subpaths);
-    EXPECT(sls.subpaths == 2 && sls.lines == 2 && sls.openSubpaths == 2,
-           "GUESS: line subtraction keeps the two open outer segments (subpaths %d)", sls.subpaths);
-    CGPathRelease(li);
-    CGPathRelease(ls);
-    CGPathRelease(line);
-    CGPathRelease(mask);
+    /* The values a real Mac gave for the same fixtures (macOS 26.1, probe
+       stubs_f2_probe1, 40-unit squares), per subpath: signed area (outer rings
+       positive, holes negative) and number of line segments. */
+    {
+        CGPathRef A = rect(0, 0, 40, 40), B = rect(20, 20, 40, 40), C = rect(40, 0, 40, 40), N = rect(10, 10, 10, 10);
+        CGPathRef F = rect(100, 100, 10, 10);
+        const char *o = "observed on a real Mac (macOS 26.1, probe stubs_f2_probe1)";
+        for (int eo = 0; eo < 2; eo++) {
+            Subs su = subs(CGPathCreateCopyByUnioningPath(A, B, eo));
+            EXPECT(su.n == 1 && near(su.area[0], 2800) && su.lines[0] == 7, "%s: union of two overlapping squares is one 8-vertex subpath of area 2800 (%d subpaths)", o, su.n);
+            Subs si = subs(CGPathCreateCopyByIntersectingPath(A, B, eo));
+            EXPECT(si.n == 1 && near(si.area[0], 400) && si.lines[0] == 3, "%s: intersection is one square of area 400", o);
+            Subs sb = subs(CGPathCreateCopyBySubtractingPath(A, B, eo));
+            EXPECT(sb.n == 1 && near(sb.area[0], 1200) && sb.lines[0] == 5, "%s: subtraction is one 6-vertex subpath of area 1200", o);
+            Subs sx = subs(CGPathCreateCopyBySymmetricDifferenceOfPath(A, B, eo));
+            EXPECT(sx.n == 2 && near(sx.area[0], 1200) && near(sx.area[1], 1200) && sx.lines[0] == 5 && sx.lines[1] == 5,
+                   "%s: symmetric difference is two 6-vertex subpaths of area 1200 each (%d)", o, sx.n);
+        }
+        Subs adj = subs(CGPathCreateCopyByUnioningPath(A, C, false));
+        EXPECT(adj.n == 1 && near(adj.area[0], 3200) && adj.lines[0] == 3, "%s: adjacent squares merge into one 4-vertex rectangle", o);
+        Subs same = subs(CGPathCreateCopyByUnioningPath(A, A, false));
+        EXPECT(same.n == 1 && near(same.area[0], 1600) && same.lines[0] == 3, "%s: a path united with itself is one 4-vertex square", o);
+        CGPathRef zero = CGPathCreateCopyBySubtractingPath(A, A, false);
+        EXPECT(zero != NULL && CGPathIsEmpty(zero), "%s: a path minus itself is an empty path", o);
+        Subs hole = subs(CGPathCreateCopyBySubtractingPath(A, N, false));
+        EXPECT(hole.n == 2 && near(hole.area[0], 1600) && near(hole.area[1], -100), "%s: a square minus a nested one is the outer ring (1600) then the hole (-100)", o);
+        Subs nest = subs(CGPathCreateCopyByNormalizing(nested, false));
+        EXPECT(nest.n == 1 && near(nest.area[0], 100), "%s: winding normalize of same-direction nested squares is one subpath", o);
+        CGMutablePathRef nest2 = CGPathCreateMutable();
+        CGPathAddRect(nest2, NULL, CGRectMake(0, 0, 60, 60));
+        CGPathAddRect(nest2, NULL, CGRectMake(20, 20, 20, 20));
+        Subs nw = subs(CGPathCreateCopyByNormalizing(nest2, false)), ne = subs(CGPathCreateCopyByNormalizing(nest2, true));
+        EXPECT(nw.n == 1 && near(nw.area[0], 3600), "%s: winding normalize gives one subpath of area 3600", o);
+        EXPECT(ne.n == 2 && near(ne.area[0], 3600) && near(ne.area[1], -400), "%s: even-odd normalize gives the outer ring 3600 and a hole -400", o);
+        CGMutablePathRef bow2 = CGPathCreateMutable();
+        CGPathMoveToPoint(bow2, NULL, 0, 0); CGPathAddLineToPoint(bow2, NULL, 40, 40);
+        CGPathAddLineToPoint(bow2, NULL, 40, 0); CGPathAddLineToPoint(bow2, NULL, 0, 40); CGPathCloseSubpath(bow2);
+        for (int eo = 0; eo < 2; eo++) {
+            Subs bw = subs(CGPathCreateCopyByNormalizing(bow2, eo));
+            EXPECT(bw.n == 2 && near(bw.area[0], 400) && near(bw.area[1], 400), "%s: a bowtie normalizes into two positive triangles of 400 (rule %d)", o, eo);
+        }
+        CGMutablePathRef opn = CGPathCreateMutable();
+        CGPathMoveToPoint(opn, NULL, 0, 0); CGPathAddLineToPoint(opn, NULL, 40, 0); CGPathAddLineToPoint(opn, NULL, 40, 40);
+        Subs ot = subs(CGPathCreateCopyByUnioningPath(opn, F, false));
+        EXPECT(ot.n == 2 && ((near(ot.area[0], 800) && near(ot.area[1], 100)) || (near(ot.area[0], 100) && near(ot.area[1], 800))),
+               "%s: an open triangle is filled as if closed (areas 800 and 100; the order of the subpaths is not matched)", o);
+        CGMutablePathRef emp = CGPathCreateMutable(), lone2 = CGPathCreateMutable();
+        CGPathMoveToPoint(lone2, NULL, 5, 5);
+        Subs ue = subs(CGPathCreateCopyByUnioningPath(A, emp, false)), ul = subs(CGPathCreateCopyByUnioningPath(A, lone2, false));
+        EXPECT(ue.n == 1 && near(ue.area[0], 1600) && ul.n == 1 && near(ul.area[0], 1600), "%s: an empty path or a lone moveto adds nothing to a union", o);
+        CGPathRef ee = CGPathCreateCopyByUnioningPath(emp, emp, false);
+        EXPECT(ee != NULL && CGPathIsEmpty(ee), "%s: empty united with empty is empty", o);
+        EXPECT(!CGPathIntersectsPath(A, emp, false), "%s: nothing intersects an empty path", o);
+        CGMutablePathRef cmany = CGPathCreateMutable();
+        CGPathAddRect(cmany, NULL, CGRectMake(0, 0, 100, 100));
+        CGPathAddRect(cmany, NULL, CGRectMake(30, 30, 40, 40));
+        CGPathAddRect(cmany, NULL, CGRectMake(40, 40, 20, 20));
+        CGPathAddRect(cmany, NULL, CGRectMake(200, 0, 30, 30));
+        CFArrayRef w2 = CGPathCreateSeparateComponents(cmany, false);
+        EXPECT(w2 != NULL && CFArrayGetCount(w2) == 2, "%s: winding gives two components (outer square and far square)", o);
+        if (w2) CFRelease(w2);
+        CGPathRelease(cmany);
+    }
 
     /* random polygons against CGPathContainsPoint under both rules */
     int randomBad = 0, randomPoints = 0;
@@ -289,7 +383,7 @@ int main(void)
             gEvenOdd = eo;
             CGPathRef res[4] = {CGPathCreateCopyByUnioningPath(pa, pb, eo), CGPathCreateCopyByIntersectingPath(pa, pb, eo),
                                 CGPathCreateCopyBySubtractingPath(pa, pb, eo),
-                                CGPathCreateCopyBySymmetricallyDifferencingPath(pa, pb, eo)};
+                                CGPathCreateCopyBySymmetricDifferenceOfPath(pa, pb, eo)};
             int (*want[4])(double, double) = {wantUnion, wantIntersection, wantSubtract, wantXor};
             for (int op = 0; op < 4; op++) {
                 if (res[op] == NULL) {
