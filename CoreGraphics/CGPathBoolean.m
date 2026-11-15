@@ -283,16 +283,19 @@ static CGPBStatus run_region(const CGPBContour *a, size_t na, const CGPBContour 
 }
 
 /* Observed on a real Mac (macOS 26.1, stubs_f2_probe1): a NULL path or mask
-   returns NULL; an empty result is an empty path, not NULL; an open subpath is
+   returns NULL (seen for union and normalize); an empty result is an empty path, not NULL; an open subpath is
    filled as if closed; a lone moveto adds nothing; the outer rings have positive
    signed area, holes negative; collinear vertices are merged.
-   DEVIATION: on the Mac a path with a NaN coordinate is not rejected (building
-   it drops the NaN point, and a union with it returns the other path). Here an
-   input with a NaN or infinite coordinate returns NULL after a message on
-   stderr, deliberately fail-loud, and so does a path too complex for the fixed
-   limits (see CGPathBooleanInternal.h). GUESS: the order of the subpaths of a
-   result is not observed to match (the Mac listed the far square before the
-   open triangle in their union; here the triangle comes first). */
+   DEVIATION (builder, observed): on the Mac the path builder
+   CGPathAddLineToPoint drops a NaN point, so no NaN ever reaches a boolean
+   function and a union with such a path returns the other path. Here the
+   builder keeps the NaN, and an input with a NaN or infinite coordinate returns
+   NULL after a message on stderr, deliberately fail-loud (an app that works on
+   the Mac by relying on the dropped point stops here); so does a path too
+   complex for the fixed limits (see CGPathBooleanInternal.h).
+   DEVIATION: the order of the subpaths of a result differs from the Mac's (it
+   listed the far square before the open triangle in their union; here the
+   triangle comes first); the Mac's ordering rule is unknown. */
 static CGPathRef region_operation(const char *name, CGPathRef path, CGPathRef mask, CGPBOp op,
                                   bool evenOdd)
 {
@@ -345,9 +348,9 @@ CGPathRef CGPathCreateCopyByNormalizing(CGPathRef path, bool evenOddFillRule)
    holes directly inside it; an island inside a hole is a component of its own
    (even-odd: three components for a frame with a hole, an island in the hole and
    a far square); winding: two; an empty path has no components (an empty array).
-   GUESS: the order of the components (the Mac listed the island, then the frame,
-   then the far square; here the order of the outer rings of the normalized
-   path). */
+   DEVIATION: the order of the components differs from the Mac's (it listed the
+   island, then the frame, then the far square; here the order of the outer
+   rings of the normalized path); the Mac's ordering rule is unknown. */
 CFArrayRef CGPathCreateSeparateComponents(CGPathRef path, bool evenOddFillRule)
 {
     if (path == NULL)

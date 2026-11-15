@@ -228,7 +228,7 @@ int main(void)
     CGPathAddLineToPoint(nanPath, NULL, NAN, 1);
     CGPathAddLineToPoint(nanPath, NULL, 1, 0);
     CGPathCloseSubpath(nanPath);
-    EXPECT(CGPathCreateCopyByUnioningPath(nanPath, a, false) == NULL, "DEVIATION from the Mac (which drops the NaN subpath): a NaN coordinate gives NULL, loudly");
+    EXPECT(CGPathCreateCopyByUnioningPath(nanPath, a, false) == NULL, "DEVIATION from the Mac (whose path builder drops the NaN point): a NaN coordinate gives NULL, loudly");
     EXPECT(!CGPathIntersectsPath(nanPath, a, false), "DEVIATION from the Mac: a NaN coordinate answers false, loudly");
     CGPathRelease(nanPath);
 
