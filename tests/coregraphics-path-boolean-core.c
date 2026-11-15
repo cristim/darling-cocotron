@@ -572,6 +572,33 @@ static void stress(void)
     free(tp);
     free(lc);
 
+    /* The pass-2 time case: the same line under 10000 long triangles. The
+       chain limit alone let it run 25 s; the work limit must stop it within
+       the bound (6 s at -O2). */
+    enum { LONG_TRIANGLES = 10000 };
+    CGPBPoint *lt = malloc(3 * LONG_TRIANGLES * sizeof *lt);
+    CGPBContour *lcs = malloc((LONG_TRIANGLES + 1) * sizeof *lcs);
+    lp = malloc((LINE_VERTICES + 2) * sizeof *lp);
+    for (int i = 0; i < LINE_VERTICES; i++)
+        lp[i] = (CGPBPoint) {i, 0};
+    lp[LINE_VERTICES] = (CGPBPoint) {LINE_VERTICES - 1, 1};
+    lp[LINE_VERTICES + 1] = (CGPBPoint) {0, 1};
+    lcs[0] = (CGPBContour) {lp, LINE_VERTICES + 2, true};
+    for (int j = 0; j < LONG_TRIANGLES; j++) {
+        lt[3 * j] = (CGPBPoint) {-1.0 - j, 0};
+        lt[3 * j + 1] = (CGPBPoint) {LINE_VERTICES / 2, -1.0 - j};
+        lt[3 * j + 2] = (CGPBPoint) {LINE_VERTICES + j, 0};
+        lcs[j + 1] = (CGPBContour) {lt + 3 * j, 3, true};
+    }
+    t0 = seconds();
+    st = CGPBRegion(CGPBOpUnion, lcs, LONG_TRIANGLES + 1, NULL, 0, false, false, &r);
+    took = seconds() - t0;
+    EXPECT(st == CGPBStatusTooComplex && r.count == 0, "10000 long triangles on a 200000-vertex line trip a limit (status %d)", st);
+    EXPECT(took < 20, "the long-triangle case failed after %.1f s, bound 20 s (6 s at -O2; it took 25 s before the work limit was lowered)", took);
+    free(lp);
+    free(lt);
+    free(lcs);
+
     enum { SQUARES = 16000 };
     CGPBPoint *sq = malloc(4 * SQUARES * sizeof *sq);
     CGPBContour *cs = malloc(SQUARES * sizeof *cs);
@@ -594,6 +621,26 @@ static void stress(void)
 
 /* A crossing that rounds into the pixel of an input vertex must not replace
    it: the result keeps the input coordinates. The grid step here is 2^-20. */
+/* A diagonal that passes exactly through the corner of an input vertex's
+   pixel touches that pixel and must be routed through the vertex. Extent 1
+   gives a grid step of 2^-39; the vertex is at (1, 0) in steps and the
+   diagonal passes through (0.5, 0.5) in steps, the corner of its pixel. */
+static void corner_touch(void)
+{
+    double step = ldexp(1.0, -39);
+    CGPBPoint upper[3] = {{0, 0}, {1, 1}, {0, 1}};
+    CGPBPoint below[3] = {{step, 0}, {1, 0}, {1, 0.5}};
+    CGPBContour a = {upper, 3, true}, b = {below, 3, true};
+    CGPBResult r;
+    EXPECT(CGPBRegion(CGPBOpUnion, &a, 1, &b, 1, false, false, &r) == CGPBStatusOK, "corner touch union");
+    bool routed = false;
+    for (size_t i = 0; i < r.count; i++)
+        for (size_t k = 0; k < r.rings[i].count; k++)
+            routed |= fabs(ring_area(&r.rings[i])) > 0.4 && r.rings[i].points[k].x == step && r.rings[i].points[k].y == 0;
+    EXPECT(routed, "a segment grazing a pixel corner is routed through that input vertex");
+    CGPBResultFree(&r);
+}
+
 static void kept_vertex(void)
 {
     CGPBPoint tri[3] = {{0, 0}, {1000000, 1000000}, {1000000, 0}};
@@ -653,6 +700,7 @@ int main(int argc, char **argv)
         rng_state ^= (uint64_t) atol(argv[2]) * 0x9E3779B97F4A7C15ull;
     fixtures();
     kept_vertex();
+    corner_touch();
     stress();
     fuzz("int-grid-4", 0, 4, 1, 0, 0, 3000 * scale);
     fuzz("int-grid-8", 0, 8, 1, 0, 0, 3000 * scale);
