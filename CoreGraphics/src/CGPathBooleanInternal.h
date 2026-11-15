@@ -161,16 +161,24 @@ typedef struct {
     VecU32 ids;
     VEC(Edge) edges;
     size_t nlineSegs; /* line segments come first in segs */
-    uint64_t work;    /* elementary steps taken so far, against PB_WORK_LIMIT */
+    uint64_t work;    /* costly steps (segment tests, pixel tests) so far, against PB_WORK_LIMIT */
+    uint64_t cheap;   /* sweep-line moves and scans, about 16 times cheaper each (PB_CHEAP_SHIFT) */
 } Graph;
 
 /* Hard limits, so a pathological path fails loudly (CGPBStatusTooComplex)
    instead of hanging the caller or using unbounded memory (the hot pixels
    and the vertices on the segments, 2^23 in all, bound the edge array to
-   about 300 MB). Measured on the host: a star polygon of 1600
-   points (1.3 million crossings, 640000 result rings) takes 5 s, one of 1800
-   points 7 s, one of 2000 points reaches the work limit after about 8 s, and
-   from 2200 points the crossing limit stops it in 0.1 s. */
+   about 300 MB). The work limit counts costly steps (segment and pixel tests)
+   one each and the sweep-line moves of the labelling a sixteenth each, which
+   is about their relative cost. Measured on the host at -O2:
+   - a star polygon of 1600 points (1.3 million crossings, 640000 result
+     rings) completes in 5 s; 1800 and 2000 points stop at the work limit
+     after 6.5 s; 2200 points and up stop at the crossing limit in 0.1 s;
+   - 200000 collinear input vertices under 100, 1000, 10000, 40000 or 80000
+     long triangles stop after 0.6, 2.6, 6.1, 6.1 and 6.0 s (25 to 48 s with
+     the former limit of 2^33);
+   - 16000 identical squares take 0.01 s.
+   The longest a stopped or finished operation took in these runs is 6.5 s. */
 #ifndef PB_MAX_HOT_PIXELS
 #define PB_MAX_HOT_PIXELS ((size_t) 1 << 21)
 #endif
@@ -178,8 +186,9 @@ typedef struct {
 #define PB_MAX_CHAIN_IDS ((size_t) 1 << 23)
 #endif
 #ifndef PB_WORK_LIMIT
-#define PB_WORK_LIMIT ((uint64_t) 1 << 33)
+#define PB_WORK_LIMIT ((uint64_t) 1 << 30)
 #endif
+#define PB_CHEAP_SHIFT 4
 
 typedef struct {
     const CGPBContour *list;

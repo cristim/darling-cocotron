@@ -118,21 +118,21 @@ CGPBStatus pb_label_edges(Graph *g)
         /* verticals first: the actives are the edges crossing just left of x */
         while (vi < nv && vert[vi].key == x) {
             label_vertical(g, &act, (Edge *) vert[vi++].ptr);
-            g->work += act.n;
+            g->cheap += act.n;
         }
         while (ri < nr && rem[ri].key == x) {
             const Edge *e = rem[ri++].ptr;
             size_t k = 0;
             while (k < act.n && entry_edge(&act.v[k]) != e)
                 k++;
-            g->work += k;
+            g->cheap += k;
             if (k == act.n) {
                 st = CGPBStatusInconsistent;
                 goto done;
             }
             memmove(act.v + k, act.v + k + 1, (act.n - k - 1) * sizeof(AEntry));
             act.n--;
-            g->work += act.n - k + 1;
+            g->cheap += act.n - k + 1;
         }
         size_t inserted = 0, last = 0; /* last: index of the rightmost unlabelled entry */
         while (ii < ni && ins[ii].key == x) {
@@ -153,7 +153,7 @@ CGPBStatus pb_label_edges(Graph *g)
             act.n++;
             last = (inserted == 0 || lo > last) ? lo : last + 1;
             inserted++;
-            g->work += act.n - lo;
+            g->cheap += act.n - lo;
         }
         /* Every edge that starts at x is in place, so one pass over the part
            of the sweep line up to the last of them gives each its winding
@@ -173,9 +173,9 @@ CGPBStatus pb_label_edges(Graph *g)
                 w[0] += a->d[0];
                 w[1] += a->d[1];
             }
-            g->work += last + 1;
+            g->cheap += last + 1;
         }
-        if (g->work > PB_WORK_LIMIT) {
+        if (g->work + (g->cheap >> PB_CHEAP_SHIFT) > PB_WORK_LIMIT) {
             st = CGPBStatusTooComplex;
             goto done;
         }
