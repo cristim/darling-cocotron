@@ -1,11 +1,16 @@
 /* CGPath boolean operations: union, intersection, subtraction, symmetric
-   difference, normalizing, line clipping, component separation and an overlap
-   test.
+   difference, normalizing, component separation and an overlap test.
 
-   Apple's documentation for these functions says nothing about their results,
-   so everything not stated there is a GUESS marked as such. The polygon
+   Apple's documentation for these functions says nothing about their results.
+   What a real Mac does was observed with the probe stubs_f2_probe1 (macOS 26.1,
+   arm64; output in the orchestrator's mac-probe-results/stubs_f2_probe1.txt) and
+   is marked "observed". Anything neither documented nor observed is a GUESS,
+   and every known difference from the Mac is a DEVIATION. The polygon
    algorithm lives in src/CGPathBoolean.c; this file turns paths into polygons
-   and polygons back into paths. */
+   and polygons back into paths.
+
+   The Mac exports no C function for the two line operations (the Swift methods
+   lineSubtracting and lineIntersection), so none is exported here. */
 
 #import "CGConversions.h"
 #import <CoreFoundation/CFArray.h>
@@ -18,11 +23,13 @@
 
 #include "src/CGPathBoolean.h"
 
-/* GUESS (not in the public documentation, not observed): curves are flattened
-   to line segments before the operation, so the result of any boolean
-   operation is made of straight segments only. A real Mac probably keeps
-   curves. The flatness is 1/8192 of the larger side of the box around both
-   inputs' control points, and one curve never becomes more than 1000 segments. */
+/* DEVIATION (observed on a real Mac, macOS 26.1, stubs_f2_probe1): the Mac keeps
+   Bezier curves in the result (a circle united with a square is M L L L L C C C Z,
+   a circle intersected with a square M L L C Z). Here curves are flattened to line
+   segments before the operation, so a result holds only lines. Exact curve
+   booleans are out of scope. The flatness is 1/8192 of the larger side of the
+   box around both inputs' control points, and one curve never becomes more than
+   1000 segments. */
 #define FLATNESS_DIVISOR 8192.0
 #define MAX_SEGMENTS_PER_CURVE 1000
 
@@ -275,10 +282,17 @@ static CGPBStatus run_region(const CGPBContour *a, size_t na, const CGPBContour 
     return CGPBRegion(r->op, a, na, b, nb, r->evenOdd, r->groups, result);
 }
 
-/* GUESS (not in the public documentation, not observed): a NULL path or mask
-   returns NULL, as does an input with a NaN or infinite coordinate (after a
-   message on stderr), and so does a path too complex for the fixed limits
-   (see CGPathBooleanInternal.h). An empty result is an empty path, not NULL. */
+/* Observed on a real Mac (macOS 26.1, stubs_f2_probe1): a NULL path or mask
+   returns NULL; an empty result is an empty path, not NULL; an open subpath is
+   filled as if closed; a lone moveto adds nothing; the outer rings have positive
+   signed area, holes negative; collinear vertices are merged.
+   DEVIATION: on the Mac a path with a NaN coordinate is not rejected (building
+   it drops the NaN point, and a union with it returns the other path). Here an
+   input with a NaN or infinite coordinate returns NULL after a message on
+   stderr, deliberately fail-loud, and so does a path too complex for the fixed
+   limits (see CGPathBooleanInternal.h). GUESS: the order of the subpaths of a
+   result is not observed to match (the Mac listed the far square before the
+   open triangle in their union; here the triangle comes first). */
 static CGPathRef region_operation(const char *name, CGPathRef path, CGPathRef mask, CGPBOp op,
                                   bool evenOdd)
 {
@@ -313,10 +327,10 @@ CGPathRef CGPathCreateCopyBySubtractingPath(CGPathRef path, CGPathRef maskPath,
                             CGPBOpSubtraction, evenOddFillRule);
 }
 
-CGPathRef CGPathCreateCopyBySymmetricallyDifferencingPath(CGPathRef path, CGPathRef maskPath,
+CGPathRef CGPathCreateCopyBySymmetricDifferenceOfPath(CGPathRef path, CGPathRef maskPath,
                                                           bool evenOddFillRule)
 {
-    return region_operation("CGPathCreateCopyBySymmetricallyDifferencingPath", path, maskPath,
+    return region_operation("CGPathCreateCopyBySymmetricDifferenceOfPath", path, maskPath,
                             CGPBOpSymmetricDifference, evenOddFillRule);
 }
 
@@ -326,55 +340,14 @@ CGPathRef CGPathCreateCopyByNormalizing(CGPathRef path, bool evenOddFillRule)
                             evenOddFillRule);
 }
 
-typedef struct {
-    bool keepInside, evenOdd;
-} LineArg;
-
-static CGPBStatus run_lines(const CGPBContour *a, size_t na, const CGPBContour *b, size_t nb,
-                            void *arg, CGPBResult *result)
-{
-    const LineArg *l = arg;
-    return CGPBLines(l->keepInside, a, na, b, nb, l->evenOdd, result);
-}
-
-/* GUESS (not in the public documentation, not observed): the line operations
-   treat the subpaths of `path` as lines (the closing segment of a closed
-   subpath is part of the line, the implicit closing segment of an open one is
-   not) and `maskPath` as a filled region. A piece lying exactly on the mask's
-   boundary counts as inside. The result is open polylines, plus closed
-   subpaths for closed lines kept whole. */
-static CGPathRef line_operation(const char *name, CGPathRef path, CGPathRef mask, bool keepInside,
-                                bool evenOdd)
-{
-    if (path == NULL || mask == NULL)
-        return NULL;
-    LineArg arg = {keepInside, evenOdd};
-    CGPBResult result;
-    if (!run_on_paths(name, path, mask, run_lines, &arg, &result))
-        return NULL;
-    CGPathRef out = path_from_result(&result, 0, true);
-    CGPBResultFree(&result);
-    return out;
-}
-
-CGPathRef CGPathCreateLineSubtractingPath(CGPathRef path, CGPathRef maskPath, bool evenOddFillRule)
-{
-    return line_operation("CGPathCreateLineSubtractingPath", path, maskPath, false,
-                          evenOddFillRule);
-}
-
-CGPathRef CGPathCreateLineIntersectingPath(CGPathRef path, CGPathRef maskPath, bool evenOddFillRule)
-{
-    return line_operation("CGPathCreateLineIntersectingPath", path, maskPath, true,
-                          evenOddFillRule);
-}
-
-/* GUESS (not in the public documentation, not observed): a component is a
-   region the normalized path fills that touches no other: an outer boundary
-   with the holes directly inside it. An island inside a hole is a component of
-   its own. Components come in the order of their outer boundaries in the
-   normalized path, each as a path of its rings. An empty path has no
-   components (an empty array, not NULL). */
+/* Observed on a real Mac (macOS 26.1, stubs_f2_probe1): a component is a region
+   the normalized path fills that touches no other, an outer boundary with the
+   holes directly inside it; an island inside a hole is a component of its own
+   (even-odd: three components for a frame with a hole, an island in the hole and
+   a far square); winding: two; an empty path has no components (an empty array).
+   GUESS: the order of the components (the Mac listed the island, then the frame,
+   then the far square; here the order of the outer rings of the normalized
+   path). */
 CFArrayRef CGPathCreateSeparateComponents(CGPathRef path, bool evenOddFillRule)
 {
     if (path == NULL)
@@ -395,10 +368,11 @@ CFArrayRef CGPathCreateSeparateComponents(CGPathRef path, bool evenOddFillRule)
     return array;
 }
 
-/* GUESS (not in the public documentation, not observed): two paths intersect
-   when the regions they fill share area. Regions that only touch along an edge
-   or at a point do not intersect. A failure (NULL path, NaN coordinate) answers
-   false after a message on stderr. */
+/* Observed on a real Mac (macOS 26.1, stubs_f2_probe1): two paths intersect when
+   the regions they fill share area; regions that only touch along an edge or at a
+   point do not; an empty path intersects nothing; a NULL path answers false.
+   Darling addition: a NULL path or a failure (NaN coordinate, too complex) also
+   prints a message on stderr. */
 bool CGPathIntersectsPath(CGPathRef path1, CGPathRef path2, bool evenOddFillRule)
 {
     if (path1 == NULL || path2 == NULL) {

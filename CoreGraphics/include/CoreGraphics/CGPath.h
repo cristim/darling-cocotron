@@ -163,14 +163,16 @@ COREGRAPHICS_EXPORT void CGPathApplyWithBlock(CGPathRef path,
    subtracting, symmetricDifference, normalized(using:), lineIntersection,
    lineSubtracting, componentsSeparated(using:), intersects(_:using:); macOS 13,
    iOS 16; see developer.apple.com/tutorials/data/documentation/coregraphics/
-   cgpath/union(_:using:).json and its siblings). It documents no C function:
-   the C names and prototypes below are Darling's own guess, not in the public
-   documentation and not observed on a Mac. The fill rule applies to both
-   paths: true is even-odd, false is non-zero winding. A NULL path, a path with
-   a NaN or infinite coordinate, or one too complex for the fixed limits gives
-   NULL (false for CGPathIntersectsPath). The results are made of straight
-   segments, because curves are flattened first (see CGPathBoolean.m for every
-   other guess). */
+   cgpath/union(_:using:).json and its siblings) and documents no C function.
+   A real Mac (macOS 26.1, probe stubs_f2_probe1) exports the seven below under
+   these names and none for the two line operations, which are therefore not
+   declared here. The argument types (path, mask, bool) are inferred from the
+   results the probe saw. The fill rule applies to both paths: true is even-odd,
+   false is non-zero winding. A NULL path gives NULL (false for
+   CGPathIntersectsPath). DEVIATIONS from the Mac: curves are flattened, so a
+   result holds only line segments; a path with a NaN or infinite coordinate, or
+   one too complex for the fixed limits, gives NULL with a message on stderr (see
+   CGPathBoolean.m for the rest). */
 COREGRAPHICS_EXPORT CGPathRef _Nullable
 CGPathCreateCopyByUnioningPath(CGPathRef _Nullable path, CGPathRef _Nullable maskPath,
                                bool evenOddFillRule);
@@ -181,17 +183,11 @@ COREGRAPHICS_EXPORT CGPathRef _Nullable
 CGPathCreateCopyBySubtractingPath(CGPathRef _Nullable path, CGPathRef _Nullable maskPath,
                                   bool evenOddFillRule);
 COREGRAPHICS_EXPORT CGPathRef _Nullable
-CGPathCreateCopyBySymmetricallyDifferencingPath(CGPathRef _Nullable path,
-                                                CGPathRef _Nullable maskPath,
-                                                bool evenOddFillRule);
+CGPathCreateCopyBySymmetricDifferenceOfPath(CGPathRef _Nullable path,
+                                            CGPathRef _Nullable maskPath,
+                                            bool evenOddFillRule);
 COREGRAPHICS_EXPORT CGPathRef _Nullable
 CGPathCreateCopyByNormalizing(CGPathRef _Nullable path, bool evenOddFillRule);
-COREGRAPHICS_EXPORT CGPathRef _Nullable
-CGPathCreateLineSubtractingPath(CGPathRef _Nullable path, CGPathRef _Nullable maskPath,
-                                bool evenOddFillRule);
-COREGRAPHICS_EXPORT CGPathRef _Nullable
-CGPathCreateLineIntersectingPath(CGPathRef _Nullable path, CGPathRef _Nullable maskPath,
-                                 bool evenOddFillRule);
 COREGRAPHICS_EXPORT CFArrayRef _Nullable
 CGPathCreateSeparateComponents(CGPathRef _Nullable path, bool evenOddFillRule);
 COREGRAPHICS_EXPORT bool CGPathIntersectsPath(CGPathRef _Nullable path1,
