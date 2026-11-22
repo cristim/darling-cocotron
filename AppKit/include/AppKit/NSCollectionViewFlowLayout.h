@@ -20,9 +20,15 @@
 #import <AppKit/AppKitExport.h>
 #import <Foundation/NSString.h>
 #import <AppKit/NSCollectionViewLayout.h>
+#import <AppKit/NSCollectionViewLayoutInvalidationContext.h>
 
 APPKIT_EXPORT NSString *const NSCollectionElementKindSectionHeader;
 APPKIT_EXPORT NSString *const NSCollectionElementKindSectionFooter;
+
+typedef NS_ENUM(NSInteger, NSCollectionViewScrollDirection) {
+    NSCollectionViewScrollDirectionVertical,
+    NSCollectionViewScrollDirectionHorizontal,
+};
 
 @interface NSCollectionViewFlowLayout : NSCollectionViewLayout
 {
@@ -36,5 +42,15 @@ APPKIT_EXPORT NSString *const NSCollectionElementKindSectionFooter;
 @property NSEdgeInsets sectionInset;
 @property CGFloat minimumLineSpacing;
 @property CGFloat minimumInteritemSpacing;
+
+@end
+
+@interface NSCollectionViewFlowLayoutInvalidationContext : NSCollectionViewLayoutInvalidationContext {
+    BOOL _invalidateFlowLayoutDelegateMetrics;
+    BOOL _invalidateFlowLayoutAttributes;
+}
+
+@property BOOL invalidateFlowLayoutDelegateMetrics;
+@property BOOL invalidateFlowLayoutAttributes;
 
 @end

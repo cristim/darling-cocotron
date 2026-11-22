@@ -437,6 +437,7 @@ set(AppKit_sources
 	NSATSTypesetter.m
 	NSOpenGLLayer.m
 	NSCollectionViewLayout.m
+	NSCollectionViewCompositionalLayout.m
 
 	NSSharingService.m
 	MacWorkspace.m
@@ -577,6 +578,7 @@ add_framework(AppKit
 		Onyx2D
 		CoreText
 		CoreData
+		CollectionViewCore
 		OpenGL
 		QuartzCore
 		CoreGraphics
@@ -591,6 +593,8 @@ add_framework(AppKit
 
 reexport(AppKit Foundation ${CMAKE_BINARY_DIR}/src/external/foundation/Foundation)
 reexport(AppKit ApplicationServices ${CMAKE_BINARY_DIR}/src/frameworks/ApplicationServices/ApplicationServices)
+# Applications bind the NSCollectionLayout* names to AppKit, so AppKit re-exports the framework that defines them.
+reexport(AppKit CollectionViewCore ${CMAKE_BINARY_DIR}/src/external/cocotron/CollectionViewCore/CollectionViewCore)
 
 # Since macOS 14 the AppKit Swift overlay is part of AppKit.framework, so apps bind symbols such as
 # $sSo6CGRectV6AppKitE4fill5usingySo22NSCompositingOperationV_tF to AppKit. Re-export the overlay from

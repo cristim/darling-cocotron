@@ -136,3 +136,27 @@ NS_INLINE NSDirectionalEdgeInsets NSDirectionalEdgeInsetsMake(CGFloat top, CGFlo
 	NSDirectionalEdgeInsets insets = {top, leading, bottom, trailing};
 	return insets;
 }
+
+// Case order is the documented order; the values are a GUESS (no raw values in
+// the documentation).
+typedef NS_OPTIONS(NSUInteger, NSDirectionalRectEdge) {
+    NSDirectionalRectEdgeNone = 0,
+    NSDirectionalRectEdgeTop = 1 << 0,
+    NSDirectionalRectEdgeLeading = 1 << 1,
+    NSDirectionalRectEdgeBottom = 1 << 2,
+    NSDirectionalRectEdgeTrailing = 1 << 3,
+    NSDirectionalRectEdgeAll = NSDirectionalRectEdgeTop | NSDirectionalRectEdgeLeading |
+                               NSDirectionalRectEdgeBottom | NSDirectionalRectEdgeTrailing,
+};
+
+typedef NS_ENUM(NSInteger, NSRectAlignment) {
+    NSRectAlignmentNone = 0,
+    NSRectAlignmentTop,
+    NSRectAlignmentTopLeading,
+    NSRectAlignmentLeading,
+    NSRectAlignmentBottomLeading,
+    NSRectAlignmentBottom,
+    NSRectAlignmentBottomTrailing,
+    NSRectAlignmentTrailing,
+    NSRectAlignmentTopTrailing,
+};
