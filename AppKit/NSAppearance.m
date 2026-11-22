@@ -18,6 +18,7 @@
 */
 
 #import <AppKit/NSAppearance.h>
+#import <AppKit/NSColor.h>
 
 NSString *const NSAppearanceNameAqua = @"NSAppearanceNameAqua";
 NSString *const NSAppearanceNameDarkAqua = @"NSAppearanceNameDarkAqua";
@@ -66,6 +67,16 @@ static NSAppearance *sCurrentAppearance = nil;
 
 - (NSAppearanceName) name {
     return _name ? _name : NSAppearanceNameAqua;
+}
+
+// How far colorByAdjustingLightnessOfColor:darker: blends towards black or white.
+static const CGFloat NSAppearanceLightnessAdjustment = 0.1;
+
++ (NSColor *) colorByAdjustingLightnessOfColor: (NSColor *) color darker: (BOOL) darker {
+    NSColor *target = darker ? [NSColor blackColor] : [NSColor whiteColor];
+    NSColor *result = [color blendedColorWithFraction: NSAppearanceLightnessAdjustment
+                                              ofColor: target];
+    return result ? result : color;
 }
 
 - (NSAppearanceName) bestMatchFromAppearancesWithNames: (NSArray *) appearances {

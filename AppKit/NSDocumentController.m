@@ -510,6 +510,24 @@ static NSDocumentController *shared = nil;
     }
 }
 
+- (void) openDocumentWithContentsOfURL: (NSURL *) url
+                               display: (BOOL) display
+                     completionHandler: (void (^)(NSDocument *document, BOOL documentWasAlreadyOpen, NSError *error)) completionHandler
+{
+    BOOL wasAlreadyOpen = url != nil && [self documentForURL: url] != nil;
+    NSError *error = nil;
+    NSDocument *document = [self openDocumentWithContentsOfURL: url
+                                                       display: display
+                                                         error: &error];
+    if (document == nil && error == nil)
+        error = [NSError errorWithDomain: NSCocoaErrorDomain
+                                    code: NSFileReadUnknownError
+                                userInfo: nil];
+    if (completionHandler)
+        completionHandler(document, document != nil && wasAlreadyOpen,
+                          document != nil ? nil : error);
+}
+
 - (BOOL) reopenDocumentForURL: (NSURL *) url
             withContentsOfURL: (NSURL *) contentsUL
                         error: (NSError **) error
@@ -861,6 +879,35 @@ static BOOL actionIsDocumentController(SEL selector) {
 {
     NSUnimplementedMethod();
     return 0;
+}
+
+@end
+
+@implementation NSDocumentController (NSDocumentDuplication)
+
+- (id) duplicateDocumentWithContentsOfURL: (NSURL *) url
+                                  copying: (BOOL) duplicateByCopying
+                              displayName: (NSString *) displayNameOrNil
+                                    error: (NSError **) error
+{
+    NSString *type = [self typeForContentsOfURL: url error: error];
+    NSDocument *document = nil;
+    if (type != nil)
+        document = [self makeDocumentForURL: nil
+                          withContentsOfURL: url
+                                     ofType: type
+                                      error: error];
+    if (document == nil) {
+        if (error != NULL && *error == nil)
+            *error = [NSError errorWithDomain: NSCocoaErrorDomain
+                                         code: NSFileReadUnknownError
+                                     userInfo: nil];
+        return nil;
+    }
+    [self addDocument: document];
+    [document makeWindowControllers];
+    [document showWindows];
+    return document;
 }
 
 @end

@@ -1526,4 +1526,40 @@ static int untitled_document_number = 0;
     NSUnimplementedMethod();
 }
 
+- (void) continueActivityUsingBlock: (void (^)(void)) block {
+    if (block)
+        block();
+}
+
+- (void) performActivityWithSynchronousWaiting: (BOOL) waitSynchronously
+                                    usingBlock: (void (^)(void (^activityCompletionHandler)(void))) block
+{
+    if (block)
+        block(^{
+        });
+}
+
+- (void) performAsynchronousFileAccessUsingBlock: (void (^)(void (^fileAccessCompletionHandler)(void))) block {
+    if (block)
+        block(^{
+        });
+}
+
+- (void) browseDocumentVersions: (id) sender {
+}
+
+- (void) invalidateRestorableState {
+}
+
+@end
+
+@implementation NSDocument (NSDocumentViewingAndSaveType)
+
+- (BOOL) isInViewingMode {
+    return NO;
+}
+
+- (void) changeSaveType: (id) sender {
+}
+
 @end

@@ -208,6 +208,7 @@ NSInteger NSBitsPerPixelFromDepth(NSWindowDepth depth) {
 
 @synthesize identifier = _identifier;
 @synthesize accessibilityElement = _isAccessible;
+@synthesize restorationClass = _restorationClass;
 
 static BOOL _allowsAutomaticWindowTabbing;
 
@@ -420,6 +421,7 @@ static BOOL _allowsAutomaticWindowTabbing;
     [_threadToContext release];
     [_undoManager release];
     [_identifier release];
+    [_titlebarAccessoryViewControllers release];
     [super dealloc];
 }
 
@@ -3484,6 +3486,34 @@ static BOOL _allowsAutomaticWindowTabbing;
     }
 
     return _platformWindow;
+}
+
+@end
+
+@implementation NSWindow (NSWindowTitlebarAccessories)
+
+- (NSArray *) titlebarAccessoryViewControllers {
+    return _titlebarAccessoryViewControllers
+            ? [NSArray arrayWithArray: _titlebarAccessoryViewControllers]
+            : [NSArray array];
+}
+
+- (void) addTitlebarAccessoryViewController:
+        (NSTitlebarAccessoryViewController *) controller
+{
+    if (controller == nil)
+        return;
+    if (_titlebarAccessoryViewControllers == nil)
+        _titlebarAccessoryViewControllers = [[NSMutableArray alloc] init];
+    [_titlebarAccessoryViewControllers addObject: controller];
+}
+
+- (NSWindowToolbarStyle) toolbarStyle {
+    return _toolbarStyle;
+}
+
+- (void) setToolbarStyle: (NSWindowToolbarStyle) style {
+    _toolbarStyle = style;
 }
 
 @end

@@ -33,6 +33,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
     NSMutableData *_mutableData;
     int _type;
     BOOL _showsPrintProgressPanel;
+    NSString *_jobTitle;
 }
 
 + (NSPrintOperation *) currentOperation;
@@ -76,4 +77,24 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 - (BOOL) runOperation;
 
+@end
+
+@interface NSPrintOperation (NSJobTitle)
+// Title of the print job (stored; the printing backend doesn't use it).
+- (NSString *) jobTitle;
+- (void) setJobTitle: (NSString *) title;
+@end
+
+@class NSWindow;
+
+@interface NSPrintOperation (NSPrintOperationModal)
+// Deprecated: sets both showsPrintPanel and showsProgressPanel.
+- (void) setShowPanels: (BOOL) flag;
+- (BOOL) showPanels;
+// Runs the operation modally (not as a sheet), then sends didRunSelector
+// (printOperationDidRun:success:contextInfo:) to the delegate.
+- (void) runOperationModalForWindow: (NSWindow *) docWindow
+                           delegate: (id) delegate
+                     didRunSelector: (SEL) didRunSelector
+                        contextInfo: (void *) contextInfo;
 @end

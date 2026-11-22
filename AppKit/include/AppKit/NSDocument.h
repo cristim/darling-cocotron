@@ -269,7 +269,27 @@ typedef enum {
  forSaveOperation: (NSSaveOperationType) saveOperation 
 completionHandler: (void (^)(NSError *errorOrNil)) completionHandler;
 
-- (void)autosaveWithImplicitCancellability: (BOOL) autosavingIsImplicitlyCancellable 
+- (void)autosaveWithImplicitCancellability: (BOOL) autosavingIsImplicitlyCancellable
                          completionHandler: (void (^)(NSError *errorOrNil)) completionHandler;
 
+// Cocotron has no document activity queue: each block runs at once on the
+// calling thread, and completion handlers passed to it do nothing.
+- (void) continueActivityUsingBlock: (void (^)(void)) block;
+- (void) performActivityWithSynchronousWaiting: (BOOL) waitSynchronously
+                                    usingBlock: (void (^)(void (^activityCompletionHandler)(void))) block;
+- (void) performAsynchronousFileAccessUsingBlock: (void (^)(void (^fileAccessCompletionHandler)(void))) block;
+
+// Does nothing: there are no document versions to browse.
+- (void) browseDocumentVersions: (id) sender;
+// Does nothing: Cocotron doesn't restore state.
+- (void) invalidateRestorableState;
+
+@end
+
+@interface NSDocument (NSDocumentViewingAndSaveType)
+// Always NO: there are no document versions to view.
+- (BOOL) isInViewingMode;
+// Private AppKit action of the save panel's file format pop-up. Does nothing:
+// Cocotron's save panel has no such pop-up.
+- (void) changeSaveType: (id) sender;
 @end
