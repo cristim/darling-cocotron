@@ -2928,3 +2928,99 @@ static NSView *viewBeingPrinted = nil;
 }
 
 @end
+
+// Provided by Foundation's NSLayoutAnchor (not imported by Foundation.h).
+@interface NSObject (NSViewAnchorCreation)
+- (instancetype) initWithItem: (id) item attribute: (NSInteger) attribute;
+@end
+
+@implementation NSView (NSViewLayoutState)
+
+- (BOOL) needsLayout {
+    return _needsLayout;
+}
+
+- (void) setNeedsLayout: (BOOL) flag {
+    _needsLayout = flag;
+}
+
+- (BOOL) needsUpdateConstraints {
+    return _needsUpdateConstraints;
+}
+
+- (void) setNeedsUpdateConstraints: (BOOL) flag {
+    _needsUpdateConstraints = flag;
+}
+
+- (BOOL) clipsToBounds {
+    return _clipsToBounds;
+}
+
+- (void) setClipsToBounds: (BOOL) flag {
+    _clipsToBounds = flag;
+}
+
+- (NSRect) preparedContentRect {
+    return _hasPreparedContentRect ? _preparedContentRect : [self visibleRect];
+}
+
+- (void) setPreparedContentRect: (NSRect) rect {
+    _preparedContentRect = rect;
+    _hasPreparedContentRect = YES;
+}
+
+// A new anchor of the named Foundation class, or of NSLayoutAnchor when that
+// subclass is missing; nil when Foundation can't create anchors.
+static id anchorForView(NSView *view, NSString *className,
+                        NSLayoutAttribute attribute)
+{
+    Class cls = NSClassFromString(className);
+    if (cls == Nil)
+        cls = NSClassFromString(@"NSLayoutAnchor");
+    if (cls == Nil ||
+        ![cls instancesRespondToSelector: @selector(initWithItem:attribute:)])
+        return nil;
+    return [[[cls alloc] initWithItem: view attribute: attribute] autorelease];
+}
+
+- (NSLayoutDimension *) widthAnchor {
+    return anchorForView(self, @"NSLayoutDimension", NSLayoutAttributeWidth);
+}
+
+- (NSLayoutDimension *) heightAnchor {
+    return anchorForView(self, @"NSLayoutDimension", NSLayoutAttributeHeight);
+}
+
+- (NSLayoutXAxisAnchor *) leadingAnchor {
+    return anchorForView(self, @"NSLayoutXAxisAnchor", NSLayoutAttributeLeading);
+}
+
+- (NSLayoutXAxisAnchor *) trailingAnchor {
+    return anchorForView(self, @"NSLayoutXAxisAnchor", NSLayoutAttributeTrailing);
+}
+
+- (NSLayoutXAxisAnchor *) leftAnchor {
+    return anchorForView(self, @"NSLayoutXAxisAnchor", NSLayoutAttributeLeft);
+}
+
+- (NSLayoutXAxisAnchor *) rightAnchor {
+    return anchorForView(self, @"NSLayoutXAxisAnchor", NSLayoutAttributeRight);
+}
+
+- (NSLayoutXAxisAnchor *) centerXAnchor {
+    return anchorForView(self, @"NSLayoutXAxisAnchor", NSLayoutAttributeCenterX);
+}
+
+- (NSLayoutYAxisAnchor *) topAnchor {
+    return anchorForView(self, @"NSLayoutYAxisAnchor", NSLayoutAttributeTop);
+}
+
+- (NSLayoutYAxisAnchor *) bottomAnchor {
+    return anchorForView(self, @"NSLayoutYAxisAnchor", NSLayoutAttributeBottom);
+}
+
+- (NSLayoutYAxisAnchor *) centerYAnchor {
+    return anchorForView(self, @"NSLayoutYAxisAnchor", NSLayoutAttributeCenterY);
+}
+
+@end

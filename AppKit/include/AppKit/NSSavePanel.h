@@ -45,6 +45,7 @@ enum {
     NSView *_accessoryView;
 
     IBOutlet NSOutlineView *_outlineView;
+    NSArray *_allowedContentTypes;
 }
 
 @property (copy) NSString *nameFieldStringValue;
@@ -80,6 +81,10 @@ enum {
 - (void) setAccessoryView: (NSView *) view;
 - (void) setCanCreateDirectories: (BOOL) value;
 - (void) setAllowedFileTypes: (NSArray *) value;
+// UTType objects (macOS 11). Setting them also sets allowedFileTypes to their
+// preferred filename extensions, or nil (any file) when none has one.
+- (NSArray *) allowedContentTypes;
+- (void) setAllowedContentTypes: (NSArray *) types;
 - (void) setAllowsOtherFileTypes: (BOOL) value;
 
 - (void) setMessage: (NSString *) message;

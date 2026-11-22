@@ -4087,3 +4087,119 @@ NSString *const NSAllRomanInputSourcesLocaleIdentifier =
 }
 
 @end
+
+@implementation NSTextView (NSFindIndicatorAndPasteboard)
+
+// There's no find indicator animation; make the range visible instead.
+- (void) showFindIndicatorForRange: (NSRange) range {
+    [self scrollRangeToVisible: range];
+}
+
+// No link panel in Cocotron.
+- (void) orderFrontLinkPanel: (id) sender {
+}
+
+// Replaces the selection with the pasteboard's contents of the given type:
+// RTF/RTFD as attributed text, anything string-like as plain text.
+- (BOOL) readSelectionFromPasteboard: (NSPasteboard *) pasteboard
+                                type: (NSString *) type
+{
+    NSData *data = nil;
+    NSAttributedString *attributed = nil;
+
+    if ([type isEqualToString: NSPasteboardTypeRTFD] || [type isEqualToString: NSRTFDPboardType]) {
+        data = [pasteboard dataForType: type];
+        if (data != nil)
+            attributed = [[[NSAttributedString alloc] initWithRTFD: data documentAttributes: NULL] autorelease];
+    } else if ([type isEqualToString: NSPasteboardTypeRTF] || [type isEqualToString: NSRTFPboardType]) {
+        data = [pasteboard dataForType: type];
+        if (data != nil)
+            attributed = [[[NSAttributedString alloc] initWithRTF: data documentAttributes: NULL] autorelease];
+    }
+
+    if (attributed != nil) {
+        NSRange selection = [self selectedRange];
+        if (![self shouldChangeTextInRange: selection replacementString: [attributed string]])
+            return NO;
+        [[self textStorage] replaceCharactersInRange: selection withAttributedString: attributed];
+        [self setSelectedRange: NSMakeRange(selection.location + [attributed length], 0)];
+        [self didChangeText];
+        return YES;
+    }
+
+    NSString *string = [pasteboard stringForType: type];
+    if (string == nil)
+        return NO;
+    [self insertText: string];
+    return YES;
+}
+
+@end
+
+@implementation NSTextView (NSTextViewLayoutOrientationAndHighlights)
+
++ (NSArray *) _textHighlightMenuItems {
+    return [NSArray array];
+}
+
+- (BOOL) usesAdaptiveColorMappingForDarkAppearance {
+    return _usesAdaptiveColorMappingForDarkAppearance;
+}
+
+- (void) setUsesAdaptiveColorMappingForDarkAppearance: (BOOL) flag {
+    _usesAdaptiveColorMappingForDarkAppearance = flag;
+}
+
+- (void) changeLayoutOrientation: (id) sender {
+    [self setLayoutOrientation: [self layoutOrientation] ==
+                                                NSTextLayoutOrientationVertical
+                                        ? NSTextLayoutOrientationHorizontal
+                                        : NSTextLayoutOrientationVertical];
+}
+
+// Sets the paragraph styles' writing direction over the range, with undo, and
+// in the typing attributes when the insertion point is in the range.
+- (void) setBaseWritingDirection: (NSWritingDirection) direction
+                           range: (NSRange) range
+{
+    NSTextStorage *storage = [self textStorage];
+    if (NSMaxRange(range) > [storage length])
+        [NSException raise: NSRangeException
+                    format: @"%@: range %@ beyond length %lu",
+                            NSStringFromSelector(_cmd),
+                            NSStringFromRange(range),
+                            (unsigned long) [storage length]];
+
+    if (range.length > 0) {
+        if (![self shouldChangeTextInRange: range replacementString: nil])
+            return;
+        if (_allowsUndo && self.undoManager) {
+            [self breakUndoCoalescing];
+            NSUndoSetAttributes *undoSetAttributes = [[[NSUndoSetAttributes alloc]
+                    initWithAffectedRange: range
+                            layoutManager: self.layoutManager
+                              undoManager: self.undoManager] autorelease];
+            [[self.undoManager prepareWithInvocationTarget: undoSetAttributes]
+                    undoRedo: storage];
+        }
+        [storage setBaseWritingDirection: direction range: range];
+        [self didChangeText];
+    }
+
+    NSRange selection = [self selectedRange];
+    if (selection.location >= range.location &&
+        selection.location <= NSMaxRange(range)) {
+        NSMutableDictionary *attributes =
+                [[[self typingAttributes] mutableCopy] autorelease];
+        NSParagraphStyle *style =
+                [attributes objectForKey: NSParagraphStyleAttributeName];
+        NSMutableParagraphStyle *changed =
+                [[(style ? style : [NSParagraphStyle defaultParagraphStyle])
+                        mutableCopy] autorelease];
+        [changed setBaseWritingDirection: direction];
+        [attributes setObject: changed forKey: NSParagraphStyleAttributeName];
+        [self setTypingAttributes: attributes];
+    }
+}
+
+@end

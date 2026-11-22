@@ -20,7 +20,9 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSButtonCell.h>
 #import <AppKit/NSControl.h>
 
-@interface NSButton : NSControl
+@interface NSButton : NSControl {
+    BOOL _hasDestructiveAction;
+}
 
 - (BOOL) isTransparent;
 - (NSString *) keyEquivalent;
@@ -66,4 +68,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 - (BOOL) performKeyEquivalent: (NSEvent *) event;
 - (void) performClick: sender;
 
+@end
+
+@interface NSButton (NSDestructiveAction)
+// macOS 11: marks a button whose action is destructive (stored; not drawn differently).
+- (BOOL) hasDestructiveAction;
+- (void) setHasDestructiveAction: (BOOL) value;
 @end

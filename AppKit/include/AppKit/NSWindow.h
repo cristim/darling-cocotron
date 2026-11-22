@@ -247,9 +247,12 @@ APPKIT_EXPORT const NSNotificationName NSWindowDidExposeNotification;
     NSUserInterfaceItemIdentifier _identifier;
 
     BOOL _isAccessible;
+    Class _restorationClass;
 }
 
 @property(class) BOOL allowsAutomaticWindowTabbing;
+// Stored only: Cocotron doesn't restore windows.
+@property(assign) Class restorationClass;
 
 + (NSWindowDepth) defaultDepthLimit;
 
