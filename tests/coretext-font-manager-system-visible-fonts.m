@@ -1,6 +1,6 @@
 // Links CoreText without AppKit. Notes imports CTFontManagerEnableSystemVisibleFonts from CoreText and calls it while launching;
 // without a definition dyld stops the app before any app code runs. The signature is a guess (see CTFontManager.m): the name must
-// exist and calling it must return instead of stopping the process.
+// exist and calling it must return instead of stopping the process; the returned value is not checked.
 #import <CoreText/CoreText.h>
 #import <Foundation/Foundation.h>
 #include <dlfcn.h>
@@ -16,11 +16,7 @@ int main(void)
             NSLog(@"FAIL: CTFontManagerEnableSystemVisibleFonts is defined");
             return 1;
         }
-        if (!enable())
-        {
-            NSLog(@"FAIL: CTFontManagerEnableSystemVisibleFonts reports done");
-            return 1;
-        }
+        enable(); // the result is a guess (CTFontManager.m): only that the call returns is checked
         // fonts stay listed afterwards
         CFArrayRef families = CTFontManagerCopyAvailableFontFamilyNames();
         if (!families)

@@ -372,3 +372,14 @@ bool CTFontDescriptorIsSystemUIFont(CTFontDescriptorRef descriptor) { return fal
 bool CTFontDescriptorIsAppleFont(CTFontDescriptorRef descriptor) { return false; }
 bool CTFontDescriptorHasPostScriptNameAlias(CTFontDescriptorRef descriptor) { return false; }
 bool CTFontDescriptorIsValid(CTFontDescriptorRef descriptor) { return KTCoreTextIsDescriptor(descriptor); }
+
+// GUESS (rung 6): no public header or documentation gives the signature of CTFontDescriptorCopyNameForSystemFontOfWeight, and
+// none is installed. The name says: copy the name of the system font for a weight. Cocotron has one system font whatever the
+// weight (CTFontCreateUIFontForLanguage and +[NSFont systemFontOfSize:] name it "San Francisco"; bold is a trait applied
+// afterwards), so that name is the answer for every weight, as a new CFString. Nothing is read from the argument and nothing
+// is written through it, so a wrong argument or result type cannot corrupt memory. Tried first: NULL, which makes the cache's
+// +[NSFont systemFontOfSize:weight:] stop with a silent SIGTRAP instead of the named abort.
+CFStringRef CTFontDescriptorCopyNameForSystemFontOfWeight(CGFloat weight)
+{
+    return CFStringCreateCopy(kCFAllocatorDefault, CFSTR("San Francisco"));
+}

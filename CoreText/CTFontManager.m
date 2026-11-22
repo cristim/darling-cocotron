@@ -94,9 +94,10 @@ bool CTFontManagerUnregisterFontsForURL(CFURLRef fontURL, CTFontManagerScope sco
 
 // GUESS (rung 6): no public header or documentation gives the signature of CTFontManagerEnableSystemVisibleFonts, and the name
 // is all that is known (Notes imports it and calls it while launching). Cocotron CoreText has no set of installed fonts that
-// are hidden from a process, so every font is already visible and the request has nothing to do. The bool result is also a
-// guess (true: done); a caller that declares the function void ignores it.
+// are hidden from a process, so every font is already visible and the request has nothing to do. It returns 0 (false, or NULL
+// if the real result is a pointer or error object): a caller that releases or dereferences a result stops at NULL, not at 1,
+// and Notes launches past this call with either value (tried both), so nothing needs "true".
 bool CTFontManagerEnableSystemVisibleFonts(void)
 {
-    return true;
+    return false;
 }
