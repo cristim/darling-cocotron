@@ -56,7 +56,12 @@ APPKIT_EXPORT NSString *const NSScrollViewDidLiveScrollNotification;
     CGFloat _magnification;
     CGFloat _minMagnification;
     CGFloat _maxMagnification;
+    BOOL _automaticallyAdjustsContentInsets;
+    NSEdgeInsets _contentInsets;
 }
+
+@property BOOL automaticallyAdjustsContentInsets;
+@property NSEdgeInsets contentInsets;
 
 + (NSSize) frameSizeForContentSize: (NSSize) contentSize
              hasHorizontalScroller: (BOOL) hasHorizontalScroller

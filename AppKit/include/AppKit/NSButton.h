@@ -22,6 +22,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 @interface NSButton : NSControl
 
++ (instancetype) buttonWithImage: (NSImage *) image target: (id) target action: (SEL) action;
+
 - (BOOL) isTransparent;
 - (NSString *) keyEquivalent;
 - (NSEventModifierFlags) keyEquivalentModifierMask;

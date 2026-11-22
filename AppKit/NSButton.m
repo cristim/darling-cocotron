@@ -33,6 +33,18 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
     return [NSButtonCell class];
 }
 
++ (instancetype) buttonWithImage: (NSImage *) image target: (id) target action: (SEL) action {
+    NSButton *button = [[[self alloc] initWithFrame: NSZeroRect] autorelease];
+    [button setButtonType: NSMomentaryPushInButton];
+    [button setBezelStyle: NSRoundedBezelStyle];
+    [button setImage: image];
+    [button setImagePosition: NSImageOnly];
+    [button setTarget: target];
+    [button setAction: action];
+    [button sizeToFit];
+    return button;
+}
+
 - initWithCoder: (NSCoder *) coder {
     [super initWithCoder: coder];
 

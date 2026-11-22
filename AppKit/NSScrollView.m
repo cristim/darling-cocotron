@@ -179,6 +179,7 @@ static Class _rulerViewClass = nil;
                 [[keyed decodeObjectForKey: @"NSHeaderClipView"] retain];
         _cornerView = [[keyed decodeObjectForKey: @"NSCornerView"] retain];
         _backgroundColor = [[NSColor controlBackgroundColor] copy];
+        _automaticallyAdjustsContentInsets = YES;
 
         BOOL copyOnScroll = (flags & 0x80) ? YES : NO;
         if (copyOnScroll) {
@@ -422,6 +423,7 @@ static Class _rulerViewClass = nil;
     _drawsBackground = YES;
     _borderType = NSNoBorder;
     _backgroundColor = [[NSColor controlBackgroundColor] copy];
+    _automaticallyAdjustsContentInsets = YES;
 
     [self setLineScroll: 1.0];
     [self setPageScroll: 10.0]; // entirely arbitrary
@@ -845,6 +847,23 @@ static Class _rulerViewClass = nil;
 
     if (_maxMagnification < _magnification)
         [self setMagnification: value];
+}
+
+// Stored only: the clip view doesn't apply content insets yet.
+- (BOOL) automaticallyAdjustsContentInsets {
+    return _automaticallyAdjustsContentInsets;
+}
+
+- (void) setAutomaticallyAdjustsContentInsets: (BOOL) value {
+    _automaticallyAdjustsContentInsets = value;
+}
+
+- (NSEdgeInsets) contentInsets {
+    return _contentInsets;
+}
+
+- (void) setContentInsets: (NSEdgeInsets) insets {
+    _contentInsets = insets;
 }
 
 - (void) setAllowsMagnification: (BOOL) value {

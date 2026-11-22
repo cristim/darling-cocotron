@@ -1425,6 +1425,14 @@ static BOOL _allowsAutomaticWindowTabbing;
     return [_sheetContext sheet];
 }
 
+- (NSWindow *) sheetParent {
+    for (NSWindow *window in [NSApp windows]) {
+        if (window != self && [window attachedSheet] == self)
+            return window;
+    }
+    return nil;
+}
+
 - (id) windowController {
     return _windowController;
 }

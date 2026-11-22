@@ -23,9 +23,11 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
     id _delegate;
     SEL _errorAction;
     CGFloat _preferredMaxLayoutWidth;
+    BOOL _automaticTextCompletionEnabled;
 }
 
 @property CGFloat preferredMaxLayoutWidth;
+@property(getter=isAutomaticTextCompletionEnabled) BOOL automaticTextCompletionEnabled;
 
 - delegate;
 - (void) setDelegate: delegate;
