@@ -19,6 +19,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 #import <AppKit/NSBezierPath.h>
 #import <AppKit/NSColor.h>
+#import <AppKit/NSColorSpace.h>
 #import <AppKit/NSColor_CGColor.h>
 #import <AppKit/NSColor_catalog.h>
 #import <AppKit/NSImage.h>
@@ -458,6 +459,43 @@ NSNotificationName const NSSystemColorsDidChangeNotification = @"NSSystemColorsD
 
 + (NSColor *) labelColor {
     return [NSColor colorWithCatalogName: @"System" colorName: @"labelColor"];
+}
+
+// NSDisplay.m
+NSColor *NSColorGetCatalogColor(NSColorListName catalogName,
+                                NSColorName colorName);
+
+// A System catalog color that display backends may not know: the value a
+// backend registered in the catalog, else the given default.
+static NSColor *systemCatalogColor(NSColorName name, NSColor *fallback) {
+    NSColor *color = NSColorGetCatalogColor(@"System", name);
+    return [NSColor_catalog colorWithCatalogName: @"System"
+                                       colorName: name
+                                           color: color ? color : fallback];
+}
+
+// Label text at decreasing emphasis: black with less alpha than labelColor.
++ (NSColor *) secondaryLabelColor {
+    return systemCatalogColor(@"secondaryLabelColor",
+                              [NSColor colorWithCalibratedWhite: 0.0 alpha: 0.5]);
+}
+
++ (NSColor *) tertiaryLabelColor {
+    return systemCatalogColor(@"tertiaryLabelColor",
+                              [NSColor colorWithCalibratedWhite: 0.0 alpha: 0.26]);
+}
+
++ (NSColor *) quaternaryLabelColor {
+    return systemCatalogColor(@"quaternaryLabelColor",
+                              [NSColor colorWithCalibratedWhite: 0.0 alpha: 0.1]);
+}
+
++ (NSColor *) systemRedColor {
+    return systemCatalogColor(@"systemRedColor",
+                              [NSColor colorWithCalibratedRed: 1.0
+                                                        green: 0.23
+                                                         blue: 0.19
+                                                        alpha: 1.0]);
 }
 
 + (NSColor *) unemphasizedSelectedTextColor {
@@ -1027,6 +1065,52 @@ static void releasePatternInfo(void *info) {
     }
 
     return NSColor_ignoresAlpha;
+}
+
+@end
+
+@implementation NSColor (NSColorSpaceConversion)
+
+// Converts to a calibrated grayscale color for monochrome color spaces and to
+// calibrated RGB otherwise. Returns nil for a nil color space or a color whose
+// components can't be converted.
+- (NSColor *) colorUsingColorSpace: (NSColorSpace *) space {
+    if (space == nil)
+        return nil;
+
+    CGColorSpaceRef cgSpace = [space CGColorSpace];
+    BOOL gray = cgSpace != NULL &&
+                CGColorSpaceGetModel(cgSpace) == kCGColorSpaceModelMonochrome;
+
+    // Named conversion first; not every NSColor subclass implements it (e.g.
+    // CGColor-backed colors), so fall back to the CGColor's components.
+    @try {
+        NSColor *converted = [self colorUsingColorSpaceName:
+                gray ? NSCalibratedWhiteColorSpace : NSCalibratedRGBColorSpace];
+        if (converted != nil)
+            return converted;
+    } @catch (NSException *exception) {
+    }
+
+    CGColorRef cgColor = [self respondsToSelector: @selector(CGColor)] ? [self CGColor] : NULL;
+    if (cgColor == NULL)
+        return nil;
+    size_t count = CGColorGetNumberOfComponents(cgColor);
+    const CGFloat *c = CGColorGetComponents(cgColor);
+    if (c == NULL)
+        return nil;
+
+    if (count == 4) { // RGBA
+        if (gray)
+            return [NSColor colorWithCalibratedWhite: (c[0] + c[1] + c[2]) / 3 alpha: c[3]];
+        return [NSColor colorWithCalibratedRed: c[0] green: c[1] blue: c[2] alpha: c[3]];
+    }
+    if (count == 2) { // white + alpha
+        if (gray)
+            return [NSColor colorWithCalibratedWhite: c[0] alpha: c[1]];
+        return [NSColor colorWithCalibratedRed: c[0] green: c[0] blue: c[0] alpha: c[1]];
+    }
+    return nil;
 }
 
 @end

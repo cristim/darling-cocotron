@@ -73,6 +73,9 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 - (void) rightMouseDown: (NSEvent *) event;
 - (void) rightMouseDragged: (NSEvent *) event;
 
+// Does nothing: Cocotron doesn't save or restore window state.
+- (void) invalidateRestorableState;
+
 @end
 
 @interface NSResponder (NSResponder_keyBindings)
