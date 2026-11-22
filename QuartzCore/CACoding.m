@@ -195,20 +195,21 @@ CGPathRef CADecodePath(NSCoder *coder, NSString *key) {
     if (length % sizeof(double) != 0)
         malformed(key, @"truncated path");
     size_t count = length / sizeof(double), i = 0;
-    double v[count > 0 ? count : 1];
-    if (count > 0)
-        memcpy(v, bytes, length);
 
     CGMutablePathRef path = CGPathCreateMutable();
     while (i < count) {
-        double type = v[i++];
-        size_t n = pointCount((CGPathElementType) type);
-        if (type != (int) type || type < kCGPathElementMoveToPoint || type > kCGPathElementCloseSubpath ||
-            i + 2 * n > count) {
+        double type, p[6];
+        memcpy(&type, bytes + i++ * sizeof(double), sizeof(double));
+        if (!(type >= kCGPathElementMoveToPoint && type <= kCGPathElementCloseSubpath) || type != (int) type) {
             CGPathRelease(path);
             malformed(key, @"bad path element");
         }
-        const double *p = v + i;
+        size_t n = pointCount((CGPathElementType) type);
+        if (i + 2 * n > count) {
+            CGPathRelease(path);
+            malformed(key, @"truncated path element");
+        }
+        memcpy(p, bytes + i * sizeof(double), 2 * n * sizeof(double));
         switch ((CGPathElementType) type) {
         case kCGPathElementMoveToPoint:
             CGPathMoveToPoint(path, NULL, p[0], p[1]);
@@ -273,8 +274,8 @@ CGImageRef CADecodeImage(NSCoder *coder, NSString *key) {
     int64_t bytesPerRow = [coder decodeInt64ForKey: subkey(key, @".bytesPerRow")];
     NSUInteger length = 0;
     const uint8_t *bytes = [coder decodeBytesForKey: key returnedLength: &length];
-    if (width <= 0 || height <= 0 || bpc <= 0 || bpp < bpc || bytesPerRow * 8 < width * bpp ||
-        length != (NSUInteger)(height * bytesPerRow)) {
+    if (width <= 0 || height <= 0 || bpc <= 0 || bpp < bpc || bpp > 128 || bytesPerRow <= 0 ||
+        length % height != 0 || (int64_t)(length / height) != bytesPerRow || width > bytesPerRow * 8 / bpp) {
         CGColorSpaceRelease(space);
         malformed(key, @"inconsistent image size");
     }
