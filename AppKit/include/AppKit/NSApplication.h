@@ -295,6 +295,7 @@ typedef NS_OPTIONS(NSInteger, NSWindowListOptions) {
 - (void) _windowDidBecomeActive: (NSWindow *) window;
 - (void) _windowWillBecomeDeactive: (NSWindow *) window;
 - (void) _windowDidBecomeDeactive: (NSWindow *) window;
+- (void) _windowDidClose: (NSWindow *) window;
 
 @end
 

@@ -676,7 +676,17 @@ NSApplication *NSApp = nil;
     }
 }
 
+static BOOL _windowClosedSinceLastCheck = NO;
+
+- (void) _windowDidClose: (NSWindow *) window {
+    _windowClosedSinceLastCheck = YES;
+}
+
 - (void) _checkForTerminate {
+    if (!_windowClosedSinceLastCheck)
+        return;
+    _windowClosedSinceLastCheck = NO;
+
     int count = [_windows count];
 
     while (--count >= 0) {
@@ -687,7 +697,10 @@ NSApplication *NSApp = nil;
         }
     }
 
-    [self terminate: self];
+    if ([_delegate respondsToSelector: @selector
+                   (applicationShouldTerminateAfterLastWindowClosed:)] &&
+        [_delegate applicationShouldTerminateAfterLastWindowClosed: self])
+        [self terminate: self];
 }
 
 - (void) _checkForAppActivation {

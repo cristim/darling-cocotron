@@ -2185,6 +2185,7 @@ static BOOL _allowsAutomaticWindowTabbing;
                               withObject: self];
 
     [self postNotificationName: NSWindowWillCloseNotification];
+    [NSApp _windowDidClose: self];
 
     if (_releaseWhenClosed)
         [self autorelease];
