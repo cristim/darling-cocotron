@@ -38,6 +38,19 @@
 #import <AppKit/NSPopUpWindow.h>
 #import <objc/message.h>
 #include <errno.h>
+#include <time.h>
+
+static BOOL WaylandScrollTraceEnabled(void) {
+    static int enabled = -1;
+    if (enabled < 0) enabled = getenv("DARLING_WAYLAND_TRACE_SCROLL") ? 1 : 0;
+    return enabled != 0;
+}
+
+static double WaylandScrollTraceTime(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (double)ts.tv_sec + (double)ts.tv_nsec / 1000000000.0;
+}
 #include <poll.h>
 #include <string.h>
 #include <strings.h>
@@ -1031,6 +1044,8 @@ static NSString *stringWithCodepoint(uint32_t codepoint) {
     // One wheel notch is 10 units, scrolling down is positive; the X11 backend
     // reports a notch up as deltaY 1.
     CGFloat delta = -value / 10.0;
+    if (WaylandScrollTraceEnabled())
+        NSLog(@"scrolltrace axis t=%.6f axis=%u value=%.3f delta=%.3f", WaylandScrollTraceTime(), axis, value, delta);
     NSEvent *event = [NSEvent
             mouseEventWithType: NSScrollWheel
                       location: [window transformPoint: _pointerSurfacePoint]

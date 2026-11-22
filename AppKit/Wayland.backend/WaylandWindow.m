@@ -36,6 +36,19 @@
 #include <errno.h>
 #include <string.h>
 #include <sys/mman.h>
+#include <time.h>
+
+static BOOL WaylandScrollTraceEnabled(void) {
+    static int enabled = -1;
+    if (enabled < 0) enabled = getenv("DARLING_WAYLAND_TRACE_SCROLL") ? 1 : 0;
+    return enabled != 0;
+}
+
+static double WaylandScrollTraceTime(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (double)ts.tv_sec + (double)ts.tv_nsec / 1000000000.0;
+}
 #include <unistd.h>
 #include <limits.h>
 #import "WaylandScale.h"
@@ -825,6 +838,9 @@ static void sendRequest(struct wl_proxy *proxy, uint32_t opcode, uint32_t flags)
         memcpy((uint8_t *) buffer->data + row * width * 4,
                pixels + row * sourceStride, width * 4);
 
+    if (WaylandScrollTraceEnabled())
+        NSLog(@"scrolltrace present t=%.6f size=%zux%zu bytes=%zu", WaylandScrollTraceTime(), width, height, width * height * 4);
+
     union wl_argument args[4] = {{.o = (struct wl_object *) buffer->buffer},
                                  {.i = 0},
                                  {.i = 0}};
@@ -854,6 +870,8 @@ static void sendRequest(struct wl_proxy *proxy, uint32_t opcode, uint32_t flags)
                                          WaylandObjectFrameCallback, self);
 
     sendRequest(_surface, WP_SURFACE_COMMIT, 0);
+    if (WaylandScrollTraceEnabled())
+        NSLog(@"scrolltrace commit t=%.6f size=%zux%zu", WaylandScrollTraceTime(), width, height);
     buffer->busy = YES;
     _needsPresent = NO;
     [_display flush];
@@ -921,6 +939,8 @@ static void sendRequest(struct wl_proxy *proxy, uint32_t opcode, uint32_t flags)
 
     case WaylandObjectFrameCallback:
         if (proxy == _frameCallback) {
+            if (WaylandScrollTraceEnabled())
+                NSLog(@"scrolltrace frame-done t=%.6f", WaylandScrollTraceTime());
             WL.wl_proxy_destroy(_frameCallback);
             _frameCallback = NULL;
             [self presentIfPossible];
