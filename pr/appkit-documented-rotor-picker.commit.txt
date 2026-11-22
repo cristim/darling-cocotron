@@ -1,0 +1,30 @@
+feat(appkit): add NSAccessibilityCustomRotor and NSSharingServicePickerToolbarItem
+
+A macOS app booted under the dyld shared cache reports the AppKit class
+and metaclass exports of NSAccessibilityCustomRotor, NSSharingServicePickerToolbarItem as kept: the Cocotron stand-in has none,
+so cache code keeps pointing at cache classes that objc never registered.
+Each is documented by Apple, so the class is added here (class and metaclass
+both exported).
+
+Rung 3 (public documentation), one page per class:
+- https://developer.apple.com/documentation/appkit/nsaccessibilitycustomrotor
+- https://developer.apple.com/documentation/appkit/nsaccessibilitycustomrotor/rotortype
+- https://developer.apple.com/documentation/appkit/nssharingservicepickertoolbaritem
+
+Behaviour:
+- NSAccessibilityCustomRotor: NSObject; both initializers, type, label, itemSearchDelegate, itemLoadingDelegate and the NSAccessibilityCustomRotorType constants.
+- NSSharingServicePickerToolbarItem: NSToolbarItem; delegate, the delegate protocol, other messages logged once.
+
+GUESS (rung 6, nothing above answers it; confirm on a real Mac):
+- The NSAccessibilityCustomRotorType values (names only on the page): 0 for Custom, then the documented order.
+- NSAccessibilityCustomRotorItemSearchDelegate, NSAccessibilityElementLoading and NSSharingServicePickerToolbarItemDelegate are declared empty: their members were not recorded.
+- A label rotor has type Custom and a type rotor has an empty label.
+- activityItemsConfiguration (a Mac Catalyst property of a UIKit type) is not declared.
+
+Verified in a plain arm64 guest: the new test checks class, metaclass,
+superclass, property types and the documented defaults and passes; the same
+test fails against the #530 base, where the symbols are absent.
+
+Refs VibeDarling/darling#1475
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>

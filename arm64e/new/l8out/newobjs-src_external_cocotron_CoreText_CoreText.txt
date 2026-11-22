@@ -1,0 +1,2 @@
+src/external/cocotron/CoreText/CMakeFiles/CoreText.dir/CTEmojiImageStrike.m.o
+src/external/cocotron/CoreText/CMakeFiles/CoreText.dir/NSFontCollection.m.o

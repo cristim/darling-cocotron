@@ -1,0 +1,31 @@
+feat(appkit): add NSBackgroundExtensionView, NSGlassEffectView and NSPICTImageRep
+
+A macOS app booted under the dyld shared cache reports the AppKit class
+and metaclass exports of NSBackgroundExtensionView, NSGlassEffectView, NSPICTImageRep as kept: the Cocotron stand-in has none,
+so cache code keeps pointing at cache classes that objc never registered.
+Each is documented by Apple, so the class is added here (class and metaclass
+both exported).
+
+Rung 3 (public documentation), one page per class:
+- https://developer.apple.com/documentation/appkit/nsbackgroundextensionview
+- https://developer.apple.com/documentation/appkit/nsglasseffectview
+- https://developer.apple.com/documentation/appkit/nsglasseffectview/style-swift.enum
+- https://developer.apple.com/documentation/appkit/nspictimagerep
+
+Behaviour:
+- NSBackgroundExtensionView: NSView; contentView becomes a subview, automaticallyPlacesContentView defaults to YES as documented.
+- NSGlassEffectView: NSView; contentView, cornerRadius, tintColor, style and effectIsInteractive (default NO as documented), plus NSGlassEffectViewStyle.
+- NSPICTImageRep: NSImageRep; initWithData:, PICTRepresentation, boundingBox.
+
+GUESS (rung 6, nothing above answers it; confirm on a real Mac):
+- Nothing renders an extension effect or glass; the content view keeps its own frame.
+- Glass defaults other than effectIsInteractive: zero corner radius, Regular style; NSGlassEffectViewStyle values Regular 0, Clear 1 (names only on the page).
+- There is no PICT decoder (imageRepWithData: forwards to initWithData:): initWithData: accepts any non-empty data, boundingBox is empty, PICTRepresentation returns the data as given (the page says a 512-byte header is dropped), other messages are logged once.
+
+Verified in a plain arm64 guest: the new test checks class, metaclass,
+superclass, property types and the documented defaults and passes; the same
+test fails against the #530 base, where the symbols are absent.
+
+Refs VibeDarling/darling#1475
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>

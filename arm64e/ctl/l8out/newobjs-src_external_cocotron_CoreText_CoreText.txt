@@ -1,0 +1,1 @@
+src/external/cocotron/CoreText/CMakeFiles/CoreText.dir/CTEmojiImageStrike.m.o

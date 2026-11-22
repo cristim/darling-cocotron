@@ -1,0 +1,24 @@
+feat(quartzcore): add CATiledLayer
+
+A macOS app booted under the dyld shared cache reports the QuartzCore class
+and metaclass exports of CATiledLayer as kept: the Cocotron stand-in has none,
+so cache code keeps pointing at cache classes that objc never registered.
+Each is documented by Apple, so the class is added here (class and metaclass
+both exported).
+
+Rung 3 (public documentation), one page per class:
+- https://developer.apple.com/documentation/quartzcore/catiledlayer
+
+Behaviour:
+- CATiledLayer: CALayer; levelsOfDetail (1), levelsOfDetailBias (0), tileSize (256 by 256) and +fadeDuration (0.25), all documented defaults; initWithLayer: copies them.
+
+GUESS (rung 6, nothing above answers it; confirm on a real Mac):
+- The layer does not draw: tiles are never requested.
+
+Verified in a plain arm64 guest: the new test checks class, metaclass,
+superclass, property types and the documented defaults and passes; the same
+test fails against the #530 base, where the symbols are absent.
+
+Refs VibeDarling/darling#1475
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>

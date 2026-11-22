@@ -1,0 +1,28 @@
+feat(appkit): add NSButtonTouchBarItem and NSStepperTouchBarItem
+
+A macOS app booted under the dyld shared cache reports the AppKit class
+and metaclass exports of NSButtonTouchBarItem, NSStepperTouchBarItem as kept: the Cocotron stand-in has none,
+so cache code keeps pointing at cache classes that objc never registered.
+Each is documented by Apple, so the class is added here (class and metaclass
+both exported).
+
+Rung 3 (public documentation), one page per class:
+- https://developer.apple.com/documentation/appkit/nsbuttontouchbaritem
+- https://developer.apple.com/documentation/appkit/nssteppertouchbaritem
+
+Behaviour:
+- NSButtonTouchBarItem: NSTouchBarItem; the three factories and the properties title, image, bezelColor, enabled, target, action, customizationLabel (null_resettable).
+- NSStepperTouchBarItem: NSTouchBarItem; both factories, target, action, value, minValue (0.0), maxValue (59.0), increment (1.0) and customizationLabel, with the documented defaults.
+
+GUESS (rung 6, nothing above answers it; confirm on a real Mac):
+- None for image and bezelColor: the page documents both UIImage/UIColor (Catalyst) and NSImage/NSColor; the NSImage and NSColor ones are used.
+- Button defaults the page omits: enabled YES, empty title, empty customization label. Stepper value starts at 0.
+- The stepper keeps its formatter or drawing handler but nothing draws on a Touch Bar.
+
+Verified in a plain arm64 guest: the new test checks class, metaclass,
+superclass, property types and the documented defaults and passes; the same
+test fails against the #530 base, where the symbols are absent.
+
+Refs VibeDarling/darling#1475
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>

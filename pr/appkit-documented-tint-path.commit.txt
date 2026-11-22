@@ -1,0 +1,29 @@
+feat(appkit): add NSTintConfiguration and NSPathControlItem
+
+A macOS app booted under the dyld shared cache reports the AppKit class
+and metaclass exports of NSTintConfiguration, NSPathControlItem as kept: the Cocotron stand-in has none,
+so cache code keeps pointing at cache classes that objc never registered.
+Each is documented by Apple, so the class is added here (class and metaclass
+both exported).
+
+Rung 3 (public documentation), one page per class:
+- https://developer.apple.com/documentation/appkit/nstintconfiguration
+- https://developer.apple.com/documentation/appkit/nspathcontrolitem
+
+Behaviour:
+- NSTintConfiguration: NSObject, NSCopying, NSSecureCoding; the two documented factories, the default and monochrome class properties (shared instances), adaptsToUserAccentColor, baseTintColor, equivalentContentTintColor.
+- NSPathControlItem: NSObject with attributedTitle, image, title and the read-only URL.
+
+GUESS (rung 6, nothing above answers it; confirm on a real Mac):
+- equivalentContentTintColor returns the base tint color (the page does not say how it is derived).
+- The default and monochrome configurations have no base color and do not adapt.
+- The NSCoding keys NSBaseTintColor and NSAdaptsToUserAccentColor are ours.
+- title and attributedTitle are independent and start empty; URL stays nil (the item is created by NSPathControl, which is not changed).
+
+Verified in a plain arm64 guest: the new test checks class, metaclass,
+superclass, property types and the documented defaults and passes; the same
+test fails against the #530 base, where the symbols are absent.
+
+Refs VibeDarling/darling#1475
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>

@@ -1,0 +1,31 @@
+feat(coretext): serve NSFontCollection and NSMutableFontCollection from CoreText
+
+A macOS app booted under the dyld shared cache reports the CoreText class
+and metaclass exports of NSFontCollection, NSMutableFontCollection as kept: the Cocotron stand-in has none,
+so cache code keeps pointing at cache classes that objc never registered.
+Each is documented by Apple, so the class is added here (class and metaclass
+both exported).
+
+Rung 3 (public documentation), one page per class:
+- https://developer.apple.com/documentation/appkit/nsfontcollection
+- https://developer.apple.com/documentation/appkit/nsfontcollection/visibility
+- https://developer.apple.com/documentation/appkit/nsmutablefontcollection
+
+Behaviour:
+- The class moves from AppKit to CoreText (macOS exports it from CoreText); the header stays in AppKit. NSFontCollection gets its documented factories, class properties, query, exclusion and matching accessors, copy, mutableCopy and coding; NSMutableFontCollection adds the setters, addQueryForDescriptors: and removeQueryForDescriptors:.
+- AppKit no longer defines the class and still links it through CoreText.
+
+GUESS (rung 6, nothing above answers it; confirm on a real Mac):
+- NSFontCollectionVisibility values (names only on the page): Process 1, User 2, Computer 4.
+- There is no font matching: matchingDescriptors and the matching methods return an empty array; showing, hiding and renaming a named collection return NO; allFontCollectionNames is empty.
+- The notification and key constants the page lists are not defined.
+- Messages the old stub swallowed (it forwarded every unknown message) now raise as unrecognized selectors.
+- The coding keys NSQueryDescriptors and NSExclusionDescriptors are ours.
+
+Verified in a plain arm64 guest: the new test checks class, metaclass,
+superclass, property types and the documented defaults and passes; the same
+test fails against the #530 base, where the symbols are absent.
+
+Refs VibeDarling/darling#1475
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>

@@ -1,0 +1,28 @@
+feat(quartzcore): add CAEDRMetadata and CAMetalDisplayLink
+
+A macOS app booted under the dyld shared cache reports the QuartzCore class
+and metaclass exports of CAEDRMetadata, CAMetalDisplayLink as kept: the Cocotron stand-in has none,
+so cache code keeps pointing at cache classes that objc never registered.
+Each is documented by Apple, so the class is added here (class and metaclass
+both exported).
+
+Rung 3 (public documentation), one page per class:
+- https://developer.apple.com/documentation/quartzcore/caedrmetadata
+- https://developer.apple.com/documentation/quartzcore/cametaldisplaylink
+
+Behaviour:
+- CAEDRMetadata: NSObject, NSCopying, NSSecureCoding; the documented factories and class properties return empty metadata, available is NO.
+- CAMetalDisplayLink: NSObject; initWithMetalLayer:, the four properties, addToRunLoop:forMode:, removeFromRunLoop:forMode: and invalidate keep their state and never call the delegate.
+
+GUESS (rung 6, nothing above answers it; confirm on a real Mac):
+- available is NO (no default is documented).
+- CAMetalDisplayLinkDelegate is declared empty (method not recorded); CAMetalDisplayLinkUpdate is only forward declared.
+- Defaults the page omits: not paused, zero frame rate range, zero latency.
+
+Verified in a plain arm64 guest: the new test checks class, metaclass,
+superclass, property types and the documented defaults and passes; the same
+test fails against the #530 base, where the symbols are absent.
+
+Refs VibeDarling/darling#1475
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>

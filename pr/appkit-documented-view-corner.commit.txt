@@ -1,0 +1,24 @@
+feat(appkit): add NSViewCornerConfiguration
+
+A macOS app booted under the dyld shared cache reports the AppKit class
+and metaclass exports of NSViewCornerConfiguration as kept: the Cocotron stand-in has none,
+so cache code keeps pointing at cache classes that objc never registered.
+Each is documented by Apple, so the class is added here (class and metaclass
+both exported).
+
+Rung 3 (public documentation), one page per class:
+- https://developer.apple.com/documentation/appkit/nsviewcornerconfiguration
+
+Behaviour:
+- NSViewCornerConfiguration: NSObject, NSCopying; the capsule class property and the factories the class page lists. NSViewCornerRadius is only forward declared.
+
+GUESS (rung 6, nothing above answers it; confirm on a real Mac):
+- Every factory returns an empty instance and keeps none of its arguments; an unimplemented instance message is logged once (NS_STUB_FORWARDING).
+
+Verified in a plain arm64 guest: the new test checks class, metaclass,
+superclass, property types and the documented defaults and passes; the same
+test fails against the #530 base, where the symbols are absent.
+
+Refs VibeDarling/darling#1475
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>

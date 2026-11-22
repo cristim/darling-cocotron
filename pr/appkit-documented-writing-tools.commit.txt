@@ -1,0 +1,28 @@
+feat(appkit): add NSWritingToolsCoordinator
+
+A macOS app booted under the dyld shared cache reports the AppKit class
+and metaclass exports of NSWritingToolsCoordinator as kept: the Cocotron stand-in has none,
+so cache code keeps pointing at cache classes that objc never registered.
+Each is documented by Apple, so the class is added here (class and metaclass
+both exported).
+
+Rung 3 (public documentation), one page per class:
+- https://developer.apple.com/documentation/appkit/nswritingtoolscoordinator
+- https://developer.apple.com/documentation/appkit/nswritingtoolsbehavior
+- https://developer.apple.com/documentation/appkit/nswritingtoolsresultoptions
+
+Behaviour:
+- NSWritingToolsCoordinator: NSObject; initWithDelegate:, the documented properties and methods, and the behavior, result option, state, text update reason and text animation constants. isWritingToolsAvailable is NO; the action methods log once and do nothing.
+
+GUESS (rung 6, nothing above answers it; confirm on a real Mac):
+- All constant values are guesses (the pages give names only); NSWritingToolsBehaviorNone is -1.
+- The delegate protocol is declared empty (members not recorded); NSWritingToolsCoordinatorContext is only forward declared; the context scope, text decoration and text replacement reason enums are not declared.
+- Defaults the page omits: preferred behavior Default, preferred result options Default, effective behavior None, state Inactive.
+
+Verified in a plain arm64 guest: the new test checks class, metaclass,
+superclass, property types and the documented defaults and passes; the same
+test fails against the #530 base, where the symbols are absent.
+
+Refs VibeDarling/darling#1475
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>

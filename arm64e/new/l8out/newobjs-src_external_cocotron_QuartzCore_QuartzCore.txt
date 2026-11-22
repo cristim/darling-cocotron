@@ -1,0 +1,4 @@
+src/external/cocotron/QuartzCore/CMakeFiles/QuartzCore.dir/CAEAGLLayer.m.o
+src/external/cocotron/QuartzCore/CMakeFiles/QuartzCore.dir/CAEDRMetadata.m.o
+src/external/cocotron/QuartzCore/CMakeFiles/QuartzCore.dir/CAMetalDisplayLink.m.o
+src/external/cocotron/QuartzCore/CMakeFiles/QuartzCore.dir/CATiledLayer.m.o

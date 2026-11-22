@@ -1,0 +1,12 @@
+{
+ "feat/appkit-documented-tint-path": "7 files changed, 287 insertions(+)",
+ "feat/appkit-documented-badge-layout": "7 files changed, 278 insertions(+)",
+ "feat/appkit-documented-view-corner": "5 files changed, 173 insertions(+)",
+ "feat/appkit-documented-views-pict": "9 files changed, 355 insertions(+)",
+ "feat/appkit-documented-toolbar-items": "7 files changed, 343 insertions(+)",
+ "feat/appkit-documented-rotor-picker": "7 files changed, 264 insertions(+)",
+ "feat/appkit-documented-writing-tools": "5 files changed, 271 insertions(+)",
+ "feat/coretext-documented-font-collections": "6 files changed, 321 insertions(+), 38 deletions(-)",
+ "feat/quartzcore-documented-layers": "5 files changed, 150 insertions(+)",
+ "feat/quartzcore-documented-edr-display-link": "7 files changed, 277 insertions(+)"
+}

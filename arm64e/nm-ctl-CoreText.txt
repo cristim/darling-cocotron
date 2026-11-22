@@ -1,0 +1,6 @@
+_OBJC_CLASS_$_CTAdaptiveImageGlyph
+_OBJC_CLASS_$_CTEmojiImageStrike
+_OBJC_CLASS_$__CTFontCollection
+_OBJC_CLASS_$__CTTypesetter
+_OBJC_CLASS_$_DarlingCTGlyphInfo
+_OBJC_CLASS_$_KTFont
