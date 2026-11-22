@@ -440,6 +440,22 @@ static int untitled_document_number = 0;
     BOOL edited = [self isDocumentEdited];
     while (--count >= 0)
         [[_windowControllers objectAtIndex: count] setDocumentEdited: edited];
+
+    NSTimeInterval delay = [[NSDocumentController sharedDocumentController] autosavingDelay];
+    // _changeCount, not -hasUnautosavedChanges: an active editor would reschedule after every save.
+    if (delay > 0 && !_autosaveScheduled && _changeCount != 0) {
+        _autosaveScheduled = YES;
+        [self performSelector: @selector(_autosaveAfterDelay) withObject: nil afterDelay: delay];
+    }
+}
+
+- (void) _autosaveAfterDelay {
+    _autosaveScheduled = NO;
+    [self autosaveWithImplicitCancellability: YES
+                           completionHandler: ^(NSError *error) {
+                               if (error)
+                                   NSLog(@"Autosaving %@ failed: %@", [self displayName], error);
+                           }];
 }
 
 - (BOOL) readFromData: (NSData *) data
@@ -698,10 +714,18 @@ static int untitled_document_number = 0;
     NSString *extension = [path pathExtension];
     if ([extension length] == 0) {
         extension = [[[NSDocumentController sharedDocumentController]
-                fileExtensionsFromType: [self fileType]] objectAtIndex: 0];
+                fileExtensionsFromType: [self fileType]] firstObject];
     }
     NSSavePanel *savePanel = [NSSavePanel savePanel];
     [savePanel setRequiredFileType: extension];
+    // Suggest a name before prepareSavePanel:, which may replace it.
+    if (_fileURL) {
+        // Suggest saving alongside the original file
+        [savePanel setDirectory: [path stringByDeletingLastPathComponent]];
+        [savePanel setNameFieldStringValue: [path lastPathComponent]];
+    } else {
+        [savePanel setNameFieldStringValue: [self displayName]];
+    }
 
 #if 0
     // setAllowedFileTypes: is unimplemented - so don't call it.
@@ -715,27 +739,16 @@ static int untitled_document_number = 0;
         return;
     }
 
-    int saveResult;
-    if (_fileURL) {
-        // Suggest saving alongside the original file
-        saveResult = [savePanel
-                runModalForDirectory: [path stringByDeletingLastPathComponent]
-                                file: [path lastPathComponent]];
-    } else {
-        NSString *directory = [savePanel directory];
-        if (directory == nil) {
-            // Suggest saving in some reasonable directory
-            directory = [[NSDocumentController sharedDocumentController]
-                    currentDirectory];
-        }
-        saveResult = [savePanel runModalForDirectory: directory
-                                                file: [self displayName]];
-    }
+    NSInteger saveResult = [savePanel runModal];
     if (saveResult) {
         NSString *savePath = [savePanel filename];
         NSString *extension = [savePath pathExtension];
         NSString *fileType = [[NSDocumentController sharedDocumentController]
                 typeFromFileExtension: extension];
+        // Types named only by content type identifiers list no extensions to match; like macOS, which takes the
+        // type from the panel rather than the extension, keep the document's type.
+        if (fileType == nil)
+            fileType = [self fileType];
 
         [[NSUserDefaults standardUserDefaults]
                 setObject: [savePath stringByDeletingLastPathComponent]
@@ -880,23 +893,24 @@ static int untitled_document_number = 0;
          didSaveSelector: (SEL) selector
              contextInfo: (void *) info
 {
-    NSError *error = nil;
-    BOOL success = [self saveToURL: url
-                            ofType: type
-                  forSaveOperation: operation
-                             error: &error];
+    // Like macOS, go through the completion handler variant, which subclasses override.
+    [self saveToURL: url
+                       ofType: type
+             forSaveOperation: operation
+            completionHandler: ^(NSError *error) {
+                if (error != nil &&
+                    !([[error domain] isEqualToString: NSCocoaErrorDomain] &&
+                      [error code] == NSUserCancelledError)) {
+                    [self presentError: error];
+                }
 
-    if (!success) {
-        [self presentError: error];
-    }
-
-    if ([delegate respondsToSelector: selector]) {
-        void (*delegateMethod)(id, SEL, id, BOOL, void *);
-        delegateMethod =
-                (void (*)(id, SEL, id, BOOL,
-                          void *)) [delegate methodForSelector: selector];
-        delegateMethod(delegate, selector, self, success, info);
-    }
+                if ([delegate respondsToSelector: selector]) {
+                    void (*delegateMethod)(id, SEL, id, BOOL, void *);
+                    delegateMethod = (void (*)(id, SEL, id, BOOL, void *))
+                            [delegate methodForSelector: selector];
+                    delegateMethod(delegate, selector, self, error == nil, info);
+                }
+            }];
 }
 
 - (BOOL) preparePageLayout: (NSPageLayout *) pageLayout {
@@ -964,6 +978,10 @@ static int untitled_document_number = 0;
 }
 
 - (void) close {
+    if (_autosaveScheduled) {
+        _autosaveScheduled = NO;
+        [NSObject cancelPreviousPerformRequestsWithTarget: self selector: @selector(_autosaveAfterDelay) object: nil];
+    }
 
     // Make sure the controllers don't call -close on self again.
 

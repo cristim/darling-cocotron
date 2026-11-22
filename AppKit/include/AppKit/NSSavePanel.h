@@ -21,7 +21,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSPanel.h>
 #import <Foundation/NSURL.h>
 
-@class NSView, NSOutlineView;
+@class NSView, NSOutlineView, NSTextField;
 
 enum {
     NSFileHandlingPanelCancelButton = NSCancelButton,
@@ -48,6 +48,11 @@ enum {
 
     IBOutlet NSOutlineView *_outlineView;
     NSArray *_allowedContentTypes;
+    NSTextField *_nameField;
+    BOOL _allowsOtherFileTypes;
+    BOOL _runsAsSheet;
+    NSUInteger _styleMaskBeforeSheet;
+    id _sheetCompletionHandler;
 }
 
 @property (copy) NSString *nameFieldStringValue;
@@ -62,6 +67,8 @@ enum {
 - (NSString *) filename;
 
 - (void) beginWithCompletionHandler: (void (^)(NSModalResponse result)) handler;
+- (void) beginSheetModalForWindow: (NSWindow *) window
+                completionHandler: (void (^)(NSModalResponse result)) handler;
 
 - (NSInteger) runModalForDirectory: (NSString *) directory
                               file: (NSString *) file;

@@ -1875,8 +1875,11 @@ static BOOL _allowsAutomaticWindowTabbing;
         newFieldEditor = [_delegate windowWillReturnFieldEditor: self
                                                        toObject: object];
 
-    if (create && newFieldEditor == nil && _sharedFieldEditor == nil)
+    if (create && newFieldEditor == nil && _sharedFieldEditor == nil) {
         newFieldEditor = _sharedFieldEditor = [[NSTextView alloc] init];
+        // Cells draw their titles without padding; keep editing aligned.
+        [[_sharedFieldEditor textContainer] setLineFragmentPadding: 0];
+    }
 
     if (newFieldEditor)
         _currentFieldEditor = newFieldEditor;
@@ -2959,6 +2962,7 @@ static BOOL _allowsAutomaticWindowTabbing;
 
     sheet->_isVisible = NO;
     [[sheet platformWindow] sheetOrderOutToFrame: sheetFrame];
+    [(NSThemeFrame *) [sheet _backgroundView] setWindowBorderType: NSNoBorder];
 
     [_sheetContext release];
     _sheetContext = nil;
