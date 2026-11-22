@@ -68,6 +68,10 @@
         [self _addItemViewsToSplitView];
 }
 
+- (void) addSplitViewItem: (NSSplitViewItem *) splitViewItem {
+    [self setSplitViewItems: [[self splitViewItems] arrayByAddingObject: splitViewItem]];
+}
+
 - (NSSplitViewItem *) splitViewItemForViewController: (NSViewController *) viewController {
     for (NSSplitViewItem *item in _splitViewItems)
         if ([item viewController] == viewController)

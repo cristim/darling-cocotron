@@ -35,6 +35,7 @@
 // controller's view is loaded.
 @property(copy) NSArray *splitViewItems;
 
+- (void) addSplitViewItem: (NSSplitViewItem *) splitViewItem;
 - (NSSplitViewItem *) splitViewItemForViewController: (NSViewController *) viewController;
 
 @end

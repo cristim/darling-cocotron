@@ -32,6 +32,13 @@
     return item;
 }
 
+// The sidebar variant differs from the plain factory only in appearance and
+// thickness defaults, and NSSplitView has no notion of either, so the item is
+// built the same way.
++ (instancetype) sidebarWithViewController: (NSViewController *) viewController {
+    return [self splitViewItemWithViewController: viewController];
+}
+
 - (instancetype) init {
     if ((self = [super init]))
         _holdingPriority = NSLayoutPriorityDefaultLow;

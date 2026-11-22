@@ -40,6 +40,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSToolbar.h>
 #import <AppKit/NSTrackingArea.h>
 #import <AppKit/NSView.h>
+#import <AppKit/NSViewController.h>
 #import <AppKit/NSWindow-Private.h>
 #import <AppKit/NSWindow.h>
 #import <AppKit/NSWindowAnimationContext.h>
@@ -451,6 +452,7 @@ static BOOL _allowsAutomaticWindowTabbing;
     [_menu release];
     [_menuView release];
     [_contentView release];
+    [_contentViewController release];
     [_backgroundColor release];
     [_sharedFieldEditor release];
     [_draggedTypes release];
@@ -1153,6 +1155,18 @@ static BOOL _allowsAutomaticWindowTabbing;
     _contentView = view;
 
     [_backgroundView addSubview: _contentView];
+}
+
+// The controller owns the content view, and -view loads it on first access,
+// so asking for it here is what gives the window something to show.
+- (NSViewController *) contentViewController {
+    return _contentViewController;
+}
+
+- (void) setContentViewController: (NSViewController *) contentViewController {
+    [_contentViewController release];
+    _contentViewController = [contentViewController retain];
+    [self setContentView: [contentViewController view]];
 }
 
 - (void) setInitialFirstResponder: (NSView *) view {

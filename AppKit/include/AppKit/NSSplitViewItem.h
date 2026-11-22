@@ -31,6 +31,7 @@
 }
 
 + (instancetype) splitViewItemWithViewController: (NSViewController *) viewController;
++ (instancetype) sidebarWithViewController: (NSViewController *) viewController;
 
 @property(retain) NSViewController *viewController;
 // Stored only: the split view doesn't hide or resize a collapsed item's view.

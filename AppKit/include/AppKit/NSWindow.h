@@ -33,7 +33,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
         NSTitlebarAccessoryViewController,
         NSUndoManager, NSButton, NSButtonCell, NSDrawer, NSDockTile, NSToolbar,
         NSWindowAnimationContext, NSTrackingArea, NSThemeFrame,
-        NSWindowController, NSMenuItem, CARenderer;
+        NSWindowController, NSMenuItem, CARenderer, NSViewController;
 @protocol NSWindowDelegate;
 
 // Old NSWindowStyleMask constants
@@ -181,6 +181,7 @@ APPKIT_EXPORT const NSNotificationName NSWindowDidExposeNotification;
     NSMenu *_menu;
     NSView *_menuView;
     NSView *_contentView;
+    NSViewController *_contentViewController;
     NSColor *_backgroundColor;
 
     id<NSWindowDelegate> _delegate;
@@ -309,6 +310,8 @@ APPKIT_EXPORT const NSNotificationName NSWindowDidExposeNotification;
 - (void) setAllowsConcurrentViewDrawing: (BOOL) allows;
 
 - (NSView *) contentView;
+- (NSViewController *) contentViewController;
+- (void) setContentViewController: (NSViewController *) contentViewController;
 - (id<NSWindowDelegate>) delegate;
 
 - (NSString *) title;
