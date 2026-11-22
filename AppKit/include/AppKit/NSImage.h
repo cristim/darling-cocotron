@@ -317,3 +317,5 @@ APPKIT_EXPORT NSImage *_NSGetThemePartImages(id arg1, ...);
 APPKIT_EXPORT NSImageHintKey const NSImageHintInterpolation;
 APPKIT_EXPORT NSImageHintKey const NSImageHintCTM NS_SWIFT_NAME(ctm);
 APPKIT_EXPORT NSImageHintKey const NSImageHintSymbolScale;
+// Private: not in the public documentation (App Store binds it; the type is a GUESS, the value is observed).
+APPKIT_EXPORT NSImageHintKey const NSImageHintSymbolFont;

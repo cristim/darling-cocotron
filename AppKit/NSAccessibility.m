@@ -488,6 +488,10 @@ NSAccessibilityActionName const NSAccessibilityShowAlternateUIAction = @"AXShowA
 NSAccessibilityActionName const NSAccessibilityShowDefaultUIAction = @"AXShowDefaultUI";
 NSString *const NSAccessibilityShowMenuAction =
         @"NSAccessibilityShowMenuAction";
+// Values observed on a real Mac (macOS 26.1, mac-probe/darling_probe_a1.txt lines 31 and 32), rung 4. The neighbouring
+// constants here carry their own names, which is not what the Mac holds for these two.
+NSString *const NSAccessibilityOpenAction = @"AXOpen";
+NSString *const NSAccessibilityDateTimeComponentsAttribute = @"AXDateTimeComponents";
 
 NSString *const NSAccessibilityMainWindowChangedNotification =
         @"NSAccessibilityMainWindowChangedNotification";

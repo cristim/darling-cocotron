@@ -186,6 +186,7 @@ set(AppKit_sources
 	NSTitlebarAccessoryViewController.m
 	NSScrollEdgeEffectStyle.m
 	NSImageHintSymbolScale.m
+	NSAppConstantsBatch6.m
 	NSPasteboard.m
 	NSSearchFieldCell.m
 	NSOutlineView.m
@@ -253,6 +254,7 @@ set(AppKit_sources
 	NSTextView.subproj/NSSubTextStorage.m
 	NSTextView.subproj/NSLayoutManager+NSTextViewSupport.m
 	NSTextSystemConstants.m
+	UIFontDesignNames.m
 	NSTextView.subproj/NSSecureTextView.m
 
 	NSTableColumn.m

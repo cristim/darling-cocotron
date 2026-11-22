@@ -96,6 +96,20 @@ APPKIT_EXPORT NSFontDescriptorSystemDesign const NSFontDescriptorSystemDesignSer
 APPKIT_EXPORT NSFontDescriptorSystemDesign const NSFontDescriptorSystemDesignMonospaced;
 APPKIT_EXPORT NSFontDescriptorSystemDesign const NSFontDescriptorSystemDesignRounded;
 
+typedef NSString *NSFontTextStyle NS_TYPED_ENUM;
+
+APPKIT_EXPORT NSFontTextStyle const NSFontTextStyleLargeTitle;
+APPKIT_EXPORT NSFontTextStyle const NSFontTextStyleTitle1;
+APPKIT_EXPORT NSFontTextStyle const NSFontTextStyleTitle2;
+APPKIT_EXPORT NSFontTextStyle const NSFontTextStyleTitle3;
+APPKIT_EXPORT NSFontTextStyle const NSFontTextStyleHeadline;
+APPKIT_EXPORT NSFontTextStyle const NSFontTextStyleSubheadline;
+APPKIT_EXPORT NSFontTextStyle const NSFontTextStyleBody;
+APPKIT_EXPORT NSFontTextStyle const NSFontTextStyleCallout;
+APPKIT_EXPORT NSFontTextStyle const NSFontTextStyleFootnote;
+APPKIT_EXPORT NSFontTextStyle const NSFontTextStyleCaption1;
+APPKIT_EXPORT NSFontTextStyle const NSFontTextStyleCaption2;
+
 @interface NSFontDescriptor : NSObject <NSCopying> {
     NSDictionary *_attributes;
 }

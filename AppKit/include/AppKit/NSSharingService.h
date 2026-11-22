@@ -34,6 +34,9 @@ APPKIT_EXPORT NSSharingServiceName const NSSharingServiceNamePostOnSinaWeibo;
 APPKIT_EXPORT NSSharingServiceName const NSSharingServiceNamePostOnTencentWeibo;
 APPKIT_EXPORT NSSharingServiceName const NSSharingServiceNamePostOnTwitter;
 
+// Private: not in the public documentation (Calendar binds it; the type is a GUESS, the value is observed).
+APPKIT_EXPORT NSString *const NSSharingServiceParametersDefaultRecipientsKey;
+
 @class NSImage, NSArray, NSMenu, NSView;
 @protocol NSSharingServiceDelegate, NSSharingServicePickerDelegate;
 

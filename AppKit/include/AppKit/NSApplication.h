@@ -44,6 +44,7 @@ APPKIT_EXPORT const NSNotificationName
 APPKIT_EXPORT const NSNotificationName
         NSApplicationWillBecomeActiveNotification;
 APPKIT_EXPORT const NSNotificationName NSApplicationDidBecomeActiveNotification;
+APPKIT_EXPORT const NSNotificationName NSApplicationDidChangeOcclusionStateNotification;
 APPKIT_EXPORT const NSNotificationName
         NSApplicationWillResignActiveNotification;
 APPKIT_EXPORT const NSNotificationName NSApplicationDidResignActiveNotification;
