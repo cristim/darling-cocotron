@@ -34,8 +34,9 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
     return [[NSDisplay currentDisplay] scrollerWidth];
 }
 
+// Cocotron draws legacy scrollers, which take up space next to the content.
 + (NSScrollerStyle) preferredScrollerStyle {
-    NSUnimplementedMethod();
+    return NSScrollerStyleLegacy;
 }
 /* OS X has a global default "AppleScrollBarVariant" with the values: Single,
  DoubleMin, DoubleMax, and DoubleBoth This controls the default position of the

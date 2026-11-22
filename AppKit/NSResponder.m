@@ -26,6 +26,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSRaise.h>
 #import <AppKit/NSResponder.h>
 #import <Foundation/NSKeyedArchiver.h>
+#import <objc/message.h>
 #import <objc/runtime.h>
 
 @implementation NSResponder
@@ -239,7 +240,11 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
         didPresentSelector: (SEL) selector
                contextInfo: (void *) info
 {
-    NSUnimplementedMethod();
+    // No document-modal sheets: the error is presented application-modally,
+    // then the delegate gets -didPresentErrorWithRecovery:contextInfo:.
+    BOOL recovered = [self presentError: error];
+    if (delegate != nil && selector != NULL)
+        ((void (*)(id, SEL, BOOL, void *)) objc_msgSend)(delegate, selector, recovered, info);
 }
 
 - (void) flagsChanged: (NSEvent *) event {
@@ -302,6 +307,26 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 }
 
 - (void) invalidateRestorableState {
+}
+
++ (NSArray *) restorableStateKeyPaths {
+    return [NSArray array];
+}
+
+- (void) encodeRestorableStateWithCoder: (NSCoder *) coder {
+}
+
+- (void) encodeRestorableStateWithCoder: (NSCoder *) coder backgroundQueue: (NSOperationQueue *) queue {
+    [self encodeRestorableStateWithCoder: coder];
+}
+
+- (void) restoreStateWithCoder: (NSCoder *) coder {
+}
+
+- (void) updateUserActivityState: (NSUserActivity *) userActivity {
+}
+
+- (void) restoreUserActivityState: (NSUserActivity *) userActivity {
 }
 
 @end

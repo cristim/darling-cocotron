@@ -31,6 +31,11 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSWindowController.h>
 #import <objc/runtime.h>
 
+// Declared by NSDocument subclasses that autosave in place (macOS 10.7).
+@interface NSObject (NSDocumentAutosavesInPlace)
++ (BOOL) autosavesInPlace;
+@end
+
 @implementation NSDocument
 
 static int untitled_document_number = 0;
@@ -310,9 +315,9 @@ static int untitled_document_number = 0;
     return nil;
 }
 
+// There's no separate autosave state: unsaved edits are unautosaved.
 - (BOOL) hasUnautosavedChanges {
-    NSUnimplementedMethod();
-    return 0;
+    return [self isDocumentEdited];
 }
 
 - (NSString *) autosavingFileType {
@@ -1517,13 +1522,34 @@ static int untitled_document_number = 0;
   forSaveOperation: (NSSaveOperationType) saveOperation
  completionHandler: (void (^)(NSError *errorOrNil)) completionHandler
  {
-    NSUnimplementedMethod();
+    // Saves synchronously, then calls the handler.
+    NSError *error = nil;
+    BOOL saved = [self saveToURL: url
+                          ofType: typeName
+                forSaveOperation: saveOperation
+                           error: &error];
+    if (!saved && error == nil)
+        error = [NSError errorWithDomain: NSCocoaErrorDomain code: NSFileWriteUnknownError userInfo: nil];
+    if (completionHandler)
+        completionHandler(saved ? nil : error);
 }
 
 - (void) autosaveWithImplicitCancellability: (BOOL) autosavingIsImplicitlyCancellable
                           completionHandler: (void (^)(NSError *errorOrNil)) completionHandler
 {
-    NSUnimplementedMethod();
+    // Documents that autosave in place are saved to their file; otherwise, and
+    // with nothing to save, there is no autosave location and nothing is written.
+    if ([self hasUnautosavedChanges] && [self fileURL] != nil &&
+        [[self class] respondsToSelector: @selector(autosavesInPlace)] &&
+        [[self class] autosavesInPlace]) {
+        [self saveToURL: [self fileURL]
+                          ofType: [self autosavingFileType]
+                forSaveOperation: NSAutosaveInPlaceOperation
+               completionHandler: completionHandler];
+        return;
+    }
+    if (completionHandler)
+        completionHandler(nil);
 }
 
 - (void) continueActivityUsingBlock: (void (^)(void)) block {
@@ -1549,6 +1575,37 @@ static int untitled_document_number = 0;
 }
 
 - (void) invalidateRestorableState {
+}
+
++ (NSArray *) restorableStateKeyPaths {
+    return [NSArray array];
+}
+
+- (void) encodeRestorableStateWithCoder: (NSCoder *) coder {
+}
+
+- (void) encodeRestorableStateWithCoder: (NSCoder *) coder backgroundQueue: (NSOperationQueue *) queue {
+    [self encodeRestorableStateWithCoder: coder];
+}
+
+- (void) restoreStateWithCoder: (NSCoder *) coder {
+}
+
+- (void) restoreDocumentWindowWithIdentifier: (NSString *) identifier
+                                       state: (NSCoder *) state
+                           completionHandler: (void (^)(NSWindow *window, NSError *error)) completionHandler
+{
+    if ([[self windowControllers] count] == 0) {
+        [self makeWindowControllers];
+    }
+    for (NSWindowController *controller in [self windowControllers]) {
+        NSWindow *window = [controller window];
+        if ([[window identifier] isEqualToString: identifier]) {
+            completionHandler(window, nil);
+            return;
+        }
+    }
+    completionHandler(nil, [NSError errorWithDomain: NSCocoaErrorDomain code: NSFeatureUnsupportedError userInfo: nil]);
 }
 
 @end
