@@ -39,6 +39,12 @@
 
 @implementation NSGestureRecognizer
 
+- (instancetype) initWithTarget: (id) target action: (SEL) action {
+    // Gesture delivery is not implemented yet, but AppKit clients must be
+    // able to create recognizers without receiving a nil initializer result.
+    return [super init];
+}
+
 // Answered directly rather than through forwardInvocation:, whose "v@:"
 // signature would have returned an uninitialised integer to every caller.
 - (NSGestureRecognizerState) state {

@@ -1,3 +1,5 @@
+#pragma once
+
 /* Copyright (c) 2006-2007 Christopher J. W. Lloyd
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
@@ -144,6 +146,11 @@ typedef NSString *NSColorSpaceName;
 @property(copy, readonly) NSColorName colorNameComponent;
 
 @property(readonly) CGColorRef CGColor;
+
++ (nullable NSColor *) colorWithCGColor: (CGColorRef) color;
++ (NSColor *) colorWithColorSpace: (NSColorSpace *) space
+                        components: (const CGFloat *) components
+                             count: (NSInteger) count;
 
 @property(class) BOOL ignoresAlpha;
 @property(copy, readonly) NSColorSpaceName colorSpaceName;

@@ -23,6 +23,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <Onyx2D/O2Path.h>
 
 #import <CoreGraphics/CGGeometry.h>
+#include <math.h>
 #include <stdio.h>
 
 void CGPathRelease(CGPathRef self) {
@@ -121,47 +122,49 @@ void CGPathAddRect(CGMutablePathRef self, const CGAffineTransform *xform,
     O2PathAddRect((O2MutablePathRef)self, O2AffineTransformPtrFromCG(xform), rect);
 }
 
-void CGPathAddRoundedRect(CGMutablePathRef path,
-                          const CGAffineTransform *transform, CGRect rect,
-                          CGFloat cornerWidth, CGFloat cornerHeight)
-{
-    if (!(cornerWidth > 0 && cornerHeight > 0) || CGRectIsEmpty(rect)) {
-        CGPathAddRect(path, transform, rect);
-        return;
-    }
-
-    CGFloat x0 = CGRectGetMinX(rect), x1 = CGRectGetMaxX(rect);
-    CGFloat y0 = CGRectGetMinY(rect), y1 = CGRectGetMaxY(rect);
-    CGFloat rx = MIN(cornerWidth, (x1 - x0) / 2);
-    CGFloat ry = MIN(cornerHeight, (y1 - y0) / 2);
-    // Control point distance for a quarter-circle, scaled independently on
-    // each axis to make a quarter-ellipse.
-    const CGFloat k = 0.5522847498307936;
-
-    CGPathMoveToPoint(path, transform, x0 + rx, y0);
-    CGPathAddLineToPoint(path, transform, x1 - rx, y0);
-    CGPathAddCurveToPoint(path, transform,
-                          x1 - rx + k * rx, y0, x1, y0 + ry - k * ry,
-                          x1, y0 + ry);
-    CGPathAddLineToPoint(path, transform, x1, y1 - ry);
-    CGPathAddCurveToPoint(path, transform,
-                          x1, y1 - ry + k * ry, x1 - rx + k * rx, y1,
-                          x1 - rx, y1);
-    CGPathAddLineToPoint(path, transform, x0 + rx, y1);
-    CGPathAddCurveToPoint(path, transform,
-                          x0 + rx - k * rx, y1, x0, y1 - ry + k * ry,
-                          x0, y1 - ry);
-    CGPathAddLineToPoint(path, transform, x0, y0 + ry);
-    CGPathAddCurveToPoint(path, transform,
-                          x0, y0 + ry - k * ry, x0 + rx - k * rx, y0,
-                          x0 + rx, y0);
-    CGPathCloseSubpath(path);
-}
-
 void CGPathAddRects(CGMutablePathRef self, const CGAffineTransform *xform,
                     const CGRect *rects, size_t count)
 {
     O2PathAddRects((O2MutablePathRef)self, O2AffineTransformPtrFromCG(xform), rects, count);
+}
+
+void CGPathAddRoundedRect(CGMutablePathRef path,
+                          const CGAffineTransform *transform, CGRect rect,
+                          CGFloat cornerWidth, CGFloat cornerHeight)
+{
+    CGFloat x = CGRectGetMinX(rect), y = CGRectGetMinY(rect);
+    CGFloat width = CGRectGetWidth(rect), height = CGRectGetHeight(rect);
+    CGFloat rx = fmin(fmax(cornerWidth, 0), width / 2);
+    CGFloat ry = fmin(fmax(cornerHeight, 0), height / 2);
+    if (rx == 0 || ry == 0) {
+        CGPathAddRect(path, transform, rect);
+        return;
+    }
+
+    // Four quarter-ellipse cubics, clockwise from the top edge.
+    const CGFloat k = 0.5522847498307936;
+    CGPathMoveToPoint(path, transform, x + rx, y + height);
+    CGPathAddLineToPoint(path, transform, x + width - rx, y + height);
+    CGPathAddCurveToPoint(path, transform,
+                          x + width - rx + k * rx, y + height,
+                          x + width, y + height - ry + k * ry,
+                          x + width, y + height - ry);
+    CGPathAddLineToPoint(path, transform, x + width, y + ry);
+    CGPathAddCurveToPoint(path, transform,
+                          x + width, y + ry - k * ry,
+                          x + width - rx + k * rx, y,
+                          x + width - rx, y);
+    CGPathAddLineToPoint(path, transform, x + rx, y);
+    CGPathAddCurveToPoint(path, transform,
+                          x + rx - k * rx, y,
+                          x, y + ry - k * ry,
+                          x, y + ry);
+    CGPathAddLineToPoint(path, transform, x, y + height - ry);
+    CGPathAddCurveToPoint(path, transform,
+                          x, y + height - ry + k * ry,
+                          x + rx - k * rx, y + height,
+                          x + rx, y + height);
+    CGPathCloseSubpath(path);
 }
 
 void CGPathAddArc(CGMutablePathRef self, const CGAffineTransform *xform,
@@ -211,7 +214,9 @@ CGPathRef CGPathCreateWithRoundedRect(CGRect rect, CGFloat cornerWidth,
 {
     CGMutablePathRef path = CGPathCreateMutable();
     CGPathAddRoundedRect(path, transform, rect, cornerWidth, cornerHeight);
-    return path;
+    CGPathRef result = CGPathCreateCopy(path);
+    CGPathRelease(path);
+    return result;
 }
 
 CGRect CGPathGetPathBoundingBox(CGPathRef path) {

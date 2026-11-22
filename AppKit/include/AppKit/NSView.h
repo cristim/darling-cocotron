@@ -1,3 +1,5 @@
+#pragma once
+
 /* Copyright (c) 2006-2007 Christopher J. W. Lloyd <cjwl@objc.net>
                  2010 Markus Hitter <mah@jump-ing.de>
 
@@ -98,6 +100,8 @@ APPKIT_EXPORT const NSViewFullScreenModeOptionKey NSFullScreenModeApplicationPre
     NSView *_nextKeyView;
     NSView *_previousKeyView;
     BOOL _isHidden;
+    BOOL _isFlipped;
+    BOOL _ignoreHitTest;
     BOOL _postsNotificationOnFrameChange;
     BOOL _postsNotificationOnBoundsChange;
     BOOL _autoresizesSubviews;
@@ -113,14 +117,16 @@ APPKIT_EXPORT const NSViewFullScreenModeOptionKey NSFullScreenModeApplicationPre
     NSInteger _rectsBeingRedrawnCount;
     CGFloat _frameRotation;
     CGFloat _boundsRotation;
+    CGFloat _alphaValue;
+    NSView *_maskView;
     BOOL _translatesAutoresizingMaskIntoConstraints;
 
-    CGFloat _alphaValue;
     BOOL _validTrackingAreas;
     BOOL _validTransforms;
     CGAffineTransform _transformFromWindow;
     CGAffineTransform _transformToWindow;
     CGAffineTransform _transformToLayer;
+    CGAffineTransform _frameTransform;
     NSRect _visibleRect;
     NSFocusRingType _focusRingType;
 
@@ -134,7 +140,6 @@ APPKIT_EXPORT const NSViewFullScreenModeOptionKey NSFullScreenModeApplicationPre
     NSDictionary *_animations;
 
     CALayerContext *_layerContext;
-    NSView *_maskView;
     id __remove;
     NSUserInterfaceItemIdentifier _identifier;
     NSLayoutPriority _horizontalContentHuggingPriority;
@@ -165,6 +170,11 @@ APPKIT_EXPORT const NSViewFullScreenModeOptionKey NSFullScreenModeApplicationPre
 - (instancetype) initWithFrame: (NSRect) frame;
 
 @property NSRect frame;
+- (NSEdgeInsets) alignmentRectInsets;
+- (NSRect) alignmentRectForFrame: (NSRect) frame;
+- (NSRect) frameForAlignmentRect: (NSRect) alignmentRect;
+- (CGAffineTransform) frameTransform;
+- (void) setFrameTransform: (CGAffineTransform) transform;
 - (CGFloat) frameRotation;
 - (CGFloat) frameCenterRotation;
 @property NSRect bounds;
@@ -192,7 +202,13 @@ APPKIT_EXPORT const NSViewFullScreenModeOptionKey NSFullScreenModeApplicationPre
 
 - (NSInteger) tag;
 @property (readonly) BOOL isFlipped;
+- (void) setFlipped: (BOOL) flipped;
+- (BOOL) ignoreHitTest;
+- (void) setIgnoreHitTest: (BOOL) ignoreHitTest;
 @property (readonly) BOOL isOpaque;
+// Stored, and kept in the view hierarchy so it is positioned and drawn. The
+// pixels it covers are not masked: there is no compositor feature for that here.
+@property (retain) NSView *maskView;
 - (CGFloat) alphaValue;
 - (void) setAlphaValue: (CGFloat) alpha;
 - (int) gState;
@@ -206,7 +222,6 @@ APPKIT_EXPORT const NSViewFullScreenModeOptionKey NSFullScreenModeApplicationPre
 @property (getter=isHidden) BOOL hidden;
 // Stored, and kept in the view hierarchy so it is positioned and drawn. The
 // pixels it covers are not masked: there is no compositor feature for that here.
-@property (retain) NSView *maskView;
 @property (readonly) BOOL isHiddenOrHasHiddenAncestor;
 - (void) viewDidHide;
 - (void) viewDidUnhide;

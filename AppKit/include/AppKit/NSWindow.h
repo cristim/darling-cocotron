@@ -1,3 +1,5 @@
+#pragma once
+
 /* Copyright (c) 2006-2007 Christopher J. W. Lloyd
                  2010 Markus Hitter <mah@jump-ing.de>
 
@@ -28,7 +30,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 #import <AppKit/NSUserInterfaceItemIdentification.h>
 #import <AppKit/NSAccessibilityProtocols.h>
 
-@class NSView, NSEvent, NSColor, NSColorSpace, NSCursor, NSImage, NSScreen,
+@class NSView, NSViewController, NSEvent, NSColor, NSColorSpace, NSCursor, NSImage, NSScreen,
         NSText, NSTextView, CGWindow, NSPasteboard, NSSheetContext,
         NSTitlebarAccessoryViewController,
         NSUndoManager, NSButton, NSButtonCell, NSDrawer, NSDockTile, NSToolbar,
@@ -89,18 +91,18 @@ typedef NS_ENUM(NSUInteger, NSWindowBackingLocation) {
     NSWindowBackingLocationMainMemory = 0x02
 };
 
+typedef NS_ENUM(NSInteger, NSWindowTitleVisibility) {
+    NSWindowTitleVisible,
+    NSWindowTitleHidden,
+    NSWindowTitleHiddenSeparator,
+};
+
 typedef NS_ENUM(NSInteger, NSWindowToolbarStyle) {
     NSWindowToolbarStyleAutomatic,
     NSWindowToolbarStyleExpanded,
     NSWindowToolbarStylePreference,
     NSWindowToolbarStyleUnified,
     NSWindowToolbarStyleUnifiedCompact,
-};
-
-typedef NS_ENUM(NSInteger, NSWindowTitleVisibility) {
-    NSWindowTitleVisible,
-    NSWindowTitleHidden,
-    NSWindowTitleHiddenSeparator,
 };
 
 enum {
@@ -352,6 +354,7 @@ APPKIT_EXPORT const NSNotificationName NSWindowDidExposeNotification
 // Setting it also installs the controller's view as the content view, as on macOS.
 @property (retain) NSViewController *contentViewController;
 @property BOOL automaticallyWaitsToMinimizeStalling;
+// Setting it also installs the controller's view as the content view, as on macOS.
 @property (weak) id<NSWindowDelegate> delegate;
 
 - (NSString *) title;
@@ -710,6 +713,8 @@ APPKIT_EXPORT const NSNotificationName NSWindowDidExposeNotification
 // Returns an object that calls the selector on the target once per frame while
 // started; the caller owns it and is responsible for releasing it.
 - (id) displayLinkWithTarget: (id) target selector: (SEL) selector;
+// Stored only: the compositor draws the title bar, so hiding it here changes nothing.
+
 @end
 
 @interface NSWindow (Darling)

@@ -343,7 +343,6 @@ NSImageName const NSImageNameTouchBarVolumeUpTemplate =
 }
 
 
-
 + (NSArray *) imageFileTypes {
     return [self imageUnfilteredFileTypes];
 }
@@ -625,9 +624,7 @@ NSImageName const NSImageNameTouchBarVolumeUpTemplate =
     [self drawInRect: NSMakeRect(0, 0, width, height)
             fromRect: NSZeroRect
            operation: NSCompositeSourceOver
-            fraction: 1.0
-     respectFlipped: NO
-             hints: hints];
+            fraction: 1.0];
     [NSGraphicsContext setCurrentContext: previous];
     [previous release];
     CGImageRef image = CGBitmapContextCreateImage(bitmap);
@@ -710,8 +707,7 @@ NSImageName const NSImageNameTouchBarVolumeUpTemplate =
     if (_hasCustomAlignmentRect)
         return _alignmentRect;
 
-    NSSize size = [self size];
-    return NSMakeRect(0, 0, size.width, size.height);
+    return NSMakeRect(0, 0, [self size].width, [self size].height);
 }
 
 - (void) setAlignmentRect: (NSRect) rect {
@@ -1548,14 +1544,9 @@ static NSUInteger scaledRepCacheBytes(NSArray *cache) {
      respectFlipped: (BOOL) respectFlipped
                  hints: (NSDictionary<NSString *, id> *) hints
 {
-    NSImage *image = self;
-    NSNumber *scale = [hints objectForKey: NSImageHintSymbolScale];
-    if (_symbolConfiguration != nil && [scale respondsToSelector: @selector(integerValue)]) {
-        NSImageSymbolConfiguration *configuration = [NSImageSymbolConfiguration
-                configurationWithScale: (NSImageSymbolScale) [scale integerValue]];
-        image = [self imageWithSymbolConfiguration: configuration];
-    }
-    [image drawInRect: rect
+    printf("STUB %s\n", __PRETTY_FUNCTION__);
+
+    [self drawInRect: rect
             fromRect: source
            operation: operation
             fraction: fraction];

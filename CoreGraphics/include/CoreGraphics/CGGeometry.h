@@ -27,6 +27,39 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */
 
 #include <CoreGraphics/CGBase.h>
 
+// CoreFoundation's CFCGTypes.h defines these structs unless CGGEOMETRY_H is set,
+// which it is by the time this file is reached through Foundation. Defining them
+// again here is a redefinition, so only do it when CoreFoundation did not.
+#if !defined(CF_DEFINES_CG_TYPES)
+
+struct CGPoint {
+    CGFloat x;
+    CGFloat y;
+};
+typedef struct CGPoint CGPoint;
+
+struct CGSize {
+    CGFloat width;
+    CGFloat height;
+};
+typedef struct CGSize CGSize;
+
+#define CGVECTOR_DEFINED 1
+
+struct CGVector {
+    CGFloat dx;
+    CGFloat dy;
+};
+typedef struct CGVector CGVector;
+
+struct CGRect {
+    CGPoint origin;
+    CGSize size;
+};
+typedef struct CGRect CGRect;
+
+#endif /* !CF_DEFINES_CG_TYPES */
+
 typedef CF_ENUM(uint32_t, CGRectEdge) {
     CGRectMinXEdge,
     CGRectMinYEdge,

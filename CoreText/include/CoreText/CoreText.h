@@ -13,11 +13,5 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #import <CoreText/CTStringAttributes.h>
 #import <CoreText/CTFontCollection.h>
 #import <CoreText/CTGlyphInfo.h>
-#import <CoreText/CTFontManager.h>
-#import <CoreText/CTFrame.h>
-#import <CoreText/CTFrameSetter.h>
-#import <CoreText/CTLine.h>
-#import <CoreText/CTRun.h>
-#import <CoreText/CTTypesetter.h>
 
 CORETEXT_EXPORT uint32_t CTGetCoreTextVersion(void);

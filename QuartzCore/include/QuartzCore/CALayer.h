@@ -1,3 +1,5 @@
+#pragma once
+
 
 #import <ApplicationServices/ApplicationServices.h>
 #import <Foundation/Foundation.h>
@@ -5,13 +7,6 @@
 #import <QuartzCore/CATransform3D.h>
 
 @class CAAnimation, CALayerContext, CALayer;
-
-typedef NS_OPTIONS(unsigned int, CAEdgeAntialiasingMask) {
-    kCALayerLeftEdge = 1U << 0,
-    kCALayerRightEdge = 1U << 1,
-    kCALayerBottomEdge = 1U << 2,
-    kCALayerTopEdge = 1U << 3,
-};
 
 enum {
     kCALayerNotSizable = 0x00,
@@ -23,28 +18,28 @@ enum {
     kCALayerMaxYMargin = 0x20,
 };
 
+CA_EXPORT NSString *const kCAFilterLinear;
+CA_EXPORT NSString *const kCAFilterNearest;
+CA_EXPORT NSString *const kCAFilterTrilinear;
+
 typedef NSString *CALayerContentsGravity NS_TYPED_ENUM;
 typedef NSString *CALayerCornerCurve NS_TYPED_ENUM;
 typedef NSString *CALayerContentsFormat NS_TYPED_ENUM;
 typedef NSString *CALayerContentsFilter NS_TYPED_ENUM;
 
-CA_EXPORT CALayerContentsFilter const kCAFilterLinear NS_SWIFT_NAME(CALayerContentsFilter.linear);
-CA_EXPORT CALayerContentsFilter const kCAFilterNearest NS_SWIFT_NAME(CALayerContentsFilter.nearest);
-CA_EXPORT CALayerContentsFilter const kCAFilterTrilinear NS_SWIFT_NAME(CALayerContentsFilter.trilinear);
+CA_EXPORT CALayerContentsGravity const kCAGravityResizeAspect;
+CA_EXPORT CALayerContentsGravity const kCAGravityResizeAspectFill;
 
-CA_EXPORT CALayerContentsGravity const kCAGravityResizeAspect NS_SWIFT_NAME(CALayerContentsGravity.resizeAspect);
-CA_EXPORT CALayerContentsGravity const kCAGravityResizeAspectFill NS_SWIFT_NAME(CALayerContentsGravity.resizeAspectFill);
-
-CA_EXPORT CALayerContentsGravity const kCAGravityCenter NS_SWIFT_NAME(CALayerContentsGravity.center);
-CA_EXPORT CALayerContentsGravity const kCAGravityTop NS_SWIFT_NAME(CALayerContentsGravity.top);
-CA_EXPORT CALayerContentsGravity const kCAGravityBottom NS_SWIFT_NAME(CALayerContentsGravity.bottom);
-CA_EXPORT CALayerContentsGravity const kCAGravityLeft NS_SWIFT_NAME(CALayerContentsGravity.left);
-CA_EXPORT CALayerContentsGravity const kCAGravityRight NS_SWIFT_NAME(CALayerContentsGravity.right);
+CA_EXPORT CALayerContentsGravity const kCAGravityCenter;
+CA_EXPORT CALayerContentsGravity const kCAGravityTop;
+CA_EXPORT CALayerContentsGravity const kCAGravityBottom;
+CA_EXPORT CALayerContentsGravity const kCAGravityLeft;
+CA_EXPORT CALayerContentsGravity const kCAGravityRight;
 CA_EXPORT CALayerContentsGravity const kCAGravityTopLeft NS_SWIFT_NAME(CALayerContentsGravity.topLeft);
-CA_EXPORT CALayerContentsGravity const kCAGravityTopRight NS_SWIFT_NAME(CALayerContentsGravity.topRight);
-CA_EXPORT CALayerContentsGravity const kCAGravityBottomLeft NS_SWIFT_NAME(CALayerContentsGravity.bottomLeft);
-CA_EXPORT CALayerContentsGravity const kCAGravityBottomRight NS_SWIFT_NAME(CALayerContentsGravity.bottomRight);
-CA_EXPORT CALayerContentsGravity const kCAGravityResize NS_SWIFT_NAME(CALayerContentsGravity.resize);
+CA_EXPORT CALayerContentsGravity const kCAGravityTopRight;
+CA_EXPORT CALayerContentsGravity const kCAGravityBottomLeft;
+CA_EXPORT CALayerContentsGravity const kCAGravityBottomRight;
+CA_EXPORT CALayerContentsGravity const kCAGravityResize;
 
 CA_EXPORT CALayerCornerCurve const kCACornerCurveCircular NS_SWIFT_NAME(CALayerCornerCurve.circular);
 CA_EXPORT CALayerCornerCurve const kCACornerCurveContinuous NS_SWIFT_NAME(CALayerCornerCurve.continuous);
@@ -54,8 +49,8 @@ CA_EXPORT NSString *const kCAOnOrderOut;
 CA_EXPORT NSString *const kCATransition;
 
 CA_EXPORT CALayerContentsFormat const kCAContentsFormatRGBA8Uint NS_SWIFT_NAME(CALayerContentsFormat.RGBA8Uint);
-CA_EXPORT CALayerContentsFormat const kCAContentsFormatRGBA16Float NS_SWIFT_NAME(CALayerContentsFormat.RGBA16Float);
-CA_EXPORT CALayerContentsFormat const kCAContentsFormatGray8Uint NS_SWIFT_NAME(CALayerContentsFormat.gray8Uint);
+CA_EXPORT NSString *const kCAContentsFormatRGBA16Float;
+CA_EXPORT NSString *const kCAContentsFormatGray8Uint;
 
 @protocol CALayerDelegate <NSObject>
 
@@ -75,18 +70,7 @@ CA_EXPORT CALayerContentsFormat const kCAContentsFormatGray8Uint NS_SWIFT_NAME(C
 
 @end
 
-typedef NSString *CADynamicRange NS_TYPED_ENUM;
-typedef NSString *CAToneMapMode NS_TYPED_ENUM;
-
-CA_EXPORT CADynamicRange const CADynamicRangeAutomatic;
-CA_EXPORT CADynamicRange const CADynamicRangeStandard;
-CA_EXPORT CADynamicRange const CADynamicRangeConstrainedHigh;
-CA_EXPORT CADynamicRange const CADynamicRangeHigh;
-
-CA_EXPORT CAToneMapMode const CAToneMapModeAutomatic;
-CA_EXPORT CAToneMapMode const CAToneMapModeNever;
-CA_EXPORT CAToneMapMode const CAToneMapModeIfSupported;
-@interface CALayer : NSObject <NSSecureCoding> {
+@interface CALayer : NSObject {
     CALayerContext *_context;
     CALayer *_superlayer;
     NSArray *_sublayers;
@@ -106,10 +90,7 @@ CA_EXPORT CAToneMapMode const CAToneMapModeIfSupported;
     BOOL _allowsGroupOpacity;
     CGPathRef _shadowPath;
     BOOL _needsLayout;
-    NSString *_preferredDynamicRange;
-    NSString *_toneMapMode;
     BOOL _allowsEdgeAntialiasing;
-    CAEdgeAntialiasingMask _edgeAntialiasingMask;
     CATransform3D _transform;
     CATransform3D _sublayerTransform;
     NSString *_minificationFilter;
@@ -137,7 +118,7 @@ CA_EXPORT CAToneMapMode const CAToneMapModeIfSupported;
 + layer;
 
 @property(readonly) CALayer *superlayer;
-@property(copy) NSArray<CALayer *> *sublayers;
+@property(copy) NSArray *sublayers;
 @property(assign) id<CALayerDelegate> delegate;
 @property CGPoint anchorPoint;
 @property CGPoint position;
@@ -159,18 +140,14 @@ CA_EXPORT CAToneMapMode const CAToneMapModeIfSupported;
 @property(copy) CALayerContentsFormat contentsFormat;
 @property(copy) CALayerContentsGravity contentsGravity;
 
-// Stored for callers; CARenderer draws standard dynamic range only.
-@property(copy) CADynamicRange preferredDynamicRange;
-@property(copy) CAToneMapMode toneMapMode;
-
 @property CATransform3D transform;
 @property CATransform3D sublayerTransform;
 
 - (CGAffineTransform) affineTransform;
 - (void) setAffineTransform: (CGAffineTransform) transform;
 
-@property(copy) CALayerContentsFilter minificationFilter;
-@property(copy) CALayerContentsFilter magnificationFilter;
+@property(copy) NSString *minificationFilter;
+@property(copy) NSString *magnificationFilter;
 
 // Appearance. CARenderer draws the background and the border as rounded rects
 // with cornerRadius, and the contents between them (not clipped to the corners).
@@ -196,19 +173,11 @@ CA_EXPORT CAToneMapMode const CAToneMapModeIfSupported;
 
 // Stored only; CARenderer does not yet antialias layer edges.
 @property BOOL allowsEdgeAntialiasing;
-@property CAEdgeAntialiasingMask edgeAntialiasingMask;
 
 // When YES, a change of the bounds size marks the layer as needing display.
 @property BOOL needsDisplayOnBoundsChange;
 
 - (nonnull instancetype)init;
-// Copies the layer's properties but not its place in the layer tree or its
-// animations, as for a presentation copy; subclasses copy their own state.
-- (nonnull instancetype)initWithLayer: (nonnull id)layer;
-// Archives the layer tree below this layer. Raises NSInvalidArchiveOperationException
-// for state that cannot be archived: animations, filter objects, and contents or
-// colors other than CGImages and colors in named or device color spaces.
-- (nullable instancetype)initWithCoder: (nonnull NSCoder *)coder;
 
 - (void) addSublayer: (CALayer *) layer;
 - (void) insertSublayer: (CALayer *) layer atIndex: (unsigned int) index;

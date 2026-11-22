@@ -53,42 +53,37 @@ NSNotificationName const NSSystemColorsDidChangeNotification = @"NSSystemColorsD
     if (color == NULL)
         return nil;
 
-    CGColorSpaceRef colorSpace = CGColorGetColorSpace(color);
-    NSColorSpaceName spaceName;
-    switch (CGColorSpaceGetModel(colorSpace)) {
-        case kCGColorSpaceModelMonochrome:
-            spaceName = NSDeviceWhiteColorSpace;
-            break;
-        case kCGColorSpaceModelRGB:
-            spaceName = NSCalibratedRGBColorSpace;
-            break;
-        case kCGColorSpaceModelCMYK:
-            spaceName = NSDeviceCMYKColorSpace;
-            break;
-        case kCGColorSpaceModelPattern:
-            spaceName = NSPatternColorSpace;
-            break;
-        default:
-            spaceName = NSCustomColorSpace;
-            break;
+    CGColorSpaceRef space = CGColorGetColorSpace(color);
+    NSString *spaceName = NSCustomColorSpace;
+    if (CGColorGetPattern(color) != NULL)
+        spaceName = NSPatternColorSpace;
+    else if (space != NULL) {
+        switch (CGColorSpaceGetModel(space)) {
+            case kCGColorSpaceModelMonochrome:
+                spaceName = NSDeviceWhiteColorSpace;
+                break;
+            case kCGColorSpaceModelRGB:
+                spaceName = NSDeviceRGBColorSpace;
+                break;
+            case kCGColorSpaceModelCMYK:
+                spaceName = NSDeviceCMYKColorSpace;
+                break;
+            default:
+                break;
+        }
     }
+
     return [NSColor_CGColor colorWithColorRef: color spaceName: spaceName];
 }
 
 + (NSColor *) colorWithColorSpace: (NSColorSpace *) space
-                       components: (const CGFloat *) components
-                            count: (NSInteger) count
-{
+                        components: (const CGFloat *) components
+                             count: (NSInteger) count {
     CGColorSpaceRef cgSpace = [space CGColorSpace];
-    if (cgSpace == NULL || components == NULL) {
+    if (cgSpace == NULL || components == NULL ||
+        count != (NSInteger) CGColorSpaceGetNumberOfComponents(cgSpace) + 1) {
         [NSException raise: NSInvalidArgumentException
-                    format: @"A component-based color space and components are required"];
-    }
-    CGColorSpaceModel model = CGColorSpaceGetModel(cgSpace);
-    if (model == kCGColorSpaceModelPattern || model == kCGColorSpaceModelIndexed ||
-        count != (NSInteger)CGColorSpaceGetNumberOfComponents(cgSpace) + 1) {
-        [NSException raise: NSInvalidArgumentException
-                    format: @"Color component count does not match its color space"];
+                    format: @"Invalid color space or component count"];
     }
 
     CGColorRef cgColor = CGColorCreate(cgSpace, components);
@@ -872,13 +867,13 @@ static NSColor *systemCatalogColor(NSColorName name, NSColor *fallback) {
 
 + (NSColor *) colorWithCatalogName: (NSColorListName) catalogName
                          colorName: (NSColorName) colorName
-+ (NSColor *) colorWithName: (NSString *) name dynamicProvider: (NSColor *(^)(NSAppearance *)) provider {
-    return provider([NSApp effectiveAppearance]);
-}
-
 {
     return [NSColor_catalog colorWithCatalogName: catalogName
                                        colorName: colorName];
+}
+
++ (NSColor *) colorWithName: (NSString *) name dynamicProvider: (NSColor *(^)(NSAppearance *)) provider {
+    return provider([NSApp effectiveAppearance]);
 }
 
 + (NSColor *) colorNamed: (NSColorName) name {

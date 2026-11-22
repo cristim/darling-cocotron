@@ -1,3 +1,5 @@
+#pragma once
+
 /*
  This file is part of Darling.
 
@@ -31,6 +33,8 @@ typedef NS_ENUM(NSInteger, NSGestureRecognizerState) {
 };
 
 @interface NSGestureRecognizer : NSObject <NSCoding>
+
+- (instancetype) initWithTarget: (id) target action: (SEL) action;
 
 // Always NSGestureRecognizerStatePossible. AppKit never sends events to a
 // recognizer, so no recognizer advances past it.

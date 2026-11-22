@@ -198,10 +198,10 @@ typedef struct __VFlags {
 
 - initWithCoder: (NSCoder *) coder {
     [super initWithCoder: coder];
+    _frameTransform = CGAffineTransformIdentity;
 
     // TODO: decode this
     _translatesAutoresizingMaskIntoConstraints = YES;
-    [self _setDefaultLayoutPriorities];
 
     if ([coder allowsKeyedCoding]) {
         NSKeyedUnarchiver *keyed = (NSKeyedUnarchiver *) coder;
@@ -428,6 +428,7 @@ typedef struct __VFlags {
     _transformFromWindow = CGAffineTransformIdentity;
     _transformToWindow = CGAffineTransformIdentity;
     _transformToLayer = CGAffineTransformIdentity;
+    _frameTransform = CGAffineTransformIdentity;
 
     // according to some Apple sample code ("Creating a Custom Metal View"),
     // it's valid for a subclass of NSView to set `wantsLayer` before invoking the superclass `initWithFrame:`.
@@ -435,7 +436,6 @@ typedef struct __VFlags {
     [_layerContext setFrame: _frame];
 
     _translatesAutoresizingMaskIntoConstraints = YES;
-    [self _setDefaultLayoutPriorities];
 
     return self;
 }
@@ -493,6 +493,8 @@ static CGAffineTransform concatViewTransform(CGAffineTransform result,
     if (doFrame)
         result = CGAffineTransformTranslate(result, frame.origin.x,
                                             frame.origin.y);
+
+    result = CGAffineTransformConcat(view->_frameTransform, result);
 
     // Apply bounds scaling to fit in the frame
     CGAffineTransform scale =
@@ -575,13 +577,29 @@ static inline void configureLayerGeometry(NSView *self) {
 
     [layer setAnchorPoint: CGPointMake(0, 0)];
 
-    if ([layer superlayer] == nil)
+    if ([layer superlayer] == nil) {
         [layer setPosition: CGPointMake(0, 0)];
-    else
-        [layer setPosition: self->_frame.origin];
+    } else {
+        NSPoint position = self->_frame.origin;
+        NSView *parent = self->_superview;
+        if (parent != nil && [parent isFlipped]) {
+            // NSView frames use the parent's top edge as the vertical origin
+            // when it is flipped. CALayer positions use the bottom edge.
+            NSRect parentBounds = [parent bounds];
+            position.y = NSMinY(parentBounds) + NSMaxY(parentBounds)
+                - NSMaxY(self->_frame);
+        }
+        [layer setPosition: position];
+    }
 
     [layer setBounds: self->_bounds];
+    [layer setAffineTransform: self->_frameTransform];
     [CATransaction commit];
+}
+
+static inline void configureChildLayerGeometry(NSView *self) {
+    for (NSView *child in self->_subviews)
+        configureLayerGeometry(child);
 }
 
 static inline void buildTransformsIfNeeded(NSView *self) {
@@ -617,6 +635,40 @@ static inline void buildTransformsIfNeeded(NSView *self) {
 
 - (NSRect) frame {
     return _frame;
+}
+
+- (NSEdgeInsets) alignmentRectInsets {
+    return NSEdgeInsetsMake(0, 0, 0, 0);
+}
+
+- (NSRect) alignmentRectForFrame: (NSRect) frame {
+    NSEdgeInsets insets = [self alignmentRectInsets];
+    return NSMakeRect(frame.origin.x + insets.left,
+                      frame.origin.y + insets.bottom,
+                      frame.size.width - insets.left - insets.right,
+                      frame.size.height - insets.top - insets.bottom);
+}
+
+- (NSRect) frameForAlignmentRect: (NSRect) alignmentRect {
+    NSEdgeInsets insets = [self alignmentRectInsets];
+    return NSMakeRect(alignmentRect.origin.x - insets.left,
+                      alignmentRect.origin.y - insets.bottom,
+                      alignmentRect.size.width + insets.left + insets.right,
+                      alignmentRect.size.height + insets.top + insets.bottom);
+}
+
+- (CGAffineTransform) frameTransform {
+    return _frameTransform;
+}
+
+- (void) setFrameTransform: (CGAffineTransform) transform {
+    if (CGAffineTransformEqualToTransform(_frameTransform, transform))
+        return;
+
+    _frameTransform = transform;
+    invalidateTransform(self);
+    configureLayerGeometry(self);
+    [self setNeedsDisplay: YES];
 }
 
 - (CGFloat) frameRotation {
@@ -728,7 +780,26 @@ static inline void buildTransformsIfNeeded(NSView *self) {
 }
 
 - (BOOL) isFlipped {
-    return NO;
+    return _isFlipped;
+}
+
+- (void) setFlipped: (BOOL) flipped {
+    flipped = flipped ? YES : NO;
+    if (_isFlipped == flipped)
+        return;
+
+    _isFlipped = flipped;
+    invalidateTransform(self);
+    configureChildLayerGeometry(self);
+    [self setNeedsDisplay: YES];
+}
+
+- (BOOL) ignoreHitTest {
+    return _ignoreHitTest;
+}
+
+- (void) setIgnoreHitTest: (BOOL) ignoreHitTest {
+    _ignoreHitTest = ignoreHitTest ? YES : NO;
 }
 
 - (BOOL) isOpaque {
@@ -740,8 +811,13 @@ static inline void buildTransformsIfNeeded(NSView *self) {
 }
 
 - (void) setAlphaValue: (CGFloat) alpha {
-    NSUnimplementedMethod();
+    _alphaValue = alpha;
+    // Views are layer-backed, so the layer's opacity is what drawing attenuates.
+    [self layer].opacity = alpha;
+    [self setNeedsDisplay: YES];
 }
+
+
 
 - (int) gState {
     return 0;
@@ -766,9 +842,21 @@ static inline void buildTransformsIfNeeded(NSView *self) {
 - (void) cacheDisplayInRect: (NSRect) rect
            toBitmapImageRep: (NSBitmapImageRep *) imageRep
 {
-    _alphaValue = alpha;
-    // Views are layer-backed, so the layer's opacity is what drawing attenuates.
-    [self layer].opacity = alpha;
+    NSUnimplementedMethod();
+}
+
+- (NSView *) maskView {
+    return _maskView;
+}
+
+- (void) setMaskView: (NSView *) view {
+    if (view == _maskView)
+        return;
+    [_maskView removeFromSuperview];
+    [_maskView release];
+    _maskView = [view retain];
+    if (_maskView)
+        [self addSubview: _maskView];
     [self setNeedsDisplay: YES];
 }
 
@@ -808,21 +896,6 @@ static inline void buildTransformsIfNeeded(NSView *self) {
 
 - (void) viewDidHide {
     // do nothing?
-- (NSView *) maskView {
-    return _maskView;
-}
-
-- (void) setMaskView: (NSView *) view {
-    if (view == _maskView)
-        return;
-    [_maskView removeFromSuperview];
-    [_maskView release];
-    _maskView = [view retain];
-    if (_maskView)
-        [self addSubview: _maskView];
-    [self setNeedsDisplay: YES];
-}
-
 }
 
 - (void) viewDidUnhide {
@@ -1151,6 +1224,9 @@ static void alignAxis(CGFloat *origin, CGFloat *length, NSAlignmentOptions optio
     [_layerContext setFrame: layerFrame];
 
     invalidateTransform(self);
+    configureLayerGeometry(self);
+    if (!NSEqualSizes(oldSize, _bounds.size))
+        configureChildLayerGeometry(self);
 
     if (_postsNotificationOnFrameChange)
         [[NSNotificationCenter defaultCenter]
@@ -1184,6 +1260,8 @@ static void alignAxis(CGFloat *origin, CGFloat *length, NSAlignmentOptions optio
     if (!NSEqualRects(bounds, _bounds)) {
         _bounds = bounds;
         invalidateTransform(self);
+        configureLayerGeometry(self);
+        configureChildLayerGeometry(self);
 
         [_window invalidateCursorRectsForView: self]; // this also invalidates
                                                       // tracking areas
@@ -1251,7 +1329,15 @@ static void alignAxis(CGFloat *origin, CGFloat *length, NSAlignmentOptions optio
 }
 
 - (void) _setSuperview: superview {
+    if (_superview != superview && _layer != nil)
+        [self _removeLayerFromSuperlayer];
+
     _superview = superview;
+
+    if (_layer != nil && superview != nil) {
+        [self _addLayerToSuperlayer];
+        configureLayerGeometry(self);
+    }
 
     [_window invalidateCursorRectsForView: self]; // this also invalidates
                                                   // tracking areas
@@ -1908,7 +1994,7 @@ static void alignAxis(CGFloat *origin, CGFloat *length, NSAlignmentOptions optio
 }
 
 - (void) _createLayerContextIfNeeded {
-    if ([_superview layer] == nil) {
+    if ([_superview layer] == nil && _layerContext == nil) {
         _layerContext = [[CALayerContext alloc] initWithFrame: [self frame]];
         [_layerContext setLayer: _layer];
         if (_window) {
@@ -1918,8 +2004,18 @@ static void alignAxis(CGFloat *origin, CGFloat *length, NSAlignmentOptions optio
 }
 
 - (void) _addLayerToSuperlayer {
-    [[_superview layer] addSublayer: _layer];
-    [self _createLayerContextIfNeeded];
+    CALayer *parentLayer = [_superview layer];
+    if (parentLayer != nil) {
+        // A child may have acquired a standalone layer context before its
+        // parent became layer-backed. Its new parent now owns rendering.
+        [_layerContext invalidate];
+        [_layerContext release];
+        _layerContext = nil;
+        [parentLayer addSublayer: _layer];
+        configureLayerGeometry(self);
+    } else {
+        [self _createLayerContextIfNeeded];
+    }
 }
 
 /*
@@ -1995,8 +2091,12 @@ static void alignAxis(CGFloat *origin, CGFloat *length, NSAlignmentOptions optio
             [[_superview layer] replaceSublayer: _layer with: value];
             [_layer release];
             _layer = value;
+            // A standalone layer context owns its renderer's root layer. When
+            // a view replaces its backing layer, keep that renderer in sync.
+            [_layerContext setLayer: _layer];
         }
 
+        configureLayerGeometry(self);
         [_subviews
                 makeObjectsPerformSelector: @selector(_addLayerToSuperlayer)];
     }
@@ -2293,7 +2393,8 @@ static NSView *viewBeingPrinted = nil;
     NSGraphicsContext *graphicsContext = [NSGraphicsContext currentContext];
     CGContextRef context = [graphicsContext graphicsPort];
 
-    if (viewBeingPrinted == nil && _layer != nil) {
+    if (viewBeingPrinted == nil &&
+        [_layer isKindOfClass: [NSViewBackingLayer class]]) {
         CGImageRef image = CGBitmapContextCreateImage(context);
         [_layer setContents:(id)image];
         CGImageRelease(image);
@@ -3024,13 +3125,6 @@ static CGFloat backingScaleFactor(NSView *view) {
     NSUnimplementedMethod();
 }
 
-- (void) _setDefaultLayoutPriorities {
-    _horizontalContentHuggingPriority = NSLayoutPriorityDefaultLow;
-    _verticalContentHuggingPriority = NSLayoutPriorityDefaultLow;
-    _horizontalContentCompressionResistancePriority = NSLayoutPriorityDefaultHigh;
-    _verticalContentCompressionResistancePriority = NSLayoutPriorityDefaultHigh;
-}
-
 - (NSLayoutPriority) contentHuggingPriorityForOrientation: (NSLayoutConstraintOrientation) orientation {
     if (orientation == NSLayoutConstraintOrientationHorizontal) {
         return _horizontalContentHuggingPriority;
@@ -3078,6 +3172,8 @@ static CGFloat backingScaleFactor(NSView *view) {
 
 - (void) setNeedsLayout: (BOOL) flag {
     _needsLayout = flag;
+    if (flag && _window != nil)
+        [_window setViewsNeedDisplay: YES];
 }
 
 - (BOOL) needsUpdateConstraints {
@@ -3180,8 +3276,10 @@ static id anchorForView(NSView *view, NSString *className,
 }
 
 - (void) layoutSubtreeIfNeeded {
-    if (_needsLayout)
+    if (_needsLayout) {
+        _needsLayout = NO;
         [self layout];
+    }
     [_subviews makeObjectsPerformSelector: _cmd];
 }
 
