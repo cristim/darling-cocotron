@@ -28,4 +28,10 @@
 + (BOOL) hasOpenTransaction;
 // Private. The state of the innermost open transaction, nil when none is open.
 + (id) currentState;
+// Private. Keeps a handler for "an implicit transaction began"; never called, its signature is unknown.
++ (void) setImplicitTransactionDidBeginHandler: (id) handler;
+// Private. Keeps a flag that asks a run loop observer not to commit transactions; has no effect here.
++ (void) setDisableRunLoopObserverCommits: (BOOL) value;
+// Private. Keeps the default of that flag for later transactions; has no effect here.
++ (void) setDefaultDisableRunLoopObserverCommits: (BOOL) value;
 @end

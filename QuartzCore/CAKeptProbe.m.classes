@@ -1,0 +1,238 @@
+/* Probe, not for commit: one placeholder class per kept QuartzCore export (names from Darling dyld logs). */
+#import <Foundation/Foundation.h>
+#import <objc/runtime.h>
+#import <stdio.h>
+#import <QuartzCore/CALayer.h>
+
+@interface CABackdropLayer : CALayer @end
+@implementation CABackdropLayer
++ (void)initialize { fprintf(stderr, "KEPTPROBE initialize %s\n", class_getName(self)); }
+@end
+@interface CABatchHandle : NSObject @end
+@implementation CABatchHandle
++ (void)initialize { fprintf(stderr, "KEPTPROBE initialize %s\n", class_getName(self)); }
+@end
+@interface CAChameleonLayer : CALayer @end
+@implementation CAChameleonLayer
++ (void)initialize { fprintf(stderr, "KEPTPROBE initialize %s\n", class_getName(self)); }
+@end
+@interface CADisplay : NSObject @end
+@implementation CADisplay
++ (void)initialize { fprintf(stderr, "KEPTPROBE initialize %s\n", class_getName(self)); }
+@end
+@interface CADisplayMode : NSObject @end
+@implementation CADisplayMode
++ (void)initialize { fprintf(stderr, "KEPTPROBE initialize %s\n", class_getName(self)); }
+@end
+@interface CADisplayWallConfiguration : NSObject @end
+@implementation CADisplayWallConfiguration
++ (void)initialize { fprintf(stderr, "KEPTPROBE initialize %s\n", class_getName(self)); }
+@end
+@interface CADynamicFrameRateSource : NSObject @end
+@implementation CADynamicFrameRateSource
++ (void)initialize { fprintf(stderr, "KEPTPROBE initialize %s\n", class_getName(self)); }
+@end
+@interface CAEAGLLayer : CALayer @end
+@implementation CAEAGLLayer
++ (void)initialize { fprintf(stderr, "KEPTPROBE initialize %s\n", class_getName(self)); }
+@end
+@interface CAEmitterBehavior : NSObject @end
+@implementation CAEmitterBehavior
++ (void)initialize { fprintf(stderr, "KEPTPROBE initialize %s\n", class_getName(self)); }
+@end
+@interface CAExternalAnimation : NSObject @end
+@implementation CAExternalAnimation
++ (void)initialize { fprintf(stderr, "KEPTPROBE initialize %s\n", class_getName(self)); }
+@end
+@interface CAFenceHandle : NSObject @end
+@implementation CAFenceHandle
++ (void)initialize { fprintf(stderr, "KEPTPROBE initialize %s\n", class_getName(self)); }
+@end
+@interface CALocalDisplay : NSObject @end
+@implementation CALocalDisplay
++ (void)initialize { fprintf(stderr, "KEPTPROBE initialize %s\n", class_getName(self)); }
+@end
+@interface CAMLParser : NSObject @end
+@implementation CAMLParser
++ (void)initialize { fprintf(stderr, "KEPTPROBE initialize %s\n", class_getName(self)); }
+@end
+@interface CAMatchMoveAnimation : NSObject @end
+@implementation CAMatchMoveAnimation
++ (void)initialize { fprintf(stderr, "KEPTPROBE initialize %s\n", class_getName(self)); }
+@end
+@interface CAMatchPropertyAnimation : NSObject @end
+@implementation CAMatchPropertyAnimation
++ (void)initialize { fprintf(stderr, "KEPTPROBE initialize %s\n", class_getName(self)); }
+@end
+@interface CAMeshTransform : NSObject @end
+@implementation CAMeshTransform
++ (void)initialize { fprintf(stderr, "KEPTPROBE initialize %s\n", class_getName(self)); }
+@end
+@interface CAMetalDisplayLink : NSObject @end
+@implementation CAMetalDisplayLink
++ (void)initialize { fprintf(stderr, "KEPTPROBE initialize %s\n", class_getName(self)); }
+@end
+@interface CAMutableMeshTransform : NSObject @end
+@implementation CAMutableMeshTransform
++ (void)initialize { fprintf(stderr, "KEPTPROBE initialize %s\n", class_getName(self)); }
+@end
+@interface CAPackage : NSObject @end
+@implementation CAPackage
++ (void)initialize { fprintf(stderr, "KEPTPROBE initialize %s\n", class_getName(self)); }
+@end
+@interface CAPluginLayer : CALayer @end
+@implementation CAPluginLayer
++ (void)initialize { fprintf(stderr, "KEPTPROBE initialize %s\n", class_getName(self)); }
+@end
+@interface CAPortalLayer : CALayer @end
+@implementation CAPortalLayer
++ (void)initialize { fprintf(stderr, "KEPTPROBE initialize %s\n", class_getName(self)); }
+@end
+@interface CAPresentationModifier : NSObject @end
+@implementation CAPresentationModifier
++ (void)initialize { fprintf(stderr, "KEPTPROBE initialize %s\n", class_getName(self)); }
+@end
+@interface CAPresentationModifierGroup : NSObject @end
+@implementation CAPresentationModifierGroup
++ (void)initialize { fprintf(stderr, "KEPTPROBE initialize %s\n", class_getName(self)); }
+@end
+@interface CAProxyLayer : CALayer @end
+@implementation CAProxyLayer
++ (void)initialize { fprintf(stderr, "KEPTPROBE initialize %s\n", class_getName(self)); }
+@end
+@interface CARemoteEffect : NSObject @end
+@implementation CARemoteEffect
++ (void)initialize { fprintf(stderr, "KEPTPROBE initialize %s\n", class_getName(self)); }
+@end
+@interface CARemoteEffectGroup : NSObject @end
+@implementation CARemoteEffectGroup
++ (void)initialize { fprintf(stderr, "KEPTPROBE initialize %s\n", class_getName(self)); }
+@end
+@interface CARemoteExternalEffect : NSObject @end
+@implementation CARemoteExternalEffect
++ (void)initialize { fprintf(stderr, "KEPTPROBE initialize %s\n", class_getName(self)); }
+@end
+@interface CARemotePropertyEffect : NSObject @end
+@implementation CARemotePropertyEffect
++ (void)initialize { fprintf(stderr, "KEPTPROBE initialize %s\n", class_getName(self)); }
+@end
+@interface CASDFElementLayer : CALayer @end
+@implementation CASDFElementLayer
++ (void)initialize { fprintf(stderr, "KEPTPROBE initialize %s\n", class_getName(self)); }
+@end
+@interface CASDFFillEffect : NSObject @end
+@implementation CASDFFillEffect
++ (void)initialize { fprintf(stderr, "KEPTPROBE initialize %s\n", class_getName(self)); }
+@end
+@interface CASDFGenerator : NSObject @end
+@implementation CASDFGenerator
++ (void)initialize { fprintf(stderr, "KEPTPROBE initialize %s\n", class_getName(self)); }
+@end
+@interface CASDFGeneratorRequest : NSObject @end
+@implementation CASDFGeneratorRequest
++ (void)initialize { fprintf(stderr, "KEPTPROBE initialize %s\n", class_getName(self)); }
+@end
+@interface CASDFGlassDisplacementEffect : NSObject @end
+@implementation CASDFGlassDisplacementEffect
++ (void)initialize { fprintf(stderr, "KEPTPROBE initialize %s\n", class_getName(self)); }
+@end
+@interface CASDFGlassHighlightEffect : NSObject @end
+@implementation CASDFGlassHighlightEffect
++ (void)initialize { fprintf(stderr, "KEPTPROBE initialize %s\n", class_getName(self)); }
+@end
+@interface CASDFGradientEffect : NSObject @end
+@implementation CASDFGradientEffect
++ (void)initialize { fprintf(stderr, "KEPTPROBE initialize %s\n", class_getName(self)); }
+@end
+@interface CASDFKeyFillHighlightEffect : NSObject @end
+@implementation CASDFKeyFillHighlightEffect
++ (void)initialize { fprintf(stderr, "KEPTPROBE initialize %s\n", class_getName(self)); }
+@end
+@interface CASDFLayer : CALayer @end
+@implementation CASDFLayer
++ (void)initialize { fprintf(stderr, "KEPTPROBE initialize %s\n", class_getName(self)); }
+@end
+@interface CASDFOutputEffect : NSObject @end
+@implementation CASDFOutputEffect
++ (void)initialize { fprintf(stderr, "KEPTPROBE initialize %s\n", class_getName(self)); }
+@end
+@interface CASDFShadowEffect : NSObject @end
+@implementation CASDFShadowEffect
++ (void)initialize { fprintf(stderr, "KEPTPROBE initialize %s\n", class_getName(self)); }
+@end
+@interface CASecureIndicatorLayer : CALayer @end
+@implementation CASecureIndicatorLayer
++ (void)initialize { fprintf(stderr, "KEPTPROBE initialize %s\n", class_getName(self)); }
+@end
+@interface CAState : NSObject @end
+@implementation CAState
++ (void)initialize { fprintf(stderr, "KEPTPROBE initialize %s\n", class_getName(self)); }
+@end
+@interface CAStateAddAnimation : NSObject @end
+@implementation CAStateAddAnimation
++ (void)initialize { fprintf(stderr, "KEPTPROBE initialize %s\n", class_getName(self)); }
+@end
+@interface CAStateAddElement : NSObject @end
+@implementation CAStateAddElement
++ (void)initialize { fprintf(stderr, "KEPTPROBE initialize %s\n", class_getName(self)); }
+@end
+@interface CAStateController : NSObject @end
+@implementation CAStateController
++ (void)initialize { fprintf(stderr, "KEPTPROBE initialize %s\n", class_getName(self)); }
+@end
+@interface CAStateElement : NSObject @end
+@implementation CAStateElement
++ (void)initialize { fprintf(stderr, "KEPTPROBE initialize %s\n", class_getName(self)); }
+@end
+@interface CAStateRemoveAnimation : NSObject @end
+@implementation CAStateRemoveAnimation
++ (void)initialize { fprintf(stderr, "KEPTPROBE initialize %s\n", class_getName(self)); }
+@end
+@interface CAStateRemoveElement : NSObject @end
+@implementation CAStateRemoveElement
++ (void)initialize { fprintf(stderr, "KEPTPROBE initialize %s\n", class_getName(self)); }
+@end
+@interface CAStateSetValue : NSObject @end
+@implementation CAStateSetValue
++ (void)initialize { fprintf(stderr, "KEPTPROBE initialize %s\n", class_getName(self)); }
+@end
+@interface CAStateTransition : NSObject @end
+@implementation CAStateTransition
++ (void)initialize { fprintf(stderr, "KEPTPROBE initialize %s\n", class_getName(self)); }
+@end
+@interface CAStateTransitionElement : NSObject @end
+@implementation CAStateTransitionElement
++ (void)initialize { fprintf(stderr, "KEPTPROBE initialize %s\n", class_getName(self)); }
+@end
+@interface CAStereoMetalTexture : NSObject @end
+@implementation CAStereoMetalTexture
++ (void)initialize { fprintf(stderr, "KEPTPROBE initialize %s\n", class_getName(self)); }
+@end
+@interface CATiledLayer : CALayer @end
+@implementation CATiledLayer
++ (void)initialize { fprintf(stderr, "KEPTPROBE initialize %s\n", class_getName(self)); }
+@end
+@interface CATransactionCompletionItem : NSObject @end
+@implementation CATransactionCompletionItem
++ (void)initialize { fprintf(stderr, "KEPTPROBE initialize %s\n", class_getName(self)); }
+@end
+@interface CAWindowLayer : CALayer @end
+@implementation CAWindowLayer
++ (void)initialize { fprintf(stderr, "KEPTPROBE initialize %s\n", class_getName(self)); }
+@end
+@interface CAWindowServer : NSObject @end
+@implementation CAWindowServer
++ (void)initialize { fprintf(stderr, "KEPTPROBE initialize %s\n", class_getName(self)); }
+@end
+@interface CAWindowServerDisplay : NSObject @end
+@implementation CAWindowServerDisplay
++ (void)initialize { fprintf(stderr, "KEPTPROBE initialize %s\n", class_getName(self)); }
+@end
+@interface CAWindowServerVirtualDisplay : NSObject @end
+@implementation CAWindowServerVirtualDisplay
++ (void)initialize { fprintf(stderr, "KEPTPROBE initialize %s\n", class_getName(self)); }
+@end
+@interface CAEDRMetadata : NSObject @end
+@implementation CAEDRMetadata
++ (void)initialize { fprintf(stderr, "KEPTPROBE initialize %s\n", class_getName(self)); }
+@end
