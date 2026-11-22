@@ -764,6 +764,19 @@ static void glDebugCallback(GLenum source, GLenum type, GLuint id, GLenum severi
 	fprintf(stderr, "GL CALLBACK: %s type = 0x%x, severity = 0x%x, message = %s\n", (type == GL_DEBUG_TYPE_ERROR ? "** GL ERROR **" : ""), type, severity, message);
 };
 
+// MTLTextureInternal is a private class of Darling's Metal. Naming it in code makes
+// QuartzCore import its class symbol, and a Metal served from elsewhere (the macOS
+// dyld shared cache) does not export it, so QuartzCore would fail to bind at load.
+// Look it up when a drawable is made instead.
+static Class darlingTextureClass(void) {
+	static Class textureClass = Nil;
+	static dispatch_once_t once;
+	dispatch_once(&once, ^{
+		textureClass = objc_getClass("MTLTextureInternal");
+	});
+	return textureClass;
+}
+
 @implementation CAMetalDrawableInternal
 
 @synthesize drawableID = _drawableID;
@@ -789,7 +802,15 @@ static void glDebugCallback(GLenum source, GLenum type, GLuint id, GLenum severi
 		_drawableID = drawable->drawableID();
 		_presentedHandlers = [NSMutableArray new];
 		_drawable = drawable;
-		_texture = [[MTLTextureInternal alloc] initWithTexture: drawable->texture() device: layer.device resourceOptions: MTLResourceStorageModeShared];
+
+		Class textureClass = darlingTextureClass();
+		if (textureClass == Nil || ![textureClass instancesRespondToSelector: @selector(initWithTexture:device:resourceOptions:)]) {
+			// QuartzCore is paired with a Metal that is not Darling's. -dealloc recycles the drawable.
+			[self release];
+			[NSException raise: NSInternalInconsistencyException format: @"CAMetalDrawable needs Darling's Metal, which provides MTLTextureInternal"];
+		}
+
+		_texture = [(MTLTextureInternal*)[textureClass alloc] initWithTexture: drawable->texture() device: layer.device resourceOptions: MTLResourceStorageModeShared];
 
 		_drawable->reset();
 
