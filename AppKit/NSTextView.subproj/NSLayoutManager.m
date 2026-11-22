@@ -1371,6 +1371,8 @@ static inline void _appendRectToCache(NSLayoutManager *self, NSRect rect) {
     0
 #endif
 
+    [self validateGlyphsAndLayoutForContainer: container];
+
     NSRange remainder =
             (selGlyphRange.location == NSNotFound) ? glyphRange : selGlyphRange;
 

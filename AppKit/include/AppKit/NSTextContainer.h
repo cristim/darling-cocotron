@@ -62,6 +62,7 @@ typedef enum {
 - (void) setContainerSize: (NSSize) size;
 
 - (void) setTextView: (NSTextView *) textView;
+- (void) _resizeToTextView;
 - (void) setWidthTracksTextView: (BOOL) flag;
 - (void) setHeightTracksTextView: (BOOL) flag;
 

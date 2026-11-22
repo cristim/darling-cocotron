@@ -458,6 +458,8 @@ NSString *const NSAllRomanInputSourcesLocaleIdentifier =
 
 - (void) setTextContainerInset: (NSSize) size {
     _textContainerInset = size;
+    [_textContainer _resizeToTextView];
+    [self setNeedsDisplay: YES];
 }
 
 - (void) setUsesRuler: (BOOL) flag {
@@ -833,6 +835,7 @@ NSString *const NSAllRomanInputSourcesLocaleIdentifier =
     if (range.length == 0) {
         if (range.location >= [_textStorage length]) {
             result = [[self layoutManager] extraLineFragmentRect];
+            result.origin.x += [_textContainer lineFragmentPadding];
             if (NSIsEmptyRect(result) && [_textStorage length]) {
                 NSUInteger rectCount = 0;
                 // Get the last used fragment rect
