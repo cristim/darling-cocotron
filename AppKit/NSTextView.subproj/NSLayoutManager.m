@@ -1143,12 +1143,11 @@ static inline NSGlyphFragment *fragmentAtGlyphIndex(NSLayoutManager *self,
             // still a candidate
 
             // For the cases we hit a line at the left or right of all fragments
+            // Left of the line (e.g. in the line fragment padding): later
+            // lines would return this line's end, so return its start now.
             if (point.x < NSMinX(fragment->rect)) {
-                if (fragment->leftToRight) {
-                    result = range.location;
-                } else {
-                    result = NSMaxRange(range);
-                }
+                return fragment->leftToRight ? range.location
+                                             : NSMaxRange(range);
             } else if (point.x > NSMaxX(fragment->rect)) {
                 if (fragment->leftToRight) {
                     result = NSMaxRange(range);
@@ -1370,6 +1369,8 @@ static inline void _appendRectToCache(NSLayoutManager *self, NSRect rect) {
 #define DEBUG_rectArrayForGlyphRange_withinSelectedGlyphRange_inTextContainer_rectCount \
     0
 #endif
+
+    [self validateGlyphsAndLayoutForContainer: container];
 
     NSRange remainder =
             (selGlyphRange.location == NSNotFound) ? glyphRange : selGlyphRange;
