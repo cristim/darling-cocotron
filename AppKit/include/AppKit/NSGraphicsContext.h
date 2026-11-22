@@ -63,7 +63,7 @@ typedef enum {
 + (NSGraphicsContext *) graphicsContextWithCGContext: (CGContextRef) context
                                              flipped: (BOOL) flipped;
 
-+ (NSGraphicsContext *) currentContext;
+@property (class, readonly, retain) NSGraphicsContext *currentContext;
 + (void) setCurrentContext: (NSGraphicsContext *) context;
 
 + (void) saveGraphicsState;
@@ -75,8 +75,8 @@ typedef enum {
 - (CGContextRef) CGContext;
 - (NSMutableArray *) focusStack;
 
-- (BOOL) isDrawingToScreen;
-- (BOOL) isFlipped;
+@property (readonly) BOOL isDrawingToScreen;
+@property (readonly) BOOL isFlipped;
 
 - (void) setShouldAntialias: (BOOL) value;
 - (void) setImageInterpolation: (NSImageInterpolation) value;
